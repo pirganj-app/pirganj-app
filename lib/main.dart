@@ -358,9 +358,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       post: item,
                       onLike: () async {
                         try {
-                          await api.togglePostReaction(item['id'].toString());
-                          if (mounted)
-                            setState(() => postsFuture = api.getPosts());
+                          final reaction =
+                              item['myReaction']?.toString() ?? 'love';
+                          final list = await api.togglePostReaction(
+                              item['id'].toString(),
+                              reaction: reaction);
+                          item['likes'] = list.length;
+                          item['myReaction'] = list.any((e) =>
+                                  (e['userId'] ?? e['user_id'])?.toString() ==
+                                  api.userId)
+                              ? reaction
+                              : null;
+                          if (mounted) setState(() {});
                         } catch (e) {
                           _message('রিঅ্যাকশন দেওয়া যায়নি: $e');
                         }
@@ -613,6 +622,9 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selected = post['myReaction']?.toString();
+    final activeReaction = selected ?? 'love';
+    final activeColor = selected == null ? Colors.black54 : brand;
     return Card(
         margin: const EdgeInsets.only(bottom: 12),
         elevation: 0,
@@ -670,11 +682,20 @@ class _PostCard extends StatelessWidget {
                       Row(children: [
                         GestureDetector(
                             onLongPress: () => _showReactionPicker(context),
-                            child: TextButton.icon(
-                                onPressed: onLike,
-                                icon:
-                                    const Icon(Icons.favorite_border, size: 18),
-                                label: Text('${post['likes'] ?? 0}'))),
+                            child: Container(
+                                decoration: BoxDecoration(
+                                    color: selected == null
+                                        ? Colors.transparent
+                                        : const Color(0xFFE8F6F0),
+                                    borderRadius: BorderRadius.circular(18)),
+                                child: TextButton.icon(
+                                    onPressed: onLike,
+                                    icon: Text(_reactionEmoji(activeReaction),
+                                        style: const TextStyle(fontSize: 19)),
+                                    label: Text(
+                                        '${_reactionLabel(activeReaction)} ${post['likes'] ?? 0}',
+                                        style:
+                                            TextStyle(color: activeColor))))),
                         const SizedBox(width: 8),
                         Text('💬 ${post['comments'] ?? 0}',
                             style: const TextStyle(color: Colors.black54)),
@@ -765,7 +786,18 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     try {
       final list = await widget.api
           .togglePostReaction(widget.post['id'].toString(), reaction: reaction);
-      if (mounted) setState(() => reactionsFuture = Future.value(list));
+      if (mounted) {
+        final mine = list
+            .cast<Map<String, dynamic>>()
+            .where((e) =>
+                (e['userId'] ?? e['user_id'])?.toString() == widget.api.userId)
+            .toList();
+        setState(() {
+          widget.post['likes'] = list.length;
+          widget.post['myReaction'] = mine.isEmpty ? null : reaction;
+          reactionsFuture = Future.value(list);
+        });
+      }
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context)
@@ -868,6 +900,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     final isAuthor =
         item['ownerId']?.toString() == widget.post['ownerId']?.toString();
     return Card(
+        margin: EdgeInsets.only(left: item['parentId'] != null ? 24 : 0),
         elevation: 0,
         color: Colors.white,
         child: Padding(
@@ -916,6 +949,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 value: 'delete', child: Text('Delete'))
                           ])
               ]),
+              if (item['parentId'] != null)
+                Container(
+                    margin: const EdgeInsets.only(bottom: 7),
+                    padding: const EdgeInsets.only(left: 10),
+                    decoration: const BoxDecoration(
+                        border:
+                            Border(left: BorderSide(color: brand, width: 3))),
+                    child: Text(
+                        'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                        style: const TextStyle(
+                            color: brand,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700))),
               Text(item['body']?.toString() ?? '',
                   style: const TextStyle(height: 1.4)),
               Row(children: [
@@ -929,7 +975,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                             })),
                     child: TextButton.icon(
                         onPressed: () =>
-                            commentReaction(item['id'].toString(), 'like'),
+                            commentReaction(item['id'].toString(), 'love'),
                         icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
                         label: Text('${reactions.length}'))),
                 if (reactions.isNotEmpty)
@@ -953,7 +999,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _PostCard(
             post: widget.post,
-            onLike: () => selectPostReaction('like'),
+            onLike: () => selectPostReaction(
+                widget.post['myReaction']?.toString() ?? 'love'),
             onReact: selectPostReaction,
             onOpen: () {}),
         FutureBuilder<List<dynamic>>(
@@ -962,8 +1009,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               final list = snap.data ?? [];
               return Row(children: [
                 TextButton.icon(
-                    onPressed: () => selectPostReaction('like'),
-                    icon: const Text('👍', style: TextStyle(fontSize: 20)),
+                    onPressed: () => selectPostReaction(
+                        widget.post['myReaction']?.toString() ?? 'love'),
+                    icon: Text(
+                        _reactionEmoji(
+                            widget.post['myReaction']?.toString() ?? 'love'),
+                        style: TextStyle(fontSize: 20)),
                     label: Text('${list.length}')),
                 TextButton(
                     onPressed: () => showReactors(list),
@@ -2340,6 +2391,29 @@ class _ProfilePanelState extends State<ProfilePanel> {
     }
   }
 
+  Widget _managedItemsSection(List<dynamic> all, {required bool posts}) {
+    final items = all
+        .map((raw) => Map<String, dynamic>.from(raw))
+        .where((item) => (item['resource']?.toString() == 'posts') == posts)
+        .toList();
+    if (items.isEmpty)
+      return _EmptyCard(
+          text: posts
+              ? 'আপনি এখনো কোনো পোস্ট করেননি'
+              : 'অন্য কোনো তথ্য যোগ করা হয়নি');
+    return Column(
+        children: items.map((item) {
+      final r = item['resource']?.toString() ?? '';
+      return _OwnedItemCard(
+          title: itemTitle(item),
+          subtitle: itemSubtitle(item),
+          label: resourceLabel(r),
+          icon: resourceIcon(r),
+          onEdit: () => _edit(item),
+          onDelete: () => _delete(item));
+    }).toList());
+  }
+
   @override
   Widget build(BuildContext context) =>
       ListView(padding: const EdgeInsets.fromLTRB(16, 18, 16, 30), children: [
@@ -2377,21 +2451,26 @@ class _ProfilePanelState extends State<ProfilePanel> {
               if (snapshot.hasError)
                 return _EmptyCard(
                     text: 'তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
-              final items = snapshot.data ?? [];
-              if (items.isEmpty)
-                return const _EmptyCard(text: 'আপনি এখনো কোনো তথ্য যোগ করেননি');
+              final all = snapshot.data ?? [];
               return Column(
-                  children: items.map((raw) {
-                final item = Map<String, dynamic>.from(raw);
-                final r = item['resource']?.toString() ?? '';
-                return _OwnedItemCard(
-                    title: itemTitle(item),
-                    subtitle: itemSubtitle(item),
-                    label: resourceLabel(r),
-                    icon: resourceIcon(r),
-                    onEdit: () => _edit(item),
-                    onDelete: () => _delete(item));
-              }).toList());
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('আমার পোস্ট',
+                        style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: ink)),
+                    const SizedBox(height: 8),
+                    _managedItemsSection(all, posts: true),
+                    const SizedBox(height: 18),
+                    const Text('অন্যান্য তথ্য',
+                        style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: ink)),
+                    const SizedBox(height: 8),
+                    _managedItemsSection(all, posts: false),
+                  ]);
             }),
         const SizedBox(height: 22),
         const Divider(height: 1),
