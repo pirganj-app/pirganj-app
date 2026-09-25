@@ -210,3 +210,14 @@ Do not commit the following files:
 **Project:** Pirganj | **Mobile:** Flutter | **Backend:** Express.js | **Database:** Supabase
 
 [1] [2] [3] [4]
+
+## Standard Android release build
+
+For every release, build Android 14–16 compatible low-size APKs with:
+
+```bash
+source /home/ubuntu/pirganj-tools-env.sh
+./scripts/build_release_apks.sh
+```
+
+This runs analysis and widget tests, then uses `flutter build apk --release --split-per-abi`. Distribute `app-arm64-v8a-release.apk` to modern Android 14–16 phones; keep the `armeabi-v7a` build for older 32-bit devices. Do not distribute the universal `app-release.apk` when download size matters.
