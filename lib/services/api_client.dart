@@ -9,6 +9,19 @@ class PirganjApiClient {
   final http.Client _client;
   String? token;
 
+  String? get userId {
+    try {
+      if (token == null) return null;
+      final parts = token!.split('.');
+      if (parts.length != 3) return null;
+      final payload =
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      return (jsonDecode(payload) as Map<String, dynamic>)['sub']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, String> get _headers => {
         'Accept': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token'

@@ -843,19 +843,21 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                               fontSize: 10,
                                               color: Colors.black45))
                                     ])),
-                                PopupMenuButton<String>(
-                                    onSelected: (v) {
-                                      if (v == 'edit') editComment(item);
-                                      if (v == 'delete') deleteComment(item);
-                                    },
-                                    itemBuilder: (_) => const [
-                                          PopupMenuItem(
-                                              value: 'edit',
-                                              child: Text('Edit')),
-                                          PopupMenuItem(
-                                              value: 'delete',
-                                              child: Text('Delete'))
-                                        ])
+                                if (item['ownerId']?.toString() ==
+                                    widget.api.userId)
+                                  PopupMenuButton<String>(
+                                      onSelected: (v) {
+                                        if (v == 'edit') editComment(item);
+                                        if (v == 'delete') deleteComment(item);
+                                      },
+                                      itemBuilder: (_) => const [
+                                            PopupMenuItem(
+                                                value: 'edit',
+                                                child: Text('Edit')),
+                                            PopupMenuItem(
+                                                value: 'delete',
+                                                child: Text('Delete'))
+                                          ])
                               ]),
                               Text(item['body']?.toString() ?? '',
                                   style: const TextStyle(height: 1.4)),
