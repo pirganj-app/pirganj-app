@@ -900,6 +900,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   Widget commentTile(Map<String, dynamic> item) {
     final reactions =
         List<dynamic>.from(item['reactions'] as List? ?? const []);
+    final myReaction = reactions
+        .cast<Map<String, dynamic>>()
+        .where((reaction) =>
+            (reaction['userId'] ?? reaction['user_id'])?.toString() ==
+            widget.api.userId)
+        .map((reaction) => reaction['reaction']?.toString())
+        .firstWhere((reaction) => reaction != null, orElse: () => null);
     final isAuthor =
         item['ownerId']?.toString() == widget.post['ownerId']?.toString();
     return Card(
@@ -979,12 +986,18 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     child: TextButton.icon(
                         style: TextButton.styleFrom(
                             minimumSize: Size.zero,
+                            backgroundColor: myReaction == null
+                                ? Colors.transparent
+                                : const Color(0xFFE8F6F0),
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 5, vertical: 2)),
                         onPressed: () =>
                             commentReaction(item['id'].toString(), 'love'),
-                        icon: const Icon(Icons.favorite_border,
-                            color: Colors.black54, size: 16),
+                        icon: myReaction == null
+                            ? const Icon(Icons.favorite_border,
+                                color: Colors.black54, size: 16)
+                            : Text(_reactionEmoji(myReaction),
+                                style: const TextStyle(fontSize: 17)),
                         label: Text('${reactions.length}'))),
                 if (reactions.isNotEmpty)
                   TextButton(
@@ -2424,11 +2437,16 @@ class _ProfilePanelState extends State<ProfilePanel> {
   }
 
   @override
-  Widget build(BuildContext context) => ListView(
+  Widget build(BuildContext context) => Scrollbar(
+      controller: _profileScrollController,
+      thumbVisibility: true,
+      child: ListView(
           controller: _profileScrollController,
           primary: false,
+          shrinkWrap: false,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics()),
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
           children: [
             FutureBuilder<Map<String, dynamic>>(
@@ -2509,7 +2527,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                         padding: const EdgeInsets.symmetric(vertical: 14)),
                     icon: const Icon(Icons.delete_forever_rounded),
                     label: const Text('Delete account permanently'))),
-          ]);
+          ]));
 }
 
 class _ProfileHeader extends StatelessWidget {
