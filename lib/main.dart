@@ -689,31 +689,6 @@ class _PostCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               color: Colors.black54, height: 1.5)),
-                      if (reactionList != null) ...[
-                        const SizedBox(height: 5),
-                        InkWell(
-                            onTap: onShowReactions,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 1, horizontal: 2),
-                                child: Row(children: [
-                                  Text(_reactionEmoji(selected ?? 'love'),
-                                      style: const TextStyle(fontSize: 17)),
-                                  const SizedBox(width: 4),
-                                  Text('${reactions.length}',
-                                      style: const TextStyle(
-                                          color: Colors.black54,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700)),
-                                  const SizedBox(width: 5),
-                                  const Text('reactions',
-                                      style: TextStyle(
-                                          color: Colors.black54,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600))
-                                ])))
-                      ],
                       const SizedBox(height: 11),
                       Row(children: [
                         GestureDetector(
@@ -735,6 +710,20 @@ class _PostCard extends StatelessWidget {
                                     label: Text('${post['likes'] ?? 0}',
                                         style:
                                             TextStyle(color: activeColor))))),
+                        if (reactionList != null) ...[
+                          const SizedBox(width: 2),
+                          InkWell(
+                              onTap: onShowReactions,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 3),
+                                  child: Text('${reactions.length} reactions',
+                                      style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600))))
+                        ],
                         const SizedBox(width: 8),
                         Text('💬 ${post['comments'] ?? 0}',
                             style: const TextStyle(color: Colors.black54)),
