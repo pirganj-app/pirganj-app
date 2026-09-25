@@ -1862,6 +1862,34 @@ class _ProfilePanelState extends State<ProfilePanel> {
     }
   }
 
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+                title: const Text('Account permanently delete করবেন?'),
+                content: const Text(
+                    'আপনার profile এবং আপনার যোগ করা সব তথ্য স্থায়ীভাবে মুছে যাবে। এই কাজটি undo করা যাবে না.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('বাতিল')),
+                  FilledButton(
+                      style:
+                          FilledButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('স্থায়ীভাবে delete'))
+                ]));
+    if (confirmed != true) return;
+    try {
+      await widget.api.deleteAccount();
+      if (mounted && widget.onLogout != null) await widget.onLogout!();
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Account delete হয়নি: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) =>
       ListView(padding: const EdgeInsets.fromLTRB(16, 18, 16, 30), children: [
@@ -1887,17 +1915,9 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   onEdit: editProfile);
             }),
         const SizedBox(height: 22),
-        Row(children: [
-          const Expanded(
-              child: Text('আমার তথ্য',
-                  style: TextStyle(
-                      fontSize: 23, fontWeight: FontWeight.w800, color: ink))),
-          TextButton.icon(
-              onPressed:
-                  widget.onLogout == null ? null : () => widget.onLogout!(),
-              icon: const Icon(Icons.logout_rounded, size: 18),
-              label: const Text('Logout'))
-        ]),
+        const Text('আমার তথ্য',
+            style: TextStyle(
+                fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(height: 8),
         FutureBuilder<List<dynamic>>(
             future: itemsFuture,
@@ -1923,6 +1943,24 @@ class _ProfilePanelState extends State<ProfilePanel> {
                     onDelete: () => _delete(item));
               }).toList());
             }),
+        const SizedBox(height: 22),
+        const Divider(height: 1),
+        const SizedBox(height: 18),
+        SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+                onPressed:
+                    widget.onLogout == null ? null : () => widget.onLogout!(),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Logout'))),
+        const SizedBox(height: 10),
+        SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+                onPressed: _deleteAccount,
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                icon: const Icon(Icons.delete_forever_rounded),
+                label: const Text('Delete account permanently'))),
       ]);
 }
 
@@ -2298,7 +2336,7 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
   Widget select(String key, List<String> options) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: DropdownButtonFormField<String>(
-          value: values[key]?.isEmpty ?? true ? null : values[key],
+          initialValue: values[key]?.isEmpty ?? true ? null : values[key],
           isExpanded: true,
           decoration: InputDecoration(
               labelText: label(key),
@@ -2310,7 +2348,10 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
           items: options
               .map((v) => DropdownMenuItem(value: v, child: Text(v)))
               .toList(),
-          onChanged: (v) => setState(() => values[key] = v ?? '')));
+          onChanged: (v) => setState(() {
+                values[key] = v ?? '';
+                controllers[key]?.text = v ?? '';
+              })));
   Widget fieldFor(String key) {
     if (key == 'bloodGroup') return select(key, bloodGroups);
     if (key == 'category') return select(key, categories);
@@ -2321,7 +2362,9 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
 
   Map<String, dynamic> payload() {
     for (final e in controllers.entries) {
-      values[e.key] = e.value.text;
+      if (!['bloodGroup', 'category', 'label', 'tag'].contains(e.key)) {
+        values[e.key] = e.value.text;
+      }
     }
     return switch (resource) {
       'donors' => {
