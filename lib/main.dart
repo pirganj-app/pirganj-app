@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
 
@@ -18,8 +19,18 @@ void main() {
   runApp(const PirganjApp());
 }
 
-class PirganjApp extends StatelessWidget {
+class PirganjApp extends StatefulWidget {
   const PirganjApp({super.key});
+  @override State<PirganjApp> createState() => _PirganjAppState();
+}
+
+class _PirganjAppState extends State<PirganjApp> {
+  final api = PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+  bool loading = true;
+  @override void initState() { super.initState(); _restore(); }
+  Future<void> _restore() async { final prefs = await SharedPreferences.getInstance(); final token = prefs.getString('pirganj_token'); if (token != null) api.token = token; if (mounted) setState(() => loading = false); }
+  Future<void> _loggedIn(Map<String, dynamic> result) async { final prefs = await SharedPreferences.getInstance(); api.token = result['token']?.toString(); await prefs.setString('pirganj_token', api.token!); if (mounted) setState(() {}); }
+  Future<void> _logout() async { final prefs = await SharedPreferences.getInstance(); await prefs.remove('pirganj_token'); api.token = null; if (mounted) setState(() {}); }
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -33,13 +44,14 @@ class PirganjApp extends StatelessWidget {
           data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(0.90)),
           child: child ?? const SizedBox.shrink(),
         ),
-        home: const HomeScreen(),
+        home: loading ? const Scaffold(body: Center(child: CircularProgressIndicator(color: brand))) : api.token == null ? AuthScreen(api: api, onLoggedIn: _loggedIn) : HomeScreen(api: api, onLogout: _logout),
       );
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.api});
+  const HomeScreen({super.key, this.api, this.onLogout});
   final PirganjApiClient? api;
+  final Future<void> Function()? onLogout;
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -235,19 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       );
 
-  Widget _more() => ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const SizedBox(height: 18),
-          Center(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/pirganj_logo.jpg', width: 95, height: 95, fit: BoxFit.cover))),
-          const SizedBox(height: 14),
-          const Center(child: Text('Pirganj', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: brand))),
-          const SizedBox(height: 8),
-          const Center(child: Text('পীরগঞ্জের মানুষের ডিজিটাল তথ্যসেবা', textAlign: TextAlign.center, style: TextStyle(color: Colors.black54))),
-          const SizedBox(height: 24),
-          const _InfoCard(icon: Icons.security_rounded, title: 'কমিউনিটি নীতি', text: 'সঠিক ও সহায়ক তথ্য শেয়ার করুন.'),
-        ],
-      );
+  Widget _more() => ProfilePanel(api: api, onLogout: widget.onLogout);
 }
 
 class _TopBar extends StatelessWidget {
@@ -302,7 +302,6 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(margin: const EdgeInsets.only(bottom: 12), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21), side: const BorderSide(color: Color(0xFFE3E9E6))), child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const CircleAvatar(backgroundColor: Color(0xFFDDF2E9), child: Icon(Icons.person, color: brand)), const SizedBox(width: 10), Expanded(child: Text(post['author']?.toString() ?? 'পীরগঞ্জবাসী', style: const TextStyle(fontWeight: FontWeight.w800, color: ink))), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: const Color(0xFFE6F4EE), borderRadius: BorderRadius.circular(20)), child: Text(post['tag']?.toString() ?? 'কমিউনিটি', style: const TextStyle(color: brand, fontSize: 12)))]), const SizedBox(height: 12), Text(post['title']?.toString() ?? '', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: ink)), const SizedBox(height: 5), Text(post['body']?.toString() ?? '', style: const TextStyle(color: Colors.black54, height: 1.5)), const SizedBox(height: 11), Row(children: [TextButton.icon(onPressed: onLike, icon: const Icon(Icons.favorite_border, size: 18), label: Text('${post['likes'] ?? 0}')), const SizedBox(width: 8), Text('💬 ${post['comments'] ?? 0}', style: const TextStyle(color: Colors.black54))])])));
 }
 
-class _InfoCard extends StatelessWidget { const _InfoCard({required this.icon, required this.title, required this.text}); final IconData icon; final String title, text; @override Widget build(BuildContext context) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 12), child: ListTile(leading: Icon(icon, color: brand), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(text))); }
 class _EmptyCard extends StatelessWidget { const _EmptyCard({required this.text}); final String text; @override Widget build(BuildContext context) => Card(elevation: 0, child: Padding(padding: const EdgeInsets.all(18), child: Text(text))); }
 class _PillButton extends StatelessWidget { const _PillButton({required this.label, required this.icon, required this.onTap}); final String label; final IconData icon; final VoidCallback onTap; @override Widget build(BuildContext context) => FilledButton.icon(onPressed: onTap, icon: Icon(icon, size: 17), label: Text(label), style: FilledButton.styleFrom(backgroundColor: brand, padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)))); }
 
@@ -436,6 +435,8 @@ class TopicDataPage extends StatefulWidget {
 
 class _TopicDataPageState extends State<TopicDataPage> {
   static const titles = ['রক্তদাতা', 'রক্তের অনুরোধ', 'নোটিশ', 'চাকরির খবর', 'হারানো/পাওয়া'];
+  static const bloodGroups = ['সব', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  String bloodGroup = 'সব';
   late Future<List<dynamic>> future;
 
   @override
@@ -446,8 +447,8 @@ class _TopicDataPageState extends State<TopicDataPage> {
 
   void _load() {
     future = switch (widget.topic) {
-      0 => widget.api.getDonors(),
-      1 => widget.api.getBloodRequests(),
+      0 => widget.api.getDonors(group: bloodGroup == 'সব' ? null : bloodGroup),
+      1 => widget.api.getBloodRequests(group: bloodGroup == 'সব' ? null : bloodGroup),
       2 => widget.api.getNotices(),
       3 => widget.api.getJobs(),
       _ => widget.api.getLostFound(),
@@ -473,7 +474,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
               if (snapshot.hasError) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))]);
               final data = snapshot.data ?? [];
               if (data.isEmpty) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))]);
-              return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: data.map((item) => _TopicCard(topic: widget.topic, data: Map<String, dynamic>.from(item))).toList());
+              return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [if (widget.topic < 2) Padding(padding: const EdgeInsets.only(bottom: 14), child: DropdownButtonFormField<String>(initialValue: bloodGroup, decoration: const InputDecoration(labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderSide: BorderSide.none)), items: bloodGroups.map((group) => DropdownMenuItem(value: group, child: Text(group))).toList(), onChanged: (value) { setState(() { bloodGroup = value ?? 'সব'; _load(); }); })), ...data.map((item) => _TopicCard(topic: widget.topic, data: Map<String, dynamic>.from(item))) ]);
             },
           ),
         ),
@@ -681,3 +682,125 @@ class _EntrySheetState extends State<EntrySheet> {
       );
 }
 class _Spec { const _Spec(this.key, this.label); final String key, label; }
+
+
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key, required this.api, required this.onLoggedIn});
+  final PirganjApiClient api;
+  final Future<void> Function(Map<String, dynamic> result) onLoggedIn;
+  @override State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  final phone = TextEditingController();
+  final password = TextEditingController();
+  final name = TextEditingController();
+  final address = TextEditingController();
+  String sex = 'পুরুষ';
+  bool register = false;
+  bool busy = false;
+
+  @override
+  void dispose() { phone.dispose(); password.dispose(); name.dispose(); address.dispose(); super.dispose(); }
+
+  Future<void> submit() async {
+    final incomplete = phone.text.trim().isEmpty || password.text.isEmpty || (register && (name.text.trim().isEmpty || address.text.trim().isEmpty));
+    if (incomplete) { _show('প্রয়োজনীয় তথ্য পূরণ করুন'); return; }
+    setState(() => busy = true);
+    try {
+      final result = register
+          ? await widget.api.register(phone: phone.text.trim(), password: password.text, name: name.text.trim(), sex: sex, address: address.text.trim())
+          : await widget.api.login(phone: phone.text.trim(), password: password.text);
+      await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
+    } catch (error) {
+      if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
+    } finally { if (mounted) setState(() => busy = false); }
+  }
+
+  void _show(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  InputDecoration dec(String label) => InputDecoration(labelText: label, filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none));
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: page,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(22),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/pirganj_logo.jpg', width: 92, height: 92, fit: BoxFit.cover))),
+              const SizedBox(height: 16),
+              Center(child: Text(register ? 'নতুন account তৈরি করুন' : 'Pirganj-এ login করুন', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: ink))),
+              const SizedBox(height: 22),
+              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: dec('ফোন নম্বর')),
+              const SizedBox(height: 11),
+              TextField(controller: password, obscureText: true, decoration: dec('পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)')),
+              if (register) ...[
+                const SizedBox(height: 11), TextField(controller: name, decoration: dec('আপনার নাম')),
+                const SizedBox(height: 11), DropdownButtonFormField<String>(initialValue: sex, decoration: dec('লিঙ্গ'), items: const ['পুরুষ', 'নারী', 'অন্যান্য'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setState(() => sex = v ?? sex)),
+                const SizedBox(height: 11), TextField(controller: address, maxLines: 2, decoration: dec('ঠিকানা')),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(width: double.infinity, child: FilledButton(onPressed: busy ? null : submit, style: FilledButton.styleFrom(backgroundColor: brand, padding: const EdgeInsets.symmetric(vertical: 15)), child: busy ? const CircularProgressIndicator(color: Colors.white) : Text(register ? 'নিবন্ধন করুন' : 'Login'))),
+              const SizedBox(height: 8),
+              Center(child: TextButton(onPressed: busy ? null : () => setState(() => register = !register), child: Text(register ? 'আগে account আছে? Login করুন' : 'নতুন account তৈরি করুন'))),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProfilePanel extends StatefulWidget {
+  const ProfilePanel({super.key, required this.api, this.onLogout});
+  final PirganjApiClient api;
+  final Future<void> Function()? onLogout;
+  @override State<ProfilePanel> createState() => _ProfilePanelState();
+}
+
+class _ProfilePanelState extends State<ProfilePanel> {
+  late Future<Map<String, dynamic>> userFuture;
+  late Future<List<dynamic>> itemsFuture;
+  @override void initState() { super.initState(); _reload(); }
+  void _reload() { userFuture = widget.api.me(); itemsFuture = widget.api.getMyItems(); }
+
+  Future<void> _delete(Map<String, dynamic> item) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: const Text('তথ্য মুছে ফেলবেন?'), content: const Text('এটি শুধু আপনার নিজের যোগ করা তথ্য থেকে মুছে যাবে।'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('না')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('মুছুন'))]));
+    if (ok != true) return;
+    try { await widget.api.deleteItem(item['resource'].toString(), item['id'].toString()); if (mounted) setState(_reload); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('মুছতে পারিনি: $e'))); }
+  }
+
+  Future<void> _edit(Map<String, dynamic> item) async {
+    final result = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _EditItemDialog(item: item));
+    if (result == null) return;
+    try { await widget.api.updateItem(item['resource'].toString(), item['id'].toString(), result); if (mounted) setState(_reload); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('আপডেট করা যায়নি: $e'))); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(padding: const EdgeInsets.all(20), children: [
+      FutureBuilder<Map<String, dynamic>>(future: userFuture, builder: (_, snapshot) {
+        final payload = snapshot.data?['data'];
+        final user = payload is Map ? payload['user'] as Map? : null;
+        return Column(children: [const SizedBox(height: 10), const CircleAvatar(radius: 38, backgroundColor: Color(0xFFD8F2E9), child: Icon(Icons.person, color: brand, size: 42)), const SizedBox(height: 10), Text(user?['name']?.toString() ?? 'আমার profile', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: ink)), Text(user?['phone']?.toString() ?? '', style: const TextStyle(color: Colors.black54)), if (user != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text('${user['sex']} · ${user['address']}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54))), const SizedBox(height: 18)]);
+      }),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('আমার যোগ করা তথ্য', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)), TextButton(onPressed: widget.onLogout == null ? null : () => widget.onLogout!(), child: const Text('Logout'))]),
+      FutureBuilder<List<dynamic>>(future: itemsFuture, builder: (_, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Padding(padding: EdgeInsets.all(25), child: CircularProgressIndicator(color: brand));
+        final items = snapshot.data ?? [];
+        if (items.isEmpty) return const _EmptyCard(text: 'আপনি এখনো কোনো তথ্য যোগ করেননি');
+        return Column(children: items.map((raw) { final item = Map<String, dynamic>.from(raw); return Card(elevation: 0, child: ListTile(title: Text(item['title']?.toString() ?? item['name']?.toString() ?? item['patientName']?.toString() ?? 'আমার তথ্য', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(item['resource']?.toString() ?? ''), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(onPressed: () => _edit(item), icon: const Icon(Icons.edit_outlined, color: brand)), IconButton(onPressed: () => _delete(item), icon: const Icon(Icons.delete_outline, color: Colors.red))]))); }).toList());
+      }),
+    ]);
+  }
+}
+
+class _EditItemDialog extends StatefulWidget { const _EditItemDialog({required this.item}); final Map<String, dynamic> item; @override State<_EditItemDialog> createState() => _EditItemDialogState(); }
+class _EditItemDialogState extends State<_EditItemDialog> {
+  late final TextEditingController title, body, location, phone, name, group;
+  @override void initState() { super.initState(); title = TextEditingController(text: widget.item['title']?.toString() ?? ''); body = TextEditingController(text: widget.item['body']?.toString() ?? widget.item['description']?.toString() ?? ''); location = TextEditingController(text: widget.item['location']?.toString() ?? widget.item['area']?.toString() ?? ''); phone = TextEditingController(text: widget.item['phone']?.toString() ?? widget.item['contactPhone']?.toString() ?? ''); name = TextEditingController(text: widget.item['name']?.toString() ?? ''); group = TextEditingController(text: widget.item['group']?.toString() ?? ''); }
+  @override void dispose() { for (final c in [title, body, location, phone, name, group]) { c.dispose(); } super.dispose(); }
+  @override Widget build(BuildContext context) => AlertDialog(title: const Text('তথ্য আপডেট করুন'), content: SingleChildScrollView(child: Column(children: [TextField(controller: title, decoration: const InputDecoration(labelText: 'শিরোনাম')), TextField(controller: name, decoration: const InputDecoration(labelText: 'নাম')), TextField(controller: group, decoration: const InputDecoration(labelText: 'রক্তের গ্রুপ')), TextField(controller: body, maxLines: 3, decoration: const InputDecoration(labelText: 'বিস্তারিত')), TextField(controller: location, decoration: const InputDecoration(labelText: 'ঠিকানা/এলাকা')), TextField(controller: phone, decoration: const InputDecoration(labelText: 'ফোন'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('বাতিল')), FilledButton(onPressed: () => Navigator.pop(context, {'title': title.text, 'name': name.text, 'bloodGroup': group.text, 'body': body.text, 'description': body.text, 'location': location.text, 'area': location.text, 'phone': phone.text}), child: const Text('সংরক্ষণ'))]);
+}
