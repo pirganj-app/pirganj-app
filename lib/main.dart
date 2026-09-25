@@ -689,23 +689,29 @@ class _PostCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               color: Colors.black54, height: 1.5)),
-                      if (reactions.isNotEmpty) ...[
-                        const SizedBox(height: 9),
+                      if (reactionList != null) ...[
+                        const SizedBox(height: 5),
                         InkWell(
                             onTap: onShowReactions,
                             borderRadius: BorderRadius.circular(12),
                             child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 2, horizontal: 2),
+                                    vertical: 1, horizontal: 2),
                                 child: Row(children: [
-                                  Expanded(
-                                      child: Text(_reactionSummary(reactions),
-                                          style: const TextStyle(
-                                              color: Colors.black54,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600))),
-                                  const Icon(Icons.chevron_right_rounded,
-                                      size: 18, color: Colors.black38)
+                                  Text(_reactionEmoji(selected ?? 'love'),
+                                      style: const TextStyle(fontSize: 17)),
+                                  const SizedBox(width: 4),
+                                  Text('${reactions.length}',
+                                      style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700)),
+                                  const SizedBox(width: 5),
+                                  const Text('reactions',
+                                      style: TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600))
                                 ])))
                       ],
                       const SizedBox(height: 11),
@@ -941,7 +947,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         item['ownerId']?.toString() == widget.post['ownerId']?.toString();
     return Container(
         margin:
-            EdgeInsets.only(left: item['parentId'] != null ? 24 : 0, bottom: 8),
+            EdgeInsets.only(left: item['parentId'] != null ? 22 : 0, bottom: 4),
         decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
@@ -953,15 +959,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 right: const BorderSide(color: Color(0xFFE5E8E7)),
                 bottom: const BorderSide(color: Color(0xFFE5E8E7)))),
         child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 7, 5),
+            padding: const EdgeInsets.fromLTRB(8, 5, 5, 2),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 const CircleAvatar(
-                    radius: 16,
+                    radius: 14,
                     backgroundColor: Color(0xFFF0F2F1),
-                    child: Icon(Icons.person, size: 18, color: Colors.black54)),
-                const SizedBox(width: 8),
+                    child: Icon(Icons.person, size: 16, color: Colors.black54)),
+                const SizedBox(width: 6),
                 Expanded(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1002,8 +1008,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               ]),
               if (item['parentId'] != null)
                 Container(
-                    margin: const EdgeInsets.only(top: 6, bottom: 7),
-                    padding: const EdgeInsets.only(left: 9),
+                    margin: const EdgeInsets.only(top: 4, bottom: 5),
+                    padding: const EdgeInsets.only(left: 7),
                     decoration: const BoxDecoration(
                         border: Border(
                             left: BorderSide(color: Colors.black87, width: 2))),
@@ -1011,10 +1017,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                         'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
                         style: const TextStyle(
                             color: Colors.black87,
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700))),
               Text(item['body']?.toString() ?? '',
-                  style: const TextStyle(fontSize: 13, height: 1.3)),
+                  style: const TextStyle(fontSize: 12, height: 1.18)),
               Row(children: [
                 GestureDetector(
                     onLongPress: () => showModalBottomSheet(
@@ -1031,7 +1037,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 ? Colors.transparent
                                 : const Color(0xFFE8F6F0),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2)),
+                                horizontal: 4, vertical: 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                         onPressed: () =>
                             commentReaction(item['id'].toString(), 'love'),
                         icon: myReaction == null
@@ -1042,9 +1049,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                         label: Text('${reactions.length}'))),
                 if (reactions.isNotEmpty)
                   TextButton(
+                      style: TextButton.styleFrom(
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 2),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                       onPressed: () => showReactors(reactions),
                       child: Text('${reactions.length} reactions')),
                 TextButton(
+                    style: TextButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 2),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                     onPressed: () =>
                         setState(() => replyingTo = item['id']?.toString()),
                     child: const Text('Reply'))
@@ -1119,17 +1136,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                             color: Colors.white, strokeWidth: 2))
                     : Text(replyingTo == null ? 'Comment করুন' : 'Reply দিন')))
       ]));
-}
-
-String _reactionSummary(List<dynamic> reactions) {
-  final counts = <String, int>{};
-  for (final raw in reactions) {
-    final key = (raw as Map)['reaction']?.toString() ?? 'like';
-    counts[key] = (counts[key] ?? 0) + 1;
-  }
-  return counts.entries
-      .map((entry) => '${_reactionEmoji(entry.key)} ${entry.value}')
-      .join('  ');
 }
 
 String _reactionEmoji(String? key) =>
