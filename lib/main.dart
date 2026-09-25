@@ -21,16 +21,40 @@ void main() {
 
 class PirganjApp extends StatefulWidget {
   const PirganjApp({super.key});
-  @override State<PirganjApp> createState() => _PirganjAppState();
+  @override
+  State<PirganjApp> createState() => _PirganjAppState();
 }
 
 class _PirganjAppState extends State<PirganjApp> {
   final api = PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
   bool loading = true;
-  @override void initState() { super.initState(); _restore(); }
-  Future<void> _restore() async { final prefs = await SharedPreferences.getInstance(); final token = prefs.getString('pirganj_token'); if (token != null) api.token = token; if (mounted) setState(() => loading = false); }
-  Future<void> _loggedIn(Map<String, dynamic> result) async { final prefs = await SharedPreferences.getInstance(); api.token = result['token']?.toString(); await prefs.setString('pirganj_token', api.token!); if (mounted) setState(() {}); }
-  Future<void> _logout() async { final prefs = await SharedPreferences.getInstance(); await prefs.remove('pirganj_token'); api.token = null; if (mounted) setState(() {}); }
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('pirganj_token');
+    if (token != null) api.token = token;
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _loggedIn(Map<String, dynamic> result) async {
+    final prefs = await SharedPreferences.getInstance();
+    api.token = result['token']?.toString();
+    await prefs.setString('pirganj_token', api.token!);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pirganj_token');
+    api.token = null;
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -41,10 +65,16 @@ class _PirganjAppState extends State<PirganjApp> {
           colorScheme: ColorScheme.fromSeed(seedColor: brand),
         ),
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(0.90)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(0.90)),
           child: child ?? const SizedBox.shrink(),
         ),
-        home: loading ? const Scaffold(body: Center(child: CircularProgressIndicator(color: brand))) : api.token == null ? AuthScreen(api: api, onLoggedIn: _loggedIn) : HomeScreen(api: api, onLogout: _logout),
+        home: loading
+            ? const Scaffold(
+                body: Center(child: CircularProgressIndicator(color: brand)))
+            : api.token == null
+                ? AuthScreen(api: api, onLoggedIn: _loggedIn)
+                : HomeScreen(api: api, onLogout: _logout),
       );
 }
 
@@ -68,7 +98,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    api = widget.api ?? PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+    api = widget.api ??
+        PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
     _refresh();
   }
 
@@ -97,11 +128,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openCategory(String categoryName, String title, IconData icon) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => ServiceCategoryPage(api: api, category: categoryName, title: title, icon: icon)));
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => ServiceCategoryPage(
+                api: api, category: categoryName, title: title, icon: icon)));
   }
 
   void _openTopic(int topic) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => TopicDataPage(api: api, topic: topic)));
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => TopicDataPage(api: api, topic: topic)));
   }
 
   Future<void> _openEntry(String kind) async {
@@ -112,7 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => EntrySheet(kind: kind, api: api),
     );
     if (result == true && mounted) {
-      setState(() { _reload(); profileRefreshToken++; });
+      setState(() {
+        _reload();
+        profileRefreshToken++;
+      });
       _message('তথ্য সফলভাবে যোগ হয়েছে');
     }
   }
@@ -127,7 +168,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: false,
                 child: _TopBar(
                   onAdd: () => _openEntry('post'),
-                  onNotice: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NoticePage(api: api))),
+                  onNotice: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => NoticePage(api: api))),
                 ),
               ),
               Expanded(
@@ -146,14 +188,30 @@ class _HomeScreenState extends State<HomeScreen> {
           height: 78,
           backgroundColor: Colors.white,
           indicatorColor: const Color(0xFFD8F2E9),
-          labelTextStyle: const WidgetStatePropertyAll(TextStyle(color: ink, fontWeight: FontWeight.w700)),
+          labelTextStyle: const WidgetStatePropertyAll(
+              TextStyle(color: ink, fontWeight: FontWeight.w700)),
           selectedIndex: tab,
-          onDestinationSelected: (value) => setState(() { tab = value; if (value == 3) profileRefreshToken++; }),
+          onDestinationSelected: (value) => setState(() {
+            tab = value;
+            if (value == 3) profileRefreshToken++;
+          }),
           destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'হোম'),
-            NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'কমিউনিটি'),
-            NavigationDestination(icon: Icon(Icons.add_circle_outline), selectedIcon: Icon(Icons.add_circle), label: 'যোগ করুন'),
-            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'আমার'),
+            NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'হোম'),
+            NavigationDestination(
+                icon: Icon(Icons.forum_outlined),
+                selectedIcon: Icon(Icons.forum_rounded),
+                label: 'কমিউনিটি'),
+            NavigationDestination(
+                icon: Icon(Icons.add_circle_outline),
+                selectedIcon: Icon(Icons.add_circle),
+                label: 'যোগ করুন'),
+            NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'আমার'),
           ],
         ),
       );
@@ -168,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             _SearchBox(controller: searchController, onSearch: _reload),
             const SizedBox(height: 24),
-            const Text('জনপ্রিয় সেবা', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
+            const Text('জনপ্রিয় সেবা',
+                style: TextStyle(
+                    fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
             const SizedBox(height: 12),
             GridView.count(
               shrinkWrap: true,
@@ -178,18 +238,84 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSpacing: 12,
               childAspectRatio: 1.35,
               children: [
-                _ActionCard('হাসপাতাল', Icons.local_hospital_rounded, const Color(0xFFFFE7E7), const Color(0xFFE45353), () => _openCategory('হাসপাতাল', 'হাসপাতাল', Icons.local_hospital_rounded)),
-                _ActionCard('স্কুল ও কলেজ', Icons.school_rounded, const Color(0xFFE7EEFF), const Color(0xFF4A79D0), () => _openCategory('স্কুল', 'স্কুল ও কলেজ', Icons.school_rounded)),
-                _ActionCard('ডাক্তার', Icons.medical_services_rounded, const Color(0xFFEDE7FF), const Color(0xFF7655C6), () => _openCategory('ডাক্তার', 'ডাক্তার', Icons.medical_services_rounded)),
-                _ActionCard('রক্ত', Icons.bloodtype_rounded, const Color(0xFFFFEFE0), const Color(0xFFE07C28), () => _openTopic(0)),
-                _ActionCard('রক্তের অনুরোধ', Icons.bloodtype_rounded, const Color(0xFFFFE8E8), const Color(0xFFE45353), () => _openTopic(1)),
-                _ActionCard('নোটিশ', Icons.campaign_rounded, const Color(0xFFEDE7FF), const Color(0xFF7655C6), () => _openTopic(2)),
-                _ActionCard('চাকরির খবর', Icons.work_rounded, const Color(0xFFE5EEFF), const Color(0xFF3E6DBE), () => _openTopic(3)),
-                _ActionCard('হারানো/পাওয়া', Icons.search_rounded, const Color(0xFFFFF0DD), const Color(0xFFD37B22), () => _openTopic(4)),
-                _ActionCard('ফার্মেসি', Icons.local_pharmacy_rounded, const Color(0xFFE4F6F1), const Color(0xFF17836F), () => _openCategory('ফার্মেসি', 'ফার্মেসি', Icons.local_pharmacy_rounded)),
-                _ActionCard('রেস্টুরেন্ট', Icons.restaurant_rounded, const Color(0xFFFFF0DD), const Color(0xFFD37B22), () => _openCategory('রেস্টুরেন্ট', 'রেস্টুরেন্ট', Icons.restaurant_rounded)),
-                _ActionCard('হোটেল', Icons.hotel_rounded, const Color(0xFFEDEAFF), const Color(0xFF755BC8), () => _openCategory('হোটেল', 'হোটেল', Icons.hotel_rounded)),
-                _ActionCard('সরকারি অফিস', Icons.account_balance_rounded, const Color(0xFFE5EEFF), const Color(0xFF3E6DBE), () => _openCategory('সরকারি অফিস', 'সরকারি অফিস', Icons.account_balance_rounded)),
+                _ActionCard(
+                    'হাসপাতাল',
+                    Icons.local_hospital_rounded,
+                    const Color(0xFFFFE7E7),
+                    const Color(0xFFE45353),
+                    () => _openCategory(
+                        'হাসপাতাল', 'হাসপাতাল', Icons.local_hospital_rounded)),
+                _ActionCard(
+                    'স্কুল ও কলেজ',
+                    Icons.school_rounded,
+                    const Color(0xFFE7EEFF),
+                    const Color(0xFF4A79D0),
+                    () => _openCategory(
+                        'স্কুল', 'স্কুল ও কলেজ', Icons.school_rounded)),
+                _ActionCard(
+                    'ডাক্তার',
+                    Icons.medical_services_rounded,
+                    const Color(0xFFEDE7FF),
+                    const Color(0xFF7655C6),
+                    () => _openCategory(
+                        'ডাক্তার', 'ডাক্তার', Icons.medical_services_rounded)),
+                _ActionCard(
+                    'রক্ত',
+                    Icons.bloodtype_rounded,
+                    const Color(0xFFFFEFE0),
+                    const Color(0xFFE07C28),
+                    () => _openTopic(0)),
+                _ActionCard(
+                    'রক্তের অনুরোধ',
+                    Icons.bloodtype_rounded,
+                    const Color(0xFFFFE8E8),
+                    const Color(0xFFE45353),
+                    () => _openTopic(1)),
+                _ActionCard(
+                    'নোটিশ',
+                    Icons.campaign_rounded,
+                    const Color(0xFFEDE7FF),
+                    const Color(0xFF7655C6),
+                    () => _openTopic(2)),
+                _ActionCard(
+                    'চাকরির খবর',
+                    Icons.work_rounded,
+                    const Color(0xFFE5EEFF),
+                    const Color(0xFF3E6DBE),
+                    () => _openTopic(3)),
+                _ActionCard(
+                    'হারানো/পাওয়া',
+                    Icons.search_rounded,
+                    const Color(0xFFFFF0DD),
+                    const Color(0xFFD37B22),
+                    () => _openTopic(4)),
+                _ActionCard(
+                    'ফার্মেসি',
+                    Icons.local_pharmacy_rounded,
+                    const Color(0xFFE4F6F1),
+                    const Color(0xFF17836F),
+                    () => _openCategory(
+                        'ফার্মেসি', 'ফার্মেসি', Icons.local_pharmacy_rounded)),
+                _ActionCard(
+                    'রেস্টুরেন্ট',
+                    Icons.restaurant_rounded,
+                    const Color(0xFFFFF0DD),
+                    const Color(0xFFD37B22),
+                    () => _openCategory('রেস্টুরেন্ট', 'রেস্টুরেন্ট',
+                        Icons.restaurant_rounded)),
+                _ActionCard(
+                    'হোটেল',
+                    Icons.hotel_rounded,
+                    const Color(0xFFEDEAFF),
+                    const Color(0xFF755BC8),
+                    () => _openCategory('হোটেল', 'হোটেল', Icons.hotel_rounded)),
+                _ActionCard(
+                    'সরকারি অফিস',
+                    Icons.account_balance_rounded,
+                    const Color(0xFFE5EEFF),
+                    const Color(0xFF3E6DBE),
+                    () => _openCategory('সরকারি অফিস', 'সরকারি অফিস',
+                        Icons.account_balance_rounded)),
               ],
             ),
           ],
@@ -203,18 +329,34 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
           children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('কমিউনিটি', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: ink)),
-              _PillButton(label: 'পোস্ট লিখুন', icon: Icons.edit_rounded, onTap: () => _openEntry('post')),
+              const Text('কমিউনিটি',
+                  style: TextStyle(
+                      fontSize: 26, fontWeight: FontWeight.w800, color: ink)),
+              _PillButton(
+                  label: 'পোস্ট লিখুন',
+                  icon: Icons.edit_rounded,
+                  onTap: () => _openEntry('post')),
             ]),
             const SizedBox(height: 14),
             FutureBuilder<List<dynamic>>(
               future: postsFuture,
               builder: (_, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator(color: brand)));
-                if (snapshot.hasError) return const _EmptyCard(text: 'পোস্ট আনতে সমস্যা হয়েছে');
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  return const Center(
+                      child: Padding(
+                          padding: EdgeInsets.all(30),
+                          child: CircularProgressIndicator(color: brand)));
+                if (snapshot.hasError)
+                  return const _EmptyCard(text: 'পোস্ট আনতে সমস্যা হয়েছে');
                 final data = snapshot.data ?? [];
-                if (data.isEmpty) return const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই');
-                return Column(children: data.map((post) => _PostCard(post: Map<String, dynamic>.from(post), onLike: () => _message('রিঅ্যাকশন শীঘ্রই আসছে'))).toList());
+                if (data.isEmpty)
+                  return const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই');
+                return Column(
+                    children: data
+                        .map((post) => _PostCard(
+                            post: Map<String, dynamic>.from(post),
+                            onLike: () => _message('রিঅ্যাকশন শীঘ্রই আসছে')))
+                        .toList());
               },
             ),
           ],
@@ -224,9 +366,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _add() => ListView(
         padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
         children: [
-          const Text('তথ্য যোগ করুন', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: ink)),
+          const Text('তথ্য যোগ করুন',
+              style: TextStyle(
+                  fontSize: 24, fontWeight: FontWeight.w800, color: ink)),
           const SizedBox(height: 6),
-          const Text('একটি card বেছে নিয়ে আপনার এলাকার তথ্য যোগ করুন', style: TextStyle(color: Colors.black54)),
+          const Text('একটি card বেছে নিয়ে আপনার এলাকার তথ্য যোগ করুন',
+              style: TextStyle(color: Colors.black54)),
           const SizedBox(height: 16),
           GridView.count(
             shrinkWrap: true,
@@ -236,19 +381,54 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSpacing: 11,
             childAspectRatio: 1.18,
             children: [
-              _ActionCard('কমিউনিটি পোস্ট', Icons.forum_rounded, const Color(0xFFE2F3EE), brand, () => _openEntry('post')),
-              _ActionCard('স্থানীয় সেবা', Icons.storefront_rounded, const Color(0xFFE7EEFF), const Color(0xFF4A79D0), () => _openEntry('service')),
-              _ActionCard('রক্তদাতা', Icons.volunteer_activism_rounded, const Color(0xFFFFE8E8), const Color(0xFFE45353), () => _openEntry('donor')),
-              _ActionCard('রক্তের অনুরোধ', Icons.bloodtype_rounded, const Color(0xFFFFEFE0), const Color(0xFFE07C28), () => _openEntry('bloodRequest')),
-              _ActionCard('নোটিশ', Icons.campaign_rounded, const Color(0xFFEDE7FF), const Color(0xFF7655C6), () => _openEntry('notice')),
-              _ActionCard('চাকরির খবর', Icons.work_rounded, const Color(0xFFE5EEFF), const Color(0xFF3E6DBE), () => _openEntry('job')),
-              _ActionCard('হারানো/পাওয়া', Icons.search_rounded, const Color(0xFFFFF0DD), const Color(0xFFD37B22), () => _openEntry('lostFound')),
+              _ActionCard('কমিউনিটি পোস্ট', Icons.forum_rounded,
+                  const Color(0xFFE2F3EE), brand, () => _openEntry('post')),
+              _ActionCard(
+                  'স্থানীয় সেবা',
+                  Icons.storefront_rounded,
+                  const Color(0xFFE7EEFF),
+                  const Color(0xFF4A79D0),
+                  () => _openEntry('service')),
+              _ActionCard(
+                  'রক্তদাতা',
+                  Icons.volunteer_activism_rounded,
+                  const Color(0xFFFFE8E8),
+                  const Color(0xFFE45353),
+                  () => _openEntry('donor')),
+              _ActionCard(
+                  'রক্তের অনুরোধ',
+                  Icons.bloodtype_rounded,
+                  const Color(0xFFFFEFE0),
+                  const Color(0xFFE07C28),
+                  () => _openEntry('bloodRequest')),
+              _ActionCard(
+                  'নোটিশ',
+                  Icons.campaign_rounded,
+                  const Color(0xFFEDE7FF),
+                  const Color(0xFF7655C6),
+                  () => _openEntry('notice')),
+              _ActionCard(
+                  'চাকরির খবর',
+                  Icons.work_rounded,
+                  const Color(0xFFE5EEFF),
+                  const Color(0xFF3E6DBE),
+                  () => _openEntry('job')),
+              _ActionCard(
+                  'হারানো/পাওয়া',
+                  Icons.search_rounded,
+                  const Color(0xFFFFF0DD),
+                  const Color(0xFFD37B22),
+                  () => _openEntry('lostFound')),
             ],
           ),
         ],
       );
 
-  Widget _more() => ProfilePanel(key: ValueKey(profileRefreshToken), api: api, onLogout: widget.onLogout, refreshToken: profileRefreshToken);
+  Widget _more() => ProfilePanel(
+      key: ValueKey(profileRefreshToken),
+      api: api,
+      onLogout: widget.onLogout,
+      refreshToken: profileRefreshToken);
 }
 
 class _TopBar extends StatelessWidget {
@@ -259,11 +439,31 @@ class _TopBar extends StatelessWidget {
         color: brand,
         padding: const EdgeInsets.fromLTRB(17, 13, 13, 14),
         child: Row(children: [
-          ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.asset('assets/pirganj_logo.jpg', width: 55, height: 55, fit: BoxFit.cover)),
+          ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: Image.asset('assets/pirganj_logo.jpg',
+                  width: 55, height: 55, fit: BoxFit.cover)),
           const SizedBox(width: 13),
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Pirganj', style: TextStyle(color: Colors.white, fontSize: 27, fontWeight: FontWeight.w800)), Text('আপনার এলাকার তথ্যসেবা', style: TextStyle(color: Color(0xFFD4F2E8), fontSize: 13))])),
-          IconButton(onPressed: onAdd, icon: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 29)),
-          IconButton(onPressed: onNotice, icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 29)),
+          const Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text('Pirganj',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 27,
+                        fontWeight: FontWeight.w800)),
+                Text('আপনার এলাকার তথ্যসেবা',
+                    style: TextStyle(color: Color(0xFFD4F2E8), fontSize: 13))
+              ])),
+          IconButton(
+              onPressed: onAdd,
+              icon: const Icon(Icons.edit_note_rounded,
+                  color: Colors.white, size: 29)),
+          IconButton(
+              onPressed: onNotice,
+              icon: const Icon(Icons.notifications_none_rounded,
+                  color: Colors.white, size: 29)),
         ]),
       );
 }
@@ -274,10 +474,34 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(22, 23, 17, 21),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), gradient: const LinearGradient(colors: [Color(0xFF176F5E), Color(0xFF329B82)])),
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+                colors: [Color(0xFF176F5E), Color(0xFF329B82)])),
         child: Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('পীরগঞ্জের তথ্য\nএখন হাতের মুঠোয়', style: TextStyle(color: Colors.white, fontSize: 26, height: 1.24, fontWeight: FontWeight.w800)), const SizedBox(height: 10), const Text('স্থানীয় সেবা খুঁজুন সহজেই', style: TextStyle(color: Color(0xFFC8E8DD), fontSize: 16)), const SizedBox(height: 16), FilledButton(onPressed: onTap, style: FilledButton.styleFrom(backgroundColor: const Color(0xFF68B9A3), foregroundColor: Colors.white), child: const Text('তথ্য যোগ করুন'))])),
-          const Icon(Icons.location_city_rounded, color: Color(0xFF9ACFC0), size: 76),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                const Text('পীরগঞ্জের তথ্য\nএখন হাতের মুঠোয়',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        height: 1.24,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 10),
+                const Text('স্থানীয় সেবা খুঁজুন সহজেই',
+                    style: TextStyle(color: Color(0xFFC8E8DD), fontSize: 16)),
+                const SizedBox(height: 16),
+                FilledButton(
+                    onPressed: onTap,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF68B9A3),
+                        foregroundColor: Colors.white),
+                    child: const Text('তথ্য যোগ করুন'))
+              ])),
+          const Icon(Icons.location_city_rounded,
+              color: Color(0xFF9ACFC0), size: 76),
         ]),
       );
 }
@@ -287,89 +511,308 @@ class _SearchBox extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSearch;
   @override
-  Widget build(BuildContext context) => TextField(controller: controller, onSubmitted: (_) => onSearch(), decoration: InputDecoration(hintText: 'হাসপাতাল, স্কুল বা ডাক্তার খুঁজুন', prefixIcon: const Icon(Icons.search_rounded, size: 29), suffixIcon: IconButton(onPressed: onSearch, icon: const Icon(Icons.arrow_forward_rounded, color: brand)), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(vertical: 20), border: OutlineInputBorder(borderRadius: BorderRadius.circular(21), borderSide: BorderSide.none)));
+  Widget build(BuildContext context) => TextField(
+      controller: controller,
+      onSubmitted: (_) => onSearch(),
+      decoration: InputDecoration(
+          hintText: 'হাসপাতাল, স্কুল বা ডাক্তার খুঁজুন',
+          prefixIcon: const Icon(Icons.search_rounded, size: 29),
+          suffixIcon: IconButton(
+              onPressed: onSearch,
+              icon: const Icon(Icons.arrow_forward_rounded, color: brand)),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 20),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(21),
+              borderSide: BorderSide.none)));
 }
 
 class _ActionCard extends StatelessWidget {
   const _ActionCard(this.label, this.icon, this.bg, this.fg, this.onTap);
-  final String label; final IconData icon; final Color bg, fg; final VoidCallback onTap;
+  final String label;
+  final IconData icon;
+  final Color bg, fg;
+  final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0xFFE4EAE7))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Container(width: 52, height: 52, decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)), child: Icon(icon, color: fg, size: 30)), Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: ink))])));
+  Widget build(BuildContext context) => InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE4EAE7))),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                        color: bg, borderRadius: BorderRadius.circular(16)),
+                    child: Icon(icon, color: fg, size: 30)),
+                Text(label,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 18, color: ink))
+              ])));
 }
 
 class _PostCard extends StatelessWidget {
-  const _PostCard({required this.post, required this.onLike}); final Map<String, dynamic> post; final VoidCallback onLike;
+  const _PostCard({required this.post, required this.onLike});
+  final Map<String, dynamic> post;
+  final VoidCallback onLike;
   @override
-  Widget build(BuildContext context) => Card(margin: const EdgeInsets.only(bottom: 12), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21), side: const BorderSide(color: Color(0xFFE3E9E6))), child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const CircleAvatar(backgroundColor: Color(0xFFDDF2E9), child: Icon(Icons.person, color: brand)), const SizedBox(width: 10), Expanded(child: Text(post['author']?.toString() ?? 'পীরগঞ্জবাসী', style: const TextStyle(fontWeight: FontWeight.w800, color: ink))), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: const Color(0xFFE6F4EE), borderRadius: BorderRadius.circular(20)), child: Text(post['tag']?.toString() ?? 'কমিউনিটি', style: const TextStyle(color: brand, fontSize: 12)))]), const SizedBox(height: 12), Text(post['title']?.toString() ?? '', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: ink)), const SizedBox(height: 5), Text(post['body']?.toString() ?? '', style: const TextStyle(color: Colors.black54, height: 1.5)), const SizedBox(height: 11), Row(children: [TextButton.icon(onPressed: onLike, icon: const Icon(Icons.favorite_border, size: 18), label: Text('${post['likes'] ?? 0}')), const SizedBox(width: 8), Text('💬 ${post['comments'] ?? 0}', style: const TextStyle(color: Colors.black54))])])));
+  Widget build(BuildContext context) => Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(21),
+          side: const BorderSide(color: Color(0xFFE3E9E6))),
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const CircleAvatar(
+                  backgroundColor: Color(0xFFDDF2E9),
+                  child: Icon(Icons.person, color: brand)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Text(post['author']?.toString() ?? 'পীরগঞ্জবাসী',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800, color: ink))),
+              Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFE6F4EE),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Text(post['tag']?.toString() ?? 'কমিউনিটি',
+                      style: const TextStyle(color: brand, fontSize: 12)))
+            ]),
+            const SizedBox(height: 12),
+            Text(post['title']?.toString() ?? '',
+                style: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w800, color: ink)),
+            const SizedBox(height: 5),
+            Text(post['body']?.toString() ?? '',
+                style: const TextStyle(color: Colors.black54, height: 1.5)),
+            const SizedBox(height: 11),
+            Row(children: [
+              TextButton.icon(
+                  onPressed: onLike,
+                  icon: const Icon(Icons.favorite_border, size: 18),
+                  label: Text('${post['likes'] ?? 0}')),
+              const SizedBox(width: 8),
+              Text('💬 ${post['comments'] ?? 0}',
+                  style: const TextStyle(color: Colors.black54))
+            ])
+          ])));
 }
 
-class _EmptyCard extends StatelessWidget { const _EmptyCard({required this.text}); final String text; @override Widget build(BuildContext context) => Card(elevation: 0, child: Padding(padding: const EdgeInsets.all(18), child: Text(text))); }
-class _PillButton extends StatelessWidget { const _PillButton({required this.label, required this.icon, required this.onTap}); final String label; final IconData icon; final VoidCallback onTap; @override Widget build(BuildContext context) => FilledButton.icon(onPressed: onTap, icon: Icon(icon, size: 17), label: Text(label), style: FilledButton.styleFrom(backgroundColor: brand, padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)))); }
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Card(
+      elevation: 0,
+      child: Padding(padding: const EdgeInsets.all(18), child: Text(text)));
+}
+
+class _PillButton extends StatelessWidget {
+  const _PillButton(
+      {required this.label, required this.icon, required this.onTap});
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 17),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+          backgroundColor: brand,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))));
+}
 
 class NoticePage extends StatefulWidget {
   const NoticePage({super.key, required this.api});
   final PirganjApiClient api;
-  @override State<NoticePage> createState() => _NoticePageState();
+  @override
+  State<NoticePage> createState() => _NoticePageState();
 }
 
 class _NoticePageState extends State<NoticePage> {
   late Future<List<dynamic>> future;
-  @override void initState() { super.initState(); future = widget.api.getNotices(); }
-  Future<void> _add() async {
-    final result = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => EntrySheet(kind: 'notice', api: widget.api));
-    if (result == true && mounted) setState(() => future = widget.api.getNotices());
+  @override
+  void initState() {
+    super.initState();
+    future = widget.api.getNotices();
   }
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(backgroundColor: brand, foregroundColor: Colors.white, title: const Text('নোটিশ', style: TextStyle(fontWeight: FontWeight.w800)), actions: [TextButton.icon(onPressed: _add, icon: const Icon(Icons.add, color: Colors.white), label: const Text('নতুন তথ্য', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)))]),
-    body: RefreshIndicator(color: brand, onRefresh: () async => setState(() => future = widget.api.getNotices()), child: FutureBuilder<List<dynamic>>(future: future, builder: (_, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: brand));
-      final data = snapshot.data ?? [];
-      if (data.isEmpty) return ListView(children: [const Padding(padding: EdgeInsets.all(20), child: _EmptyCard(text: 'এখনো কোনো নোটিশ নেই')), Center(child: _PillButton(label: 'নতুন তথ্য যোগ করুন', icon: Icons.add, onTap: _add))]);
-      return ListView(padding: const EdgeInsets.all(17), children: data.map((item) => Card(elevation: 0, margin: const EdgeInsets.only(bottom: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: Color(0xFFE0E7E3))), child: ListTile(leading: const CircleAvatar(backgroundColor: Color(0xFFEDE7FF), child: Icon(Icons.campaign, color: brand)), title: Text(item['title']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800, color: ink)), subtitle: Text(item['body']?.toString() ?? '')))).toList());
-      }),
-    ),
-  );
+
+  Future<void> _add() async {
+    final result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => EntrySheet(kind: 'notice', api: widget.api));
+    if (result == true && mounted)
+      setState(() => future = widget.api.getNotices());
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+            backgroundColor: brand,
+            foregroundColor: Colors.white,
+            title: const Text('নোটিশ',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+            actions: [
+              TextButton.icon(
+                  onPressed: _add,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('নতুন তথ্য',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w700)))
+            ]),
+        body: RefreshIndicator(
+          color: brand,
+          onRefresh: () async =>
+              setState(() => future = widget.api.getNotices()),
+          child: FutureBuilder<List<dynamic>>(
+              future: future,
+              builder: (_, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  return const Center(
+                      child: CircularProgressIndicator(color: brand));
+                final data = snapshot.data ?? [];
+                if (data.isEmpty)
+                  return ListView(children: [
+                    const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: _EmptyCard(text: 'এখনো কোনো নোটিশ নেই')),
+                    Center(
+                        child: _PillButton(
+                            label: 'নতুন তথ্য যোগ করুন',
+                            icon: Icons.add,
+                            onTap: _add))
+                  ]);
+                return ListView(
+                    padding: const EdgeInsets.all(17),
+                    children: data
+                        .map((item) => Card(
+                            elevation: 0,
+                            margin: const EdgeInsets.only(bottom: 11),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                side:
+                                    const BorderSide(color: Color(0xFFE0E7E3))),
+                            child: ListTile(
+                                leading: const CircleAvatar(
+                                    backgroundColor: Color(0xFFEDE7FF),
+                                    child: Icon(Icons.campaign, color: brand)),
+                                title: Text(item['title']?.toString() ?? '',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: ink)),
+                                subtitle:
+                                    Text(item['body']?.toString() ?? ''))))
+                        .toList());
+              }),
+        ),
+      );
 }
 
 class ServiceCategoryPage extends StatefulWidget {
-  const ServiceCategoryPage({super.key, required this.api, required this.category, required this.title, required this.icon});
+  const ServiceCategoryPage(
+      {super.key,
+      required this.api,
+      required this.category,
+      required this.title,
+      required this.icon});
   final PirganjApiClient api;
   final String category;
   final String title;
   final IconData icon;
-  @override State<ServiceCategoryPage> createState() => _ServiceCategoryPageState();
+  @override
+  State<ServiceCategoryPage> createState() => _ServiceCategoryPageState();
 }
 
 class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
   late Future<List<ServiceCard>> future;
-  @override void initState() { super.initState(); future = widget.api.getServices(category: widget.category); }
-  Future<void> _add() async {
-    final result = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => EntrySheet(kind: 'service', api: widget.api, initialCategory: widget.category));
-    if (result == true && mounted) setState(() => future = widget.api.getServices(category: widget.category));
+  @override
+  void initState() {
+    super.initState();
+    future = widget.api.getServices(category: widget.category);
   }
+
+  Future<void> _add() async {
+    final result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => EntrySheet(
+            kind: 'service',
+            api: widget.api,
+            initialCategory: widget.category));
+    if (result == true && mounted)
+      setState(
+          () => future = widget.api.getServices(category: widget.category));
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           backgroundColor: brand,
           foregroundColor: Colors.white,
-          title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 22)),
-          actions: [TextButton.icon(onPressed: _add, icon: const Icon(Icons.add, color: Colors.white), label: const Text('নতুন তথ্য', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))), const SizedBox(width: 4)],
+          title: Text(widget.title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 22)),
+          actions: [
+            TextButton.icon(
+                onPressed: _add,
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text('নতুন তথ্য',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700))),
+            const SizedBox(width: 4)
+          ],
         ),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () async => setState(() => future = widget.api.getServices(category: widget.category)),
+          onRefresh: () async => setState(
+              () => future = widget.api.getServices(category: widget.category)),
           child: FutureBuilder<List<ServiceCard>>(
             future: future,
             builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: brand));
-              if (snapshot.hasError) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))]);
+              if (snapshot.connectionState == ConnectionState.waiting)
+                return const Center(
+                    child: CircularProgressIndicator(color: brand));
+              if (snapshot.hasError)
+                return ListView(children: const [
+                  Padding(
+                      padding: EdgeInsets.all(24),
+                      child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))
+                ]);
               final data = snapshot.data ?? [];
-              return ListView(padding: const EdgeInsets.fromLTRB(18, 17, 18, 30), children: [
-                Text('${data.length}টি তথ্য', style: const TextStyle(fontSize: 21, color: Colors.black54)),
-                const SizedBox(height: 14),
-                if (data.isEmpty) const _EmptyCard(text: 'এই category-তে এখনো কোনো তথ্য নেই। প্রথম তথ্যটি যোগ করুন।'),
-                ...data.map((item) => _DetailedServiceCard(item: item)),
-              ]);
+              return ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 17, 18, 30),
+                  children: [
+                    Text('${data.length}টি তথ্য',
+                        style: const TextStyle(
+                            fontSize: 21, color: Colors.black54)),
+                    const SizedBox(height: 14),
+                    if (data.isEmpty)
+                      const _EmptyCard(
+                          text:
+                              'এই category-তে এখনো কোনো তথ্য নেই। প্রথম তথ্যটি যোগ করুন।'),
+                    ...data.map((item) => _DetailedServiceCard(item: item)),
+                  ]);
             },
           ),
         ),
@@ -383,21 +826,68 @@ class _DetailedServiceCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         elevation: 0,
         margin: const EdgeInsets.only(bottom: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: const BorderSide(color: Color(0xFFE0E7E3))),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25),
+            side: const BorderSide(color: Color(0xFFE0E7E3))),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 17),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(width: 62, height: 62, decoration: BoxDecoration(color: const Color(0xFFFFE8E8), borderRadius: BorderRadius.circular(18)), child: Icon(Icons.local_hospital_rounded, color: const Color(0xFFE45B5B), size: 33)),
+              Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFFFE8E8),
+                      borderRadius: BorderRadius.circular(18)),
+                  child: Icon(Icons.local_hospital_rounded,
+                      color: const Color(0xFFE45B5B), size: 33)),
               const SizedBox(width: 15),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.name, style: const TextStyle(fontSize: 22, height: 1.22, fontWeight: FontWeight.w800, color: ink)), const SizedBox(height: 5), Text(item.meta.isEmpty ? item.category : item.meta, style: const TextStyle(fontSize: 16, color: Colors.black54))])),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(item.name,
+                        style: const TextStyle(
+                            fontSize: 22,
+                            height: 1.22,
+                            fontWeight: FontWeight.w800,
+                            color: ink)),
+                    const SizedBox(height: 5),
+                    Text(item.meta.isEmpty ? item.category : item.meta,
+                        style: const TextStyle(
+                            fontSize: 16, color: Colors.black54))
+                  ])),
             ]),
-            const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Divider(height: 1)),
-            _InfoLine(icon: Icons.location_on_outlined, text: item.location.isEmpty ? 'ঠিকানা দেওয়া হয়নি' : item.location),
+            const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Divider(height: 1)),
+            _InfoLine(
+                icon: Icons.location_on_outlined,
+                text: item.location.isEmpty
+                    ? 'ঠিকানা দেওয়া হয়নি'
+                    : item.location),
             const SizedBox(height: 10),
-            _InfoLine(icon: Icons.access_time_rounded, text: item.open.isEmpty ? 'সময় দেওয়া হয়নি' : item.open),
+            _InfoLine(
+                icon: Icons.access_time_rounded,
+                text: item.open.isEmpty ? 'সময় দেওয়া হয়নি' : item.open),
             const SizedBox(height: 15),
-            SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: item.phone.isEmpty ? null : () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ফোন: ${item.phone}'))), icon: const Icon(Icons.phone_outlined), label: Text(item.phone.isEmpty ? 'ফোন নম্বর নেই' : item.phone), style: OutlinedButton.styleFrom(foregroundColor: brand, side: const BorderSide(color: Color(0xFFB6D9CF)), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))))),
+            SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                    onPressed: item.phone.isEmpty
+                        ? null
+                        : () => ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('ফোন: ${item.phone}'))),
+                    icon: const Icon(Icons.phone_outlined),
+                    label:
+                        Text(item.phone.isEmpty ? 'ফোন নম্বর নেই' : item.phone),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: brand,
+                        side: const BorderSide(color: Color(0xFFB6D9CF)),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(17))))),
           ]),
         ),
       );
@@ -405,12 +895,24 @@ class _DetailedServiceCard extends StatelessWidget {
 
 class _InfoLine extends StatelessWidget {
   const _InfoLine({required this.icon, required this.text});
-  final IconData icon; final String text;
-  @override Widget build(BuildContext context) => Row(children: [Icon(icon, color: Colors.black54, size: 23), const SizedBox(width: 10), Expanded(child: Text(text, style: const TextStyle(fontSize: 16, color: Colors.black54)))]);
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, color: Colors.black54, size: 23),
+        const SizedBox(width: 10),
+        Expanded(
+            child: Text(text,
+                style: const TextStyle(fontSize: 16, color: Colors.black54)))
+      ]);
 }
 
 class _EmergencyTopicBox extends StatelessWidget {
-  const _EmergencyTopicBox({required this.label, required this.selected, required this.icon, required this.onTap});
+  const _EmergencyTopicBox(
+      {required this.label,
+      required this.selected,
+      required this.icon,
+      required this.onTap});
   final String label;
   final bool selected;
   final IconData icon;
@@ -421,8 +923,21 @@ class _EmergencyTopicBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(color: selected ? const Color(0xFFD8F2E9) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? brand : const Color(0xFFE0E7E3))),
-          child: Row(children: [Icon(icon, color: selected ? brand : Colors.black54, size: 22), const SizedBox(width: 8), Expanded(child: Text(label, style: TextStyle(color: selected ? ink : Colors.black87, fontWeight: FontWeight.w700, fontSize: 14)))]),
+          decoration: BoxDecoration(
+              color: selected ? const Color(0xFFD8F2E9) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: selected ? brand : const Color(0xFFE0E7E3))),
+          child: Row(children: [
+            Icon(icon, color: selected ? brand : Colors.black54, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color: selected ? ink : Colors.black87,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14)))
+          ]),
         ),
       );
 }
@@ -431,12 +946,29 @@ class TopicDataPage extends StatefulWidget {
   const TopicDataPage({super.key, required this.api, required this.topic});
   final PirganjApiClient api;
   final int topic;
-  @override State<TopicDataPage> createState() => _TopicDataPageState();
+  @override
+  State<TopicDataPage> createState() => _TopicDataPageState();
 }
 
 class _TopicDataPageState extends State<TopicDataPage> {
-  static const titles = ['রক্তদাতা', 'রক্তের অনুরোধ', 'নোটিশ', 'চাকরির খবর', 'হারানো/পাওয়া'];
-  static const bloodGroups = ['সব', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  static const titles = [
+    'রক্তদাতা',
+    'রক্তের অনুরোধ',
+    'নোটিশ',
+    'চাকরির খবর',
+    'হারানো/পাওয়া'
+  ];
+  static const bloodGroups = [
+    'সব',
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-'
+  ];
   String bloodGroup = 'সব';
   late Future<List<dynamic>> future;
 
@@ -449,7 +981,8 @@ class _TopicDataPageState extends State<TopicDataPage> {
   void _load() {
     future = switch (widget.topic) {
       0 => widget.api.getDonors(group: bloodGroup == 'সব' ? null : bloodGroup),
-      1 => widget.api.getBloodRequests(group: bloodGroup == 'সব' ? null : bloodGroup),
+      1 => widget.api
+          .getBloodRequests(group: bloodGroup == 'সব' ? null : bloodGroup),
       2 => widget.api.getNotices(),
       3 => widget.api.getJobs(),
       _ => widget.api.getLostFound(),
@@ -458,24 +991,76 @@ class _TopicDataPageState extends State<TopicDataPage> {
 
   Future<void> _add() async {
     const kinds = ['donor', 'bloodRequest', 'notice', 'job', 'lostFound'];
-    final result = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => EntrySheet(kind: kinds[widget.topic], api: widget.api));
+    final result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => EntrySheet(kind: kinds[widget.topic], api: widget.api));
     if (result == true && mounted) setState(_load);
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(backgroundColor: brand, foregroundColor: Colors.white, title: Text(titles[widget.topic], style: const TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: _add, icon: const Icon(Icons.add_circle_outline, size: 28))]),
+        appBar: AppBar(
+            backgroundColor: brand,
+            foregroundColor: Colors.white,
+            title: Text(titles[widget.topic],
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+            actions: [
+              IconButton(
+                  onPressed: _add,
+                  icon: const Icon(Icons.add_circle_outline, size: 28))
+            ]),
         body: RefreshIndicator(
           color: brand,
           onRefresh: () async => setState(_load),
           child: FutureBuilder<List<dynamic>>(
             future: future,
             builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: brand));
-              if (snapshot.hasError) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))]);
+              if (snapshot.connectionState == ConnectionState.waiting)
+                return const Center(
+                    child: CircularProgressIndicator(color: brand));
+              if (snapshot.hasError)
+                return ListView(children: const [
+                  Padding(
+                      padding: EdgeInsets.all(24),
+                      child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))
+                ]);
               final data = snapshot.data ?? [];
-              if (data.isEmpty) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))]);
-              return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 28), children: [if (widget.topic < 2) Padding(padding: const EdgeInsets.only(bottom: 14), child: DropdownButtonFormField<String>(initialValue: bloodGroup, decoration: const InputDecoration(labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার', filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderSide: BorderSide.none)), items: bloodGroups.map((group) => DropdownMenuItem(value: group, child: Text(group))).toList(), onChanged: (value) { setState(() { bloodGroup = value ?? 'সব'; _load(); }); })), ...data.map((item) => _TopicCard(topic: widget.topic, data: Map<String, dynamic>.from(item))) ]);
+              if (data.isEmpty)
+                return ListView(children: const [
+                  Padding(
+                      padding: EdgeInsets.all(24),
+                      child: _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))
+                ]);
+              return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                  children: [
+                    if (widget.topic < 2)
+                      Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: DropdownButtonFormField<String>(
+                              initialValue: bloodGroup,
+                              decoration: const InputDecoration(
+                                  labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                      borderSide: BorderSide.none)),
+                              items: bloodGroups
+                                  .map((group) => DropdownMenuItem(
+                                      value: group, child: Text(group)))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  bloodGroup = value ?? 'সব';
+                                  _load();
+                                });
+                              })),
+                    ...data.map((item) => _TopicCard(
+                        topic: widget.topic,
+                        data: Map<String, dynamic>.from(item)))
+                  ]);
             },
           ),
         ),
@@ -486,21 +1071,32 @@ class HomeBloodSection extends StatelessWidget {
   const HomeBloodSection({super.key, required this.future});
   final Future<List<List<dynamic>>> future;
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('রক্ত', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
+  Widget build(BuildContext context) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('রক্ত',
+            style: TextStyle(
+                fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(height: 10),
         FutureBuilder<List<List<dynamic>>>(
           future: future,
           builder: (_, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: brand)));
-            if (snapshot.hasError) return const _EmptyCard(text: 'রক্তের তথ্য আনতে সমস্যা হয়েছে');
+            if (snapshot.connectionState == ConnectionState.waiting)
+              return const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator(color: brand)));
+            if (snapshot.hasError)
+              return const _EmptyCard(text: 'রক্তের তথ্য আনতে সমস্যা হয়েছে');
             final donors = snapshot.data?[0] ?? <dynamic>[];
             final requests = snapshot.data?[1] ?? <dynamic>[];
             final cards = <Widget>[
-              ...donors.map((item) => _TopicCard(topic: 0, data: Map<String, dynamic>.from(item))),
-              ...requests.map((item) => _TopicCard(topic: 1, data: Map<String, dynamic>.from(item))),
+              ...donors.map((item) =>
+                  _TopicCard(topic: 0, data: Map<String, dynamic>.from(item))),
+              ...requests.map((item) =>
+                  _TopicCard(topic: 1, data: Map<String, dynamic>.from(item))),
             ];
-            if (cards.isEmpty) return const _EmptyCard(text: 'এখনো কোনো রক্তের তথ্য যোগ হয়নি');
+            if (cards.isEmpty)
+              return const _EmptyCard(text: 'এখনো কোনো রক্তের তথ্য যোগ হয়নি');
             return Column(children: cards);
           },
         ),
@@ -511,16 +1107,28 @@ class EmergencyPage extends StatefulWidget {
   const EmergencyPage({super.key, required this.api, this.initialSelected = 0});
   final PirganjApiClient api;
   final int initialSelected;
-  @override State<EmergencyPage> createState() => _EmergencyPageState();
+  @override
+  State<EmergencyPage> createState() => _EmergencyPageState();
 }
 
 class _EmergencyPageState extends State<EmergencyPage> {
-  final topics = const ['রক্তদাতা', 'রক্তের অনুরোধ', 'নোটিশ', 'চাকরি', 'হারানো/পাওয়া'];
+  final topics = const [
+    'রক্তদাতা',
+    'রক্তের অনুরোধ',
+    'নোটিশ',
+    'চাকরি',
+    'হারানো/পাওয়া'
+  ];
   late int selected;
   late Future<List<dynamic>> future;
 
   @override
-  void initState() { super.initState(); selected = widget.initialSelected.clamp(0, 4); _load(); }
+  void initState() {
+    super.initState();
+    selected = widget.initialSelected.clamp(0, 4);
+    _load();
+  }
+
   void _load() {
     future = switch (selected) {
       0 => widget.api.getDonors(),
@@ -530,36 +1138,107 @@ class _EmergencyPageState extends State<EmergencyPage> {
       _ => widget.api.getLostFound(),
     };
   }
+
   Future<void> _add() async {
     final kinds = ['donor', 'bloodRequest', 'notice', 'job', 'lostFound'];
-    final result = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => EntrySheet(kind: kinds[selected], api: widget.api));
+    final result = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => EntrySheet(kind: kinds[selected], api: widget.api));
     if (result == true && mounted) setState(_load);
   }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           backgroundColor: brand,
           foregroundColor: Colors.white,
-          title: const Text('জরুরি সেবা', style: TextStyle(fontWeight: FontWeight.w800)),
-          actions: [Padding(padding: const EdgeInsets.only(right: 10), child: IconButton(onPressed: _add, icon: const Icon(Icons.add_circle_outline, size: 28)))],
+          title: const Text('জরুরি সেবা',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          actions: [
+            Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: IconButton(
+                    onPressed: _add,
+                    icon: const Icon(Icons.add_circle_outline, size: 28)))
+          ],
         ),
         body: Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 5), child: Align(alignment: Alignment.centerLeft, child: Text('জনপ্রিয় সেবা', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)))),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: GridView.count(shrinkWrap: true, crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.55, children: List.generate(topics.length, (index) => _EmergencyTopicBox(label: topics[index], selected: selected == index, icon: index == 0 || index == 1 ? Icons.bloodtype_rounded : index == 2 ? Icons.campaign_rounded : index == 3 ? Icons.work_rounded : Icons.search_rounded, onTap: () => setState(() { selected = index; _load(); }))))),
-          Expanded(child: RefreshIndicator(color: brand, onRefresh: () async => setState(_load), child: FutureBuilder<List<dynamic>>(future: future, builder: (_, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: brand));
-            if (snapshot.hasError) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'এই topic-এর তথ্য আনতে সমস্যা হয়েছে'))]);
-            final data = snapshot.data ?? [];
-            if (data.isEmpty) return ListView(children: const [Padding(padding: EdgeInsets.all(24), child: _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))]);
-            return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 28), children: data.map((item) => _TopicCard(topic: selected, data: Map<String, dynamic>.from(item))).toList());
-          }))),
+          Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 5),
+              child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('জনপ্রিয় সেবা',
+                      style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                          color: ink)))),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: GridView.count(
+                  shrinkWrap: true,
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 2.55,
+                  children: List.generate(
+                      topics.length,
+                      (index) => _EmergencyTopicBox(
+                          label: topics[index],
+                          selected: selected == index,
+                          icon: index == 0 || index == 1
+                              ? Icons.bloodtype_rounded
+                              : index == 2
+                                  ? Icons.campaign_rounded
+                                  : index == 3
+                                      ? Icons.work_rounded
+                                      : Icons.search_rounded,
+                          onTap: () => setState(() {
+                                selected = index;
+                                _load();
+                              }))))),
+          Expanded(
+              child: RefreshIndicator(
+                  color: brand,
+                  onRefresh: () async => setState(_load),
+                  child: FutureBuilder<List<dynamic>>(
+                      future: future,
+                      builder: (_, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting)
+                          return const Center(
+                              child: CircularProgressIndicator(color: brand));
+                        if (snapshot.hasError)
+                          return ListView(children: const [
+                            Padding(
+                                padding: EdgeInsets.all(24),
+                                child: _EmptyCard(
+                                    text: 'এই topic-এর তথ্য আনতে সমস্যা হয়েছে'))
+                          ]);
+                        final data = snapshot.data ?? [];
+                        if (data.isEmpty)
+                          return ListView(children: const [
+                            Padding(
+                                padding: EdgeInsets.all(24),
+                                child:
+                                    _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))
+                          ]);
+                        return ListView(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                            children: data
+                                .map((item) => _TopicCard(
+                                    topic: selected,
+                                    data: Map<String, dynamic>.from(item)))
+                                .toList());
+                      }))),
         ]),
       );
 }
 
 class _TopicCard extends StatelessWidget {
   const _TopicCard({required this.topic, required this.data});
-  final int topic; final Map<String, dynamic> data;
+  final int topic;
+  final Map<String, dynamic> data;
   @override
   Widget build(BuildContext context) {
     String title;
@@ -568,24 +1247,41 @@ class _TopicCard extends StatelessWidget {
       title = '${data['name'] ?? ''} · ${data['group'] ?? ''}';
       subtitle = '${data['area'] ?? ''}\n${data['phone'] ?? ''}';
     } else if (topic == 1) {
-      title = '${data['patient_name'] ?? data['patientName'] ?? 'রক্তের অনুরোধ'} · ${data['blood_group'] ?? data['bloodGroup'] ?? ''}';
-      subtitle = '${data['hospital'] ?? ''} · ${data['area'] ?? ''}\n${data['contact_phone'] ?? data['phone'] ?? ''}';
+      title =
+          '${data['patient_name'] ?? data['patientName'] ?? 'রক্তের অনুরোধ'} · ${data['blood_group'] ?? data['bloodGroup'] ?? ''}';
+      subtitle =
+          '${data['hospital'] ?? ''} · ${data['area'] ?? ''}\n${data['contact_phone'] ?? data['phone'] ?? ''}';
     } else if (topic == 2) {
       title = '${data['title'] ?? ''}';
-      subtitle = '${data['label'] ?? ''} · ${data['date'] ?? data['notice_date'] ?? ''}\n${data['body'] ?? ''}';
+      subtitle =
+          '${data['label'] ?? ''} · ${data['date'] ?? data['notice_date'] ?? ''}\n${data['body'] ?? ''}';
     } else {
-      title = topic == 3 ? '${data['title'] ?? ''} · ${data['company'] ?? ''}' : '${data['title'] ?? ''}';
-      subtitle = '${data['location'] ?? ''}\n${data['description'] ?? ''}\n${data['contactPhone'] ?? data['contact_phone'] ?? ''}';
+      title = topic == 3
+          ? '${data['title'] ?? ''} · ${data['company'] ?? ''}'
+          : '${data['title'] ?? ''}';
+      subtitle =
+          '${data['location'] ?? ''}\n${data['description'] ?? ''}\n${data['contactPhone'] ?? data['contact_phone'] ?? ''}';
     }
-    final icon = topic == 0 || topic == 1 ? Icons.bloodtype : topic == 2 ? Icons.campaign : topic == 3 ? Icons.work : Icons.volunteer_activism;
+    final icon = topic == 0 || topic == 1
+        ? Icons.bloodtype
+        : topic == 2
+            ? Icons.campaign
+            : topic == 3
+                ? Icons.work
+                : Icons.volunteer_activism;
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 11),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFE0E9E4))),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFFE0E9E4))),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(backgroundColor: const Color(0xFFE0F3EB), child: Icon(icon, color: brand)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
+        leading: CircleAvatar(
+            backgroundColor: const Color(0xFFE0F3EB),
+            child: Icon(icon, color: brand)),
+        title: Text(title,
+            style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
         subtitle: Text(subtitle, style: const TextStyle(height: 1.45)),
       ),
     );
@@ -593,103 +1289,306 @@ class _TopicCard extends StatelessWidget {
 }
 
 class EntrySheet extends StatefulWidget {
-  const EntrySheet({super.key, required this.kind, required this.api, this.initialCategory});
-  final String kind; final PirganjApiClient api; final String? initialCategory;
-  @override State<EntrySheet> createState() => _EntrySheetState();
+  const EntrySheet(
+      {super.key, required this.kind, required this.api, this.initialCategory});
+  final String kind;
+  final PirganjApiClient api;
+  final String? initialCategory;
+  @override
+  State<EntrySheet> createState() => _EntrySheetState();
 }
+
 class _EntrySheetState extends State<EntrySheet> {
-  final values = <String, String>{}; bool saving = false;
+  final values = <String, String>{};
+  final controllers = <String, TextEditingController>{};
+  bool saving = false;
+  static const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  static const categories = [
+    'হাসপাতাল',
+    'ডাক্তার',
+    'ফার্মেসি',
+    'স্কুল',
+    'কলেজ',
+    'দোকান',
+    'রেস্টুরেন্ট',
+    'হোটেল',
+    'সরকারি অফিস',
+    'অন্যান্য'
+  ];
+
   @override
   void initState() {
     super.initState();
-    if (widget.initialCategory != null) values['category'] = widget.initialCategory!;
+    if (widget.initialCategory != null)
+      values['category'] = widget.initialCategory!;
   }
-  String get title => {'post': 'কমিউনিটি পোস্ট', 'service': 'স্থানীয় সেবা', 'donor': 'রক্তদাতা', 'bloodRequest': 'জরুরি রক্তের অনুরোধ', 'notice': 'নতুন নোটিশ', 'job': 'চাকরির খবর', 'lostFound': 'হারানো/পাওয়া'}[widget.kind] ?? 'তথ্য যোগ করুন';
-  List<_Spec> get specs {
-    switch (widget.kind) {
-      case 'post': return const [_Spec('author', 'আপনার নাম'), _Spec('title', 'শিরোনাম'), _Spec('body', 'বিস্তারিত'), _Spec('tag', 'ধরন (খবর, নোটিশ, জরুরি)')];
-      case 'service': return const [_Spec('name', 'সেবার নাম'), _Spec('category', 'ক্যাটাগরি'), _Spec('meta', 'সংক্ষিপ্ত পরিচয়'), _Spec('location', 'ঠিকানা'), _Spec('phone', 'ফোন নম্বর'), _Spec('openHours', 'খোলার সময়')];
-      case 'donor': return const [_Spec('name', 'নাম'), _Spec('bloodGroup', 'রক্তের গ্রুপ (যেমন O+)'), _Spec('phone', 'ফোন নম্বর'), _Spec('area', 'এলাকা')];
-      case 'bloodRequest': return const [_Spec('patientName', 'রোগীর নাম'), _Spec('bloodGroup', 'রক্তের গ্রুপ'), _Spec('hospital', 'হাসপাতাল'), _Spec('phone', 'যোগাযোগ নম্বর'), _Spec('area', 'এলাকা'), _Spec('details', 'বিস্তারিত')];
-      case 'notice': return const [_Spec('title', 'নোটিশের শিরোনাম'), _Spec('body', 'বিস্তারিত'), _Spec('label', 'লেবেল')];
-      case 'job': return const [_Spec('title', 'পদের নাম'), _Spec('company', 'প্রতিষ্ঠান'), _Spec('description', 'বিস্তারিত'), _Spec('location', 'স্থান'), _Spec('phone', 'যোগাযোগ নম্বর')];
-      default: return const [_Spec('title', 'শিরোনাম'), _Spec('description', 'বিস্তারিত'), _Spec('location', 'কোথায়'), _Spec('phone', 'যোগাযোগ নম্বর')];
+
+  @override
+  void dispose() {
+    for (final controller in controllers.values) {
+      controller.dispose();
     }
+    super.dispose();
   }
-  bool _valid() { const required = {'author', 'title', 'body', 'name', 'category', 'bloodGroup', 'phone', 'patientName', 'hospital'}; return !specs.any((spec) => required.contains(spec.key) && (values[spec.key] ?? '').trim().isEmpty); }
+
+  String get title =>
+      {
+        'post': 'কমিউনিটি পোস্ট',
+        'service': 'স্থানীয় সেবা',
+        'donor': 'রক্তদাতা',
+        'bloodRequest': 'জরুরি রক্তের অনুরোধ',
+        'notice': 'নতুন নোটিশ',
+        'job': 'চাকরির খবর',
+        'lostFound': 'হারানো/পাওয়া'
+      }[widget.kind] ??
+      'তথ্য যোগ করুন';
+  TextEditingController controller(String key) => controllers.putIfAbsent(
+      key, () => TextEditingController(text: values[key] ?? ''));
+  InputDecoration decoration(String label, {String? hint}) => InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: brand, width: 1.5)));
+  Widget field(String key, String label,
+          {bool required = false, bool multiline = false, String? hint}) =>
+      Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TextField(
+              controller: controller(key),
+              onChanged: (value) => values[key] = value,
+              maxLines: multiline ? 4 : 1,
+              keyboardType:
+                  key == 'phone' ? TextInputType.phone : TextInputType.text,
+              decoration:
+                  decoration(required ? '$label *' : label, hint: hint)));
+  Widget select(String key, String label, List<String> options,
+          {bool required = false}) =>
+      Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: DropdownButtonFormField<String>(
+              value: values[key],
+              isExpanded: true,
+              decoration: decoration(required ? '$label *' : label),
+              items: options
+                  .map((option) => DropdownMenuItem(
+                      value: option,
+                      child: Text(option, overflow: TextOverflow.ellipsis)))
+                  .toList(),
+              onChanged: (value) => setState(() => values[key] = value ?? '')));
+
+  bool valid() {
+    final required = switch (widget.kind) {
+      'post' => ['title', 'body'],
+      'service' => ['name', 'category'],
+      'donor' => ['name', 'bloodGroup', 'phone'],
+      'bloodRequest' => ['patientName', 'bloodGroup', 'hospital', 'phone'],
+      'notice' => ['title'],
+      'job' => ['title'],
+      _ => ['title']
+    };
+    return required.every(
+        (key) => (values[key] ?? controller(key).text).trim().isNotEmpty);
+  }
+
   Future<void> save() async {
-    if (!_valid()) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('প্রয়োজনীয় ঘরগুলো পূরণ করুন'))); return; }
+    for (final entry in controllers.entries) {
+      values[entry.key] = entry.value.text;
+    }
+    if (!valid()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('চিহ্নিত প্রয়োজনীয় ঘরগুলো পূরণ করুন')));
+      return;
+    }
     setState(() => saving = true);
     try {
       switch (widget.kind) {
-        case 'post': await widget.api.createPost(author: values['author']!, title: values['title']!, body: values['body']!, tag: (values['tag'] ?? '').trim().isEmpty ? 'কমিউনিটি' : values['tag']!); break;
-        case 'service': await widget.api.createService(name: values['name']!, category: values['category']!, meta: values['meta'] ?? '', location: values['location'] ?? '', phone: values['phone'] ?? '', openHours: values['openHours'] ?? ''); break;
-        case 'donor': await widget.api.createDonor(name: values['name']!, bloodGroup: values['bloodGroup']!, phone: values['phone']!, area: values['area'] ?? ''); break;
-        case 'bloodRequest': await widget.api.createBloodRequest(patientName: values['patientName']!, bloodGroup: values['bloodGroup']!, hospital: values['hospital']!, phone: values['phone']!, area: values['area'] ?? '', details: values['details'] ?? ''); break;
-        case 'notice': await widget.api.createNotice(title: values['title']!, body: values['body'] ?? '', label: values['label'] ?? 'কমিউনিটি'); break;
-        case 'job': await widget.api.createJob(title: values['title']!, company: values['company'] ?? '', description: values['description'] ?? '', location: values['location'] ?? '', phone: values['phone'] ?? ''); break;
-        default: await widget.api.createLostFound(title: values['title']!, type: 'lost', description: values['description'] ?? '', location: values['location'] ?? '', phone: values['phone'] ?? '');
+        case 'post':
+          await widget.api.createPost(
+              author: values['author']?.trim().isEmpty ?? true
+                  ? 'পীরগঞ্জবাসী'
+                  : values['author']!,
+              title: values['title']!,
+              body: values['body']!,
+              tag: values['tag'] ?? 'কমিউনিটি');
+          break;
+        case 'service':
+          await widget.api.createService(
+              name: values['name']!,
+              category: values['category']!,
+              meta: values['meta'] ?? '',
+              location: values['location'] ?? '',
+              phone: values['phone'] ?? '',
+              openHours: values['openHours'] ?? '');
+          break;
+        case 'donor':
+          await widget.api.createDonor(
+              name: values['name']!,
+              bloodGroup: values['bloodGroup']!,
+              phone: values['phone']!,
+              area: values['area'] ?? '');
+          break;
+        case 'bloodRequest':
+          await widget.api.createBloodRequest(
+              patientName: values['patientName']!,
+              bloodGroup: values['bloodGroup']!,
+              hospital: values['hospital']!,
+              phone: values['phone']!,
+              area: values['area'] ?? '',
+              details: values['details'] ?? '');
+          break;
+        case 'notice':
+          await widget.api.createNotice(
+              title: values['title']!,
+              body: values['body'] ?? '',
+              label: values['label'] ?? 'কমিউনিটি');
+          break;
+        case 'job':
+          await widget.api.createJob(
+              title: values['title']!,
+              company: values['company'] ?? '',
+              description: values['description'] ?? '',
+              location: values['location'] ?? '',
+              phone: values['phone'] ?? '');
+          break;
+        default:
+          await widget.api.createLostFound(
+              title: values['title']!,
+              type: values['type'] ?? 'lost',
+              description: values['description'] ?? '',
+              location: values['location'] ?? '',
+              phone: values['phone'] ?? '');
       }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('যোগ করা যায়নি: $error')));
-    } finally { if (mounted) setState(() => saving = false); }
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('যোগ করা যায়নি: $error')));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
+
+  List<Widget> formFields() => switch (widget.kind) {
+        'post' => [
+            field('author', 'আপনার নাম'),
+            field('title', 'শিরোনাম', required: true),
+            field('body', 'বিস্তারিত', required: true, multiline: true),
+            select('tag', 'ধরন', ['কমিউনিটি', 'খবর', 'নোটিশ', 'জরুরি'])
+          ],
+        'service' => [
+            field('name', 'সেবার নাম', required: true),
+            select('category', 'ক্যাটাগরি', categories, required: true),
+            field('meta', 'সংক্ষিপ্ত পরিচয়'),
+            field('location', 'ঠিকানা'),
+            field('phone', 'ফোন নম্বর'),
+            field('openHours', 'খোলার সময়')
+          ],
+        'donor' => [
+            field('name', 'নাম', required: true),
+            select('bloodGroup', 'রক্তের গ্রুপ', bloodGroups, required: true),
+            field('phone', 'ফোন নম্বর', required: true),
+            field('area', 'এলাকা')
+          ],
+        'bloodRequest' => [
+            field('patientName', 'রোগীর নাম', required: true),
+            select('bloodGroup', 'রক্তের গ্রুপ', bloodGroups, required: true),
+            field('hospital', 'হাসপাতাল', required: true),
+            field('phone', 'যোগাযোগ নম্বর', required: true),
+            field('area', 'এলাকা'),
+            field('details', 'বিস্তারিত', multiline: true)
+          ],
+        'notice' => [
+            field('title', 'নোটিশের শিরোনাম', required: true),
+            field('body', 'বিস্তারিত', multiline: true),
+            select('label', 'লেবেল', ['সরকারি', 'কমিউনিটি', 'জরুরি'])
+          ],
+        'job' => [
+            field('title', 'পদের নাম', required: true),
+            field('company', 'প্রতিষ্ঠান'),
+            field('description', 'বিস্তারিত', multiline: true),
+            field('location', 'স্থান'),
+            field('phone', 'যোগাযোগ নম্বর')
+          ],
+        _ => [
+            select('type', 'ধরন', ['lost', 'found']),
+            field('title', 'শিরোনাম', required: true),
+            field('description', 'বিস্তারিত', multiline: true),
+            field('location', 'কোথায়'),
+            field('phone', 'যোগাযোগ নম্বর')
+          ],
+      };
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(top: 70, bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: Container(
-          decoration: const BoxDecoration(color: page, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Center(child: Container(width: 42, height: 5, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(5)))),
-              const SizedBox(height: 16),
-              Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: ink)),
-              const SizedBox(height: 15),
-              ...specs.map((spec) {
-                final categories = ['হাসপাতাল', 'ডাক্তার', 'ফার্মেসি', 'স্কুল', 'কলেজ', 'দোকান', 'রেস্টুরেন্ট', 'হোটেল', 'সরকারি অফিস', 'অন্যান্য'];
-                if (spec.key == 'category') {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 11),
-                    child: DropdownButtonFormField<String>(
-                      initialValue: values['category'],
-                      decoration: InputDecoration(labelText: spec.label, filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
-                      items: categories.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
-                      onChanged: (value) => setState(() => values['category'] = value ?? ''),
-                    ),
-                  );
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 11),
-                  child: TextField(
-                    onChanged: (value) => values[spec.key] = value,
-                    maxLines: {'body', 'description', 'details'}.contains(spec.key) ? 3 : 1,
-                    decoration: InputDecoration(labelText: spec.label, filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
-                  ),
-                );
-              }),
-              SizedBox(
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          top: 52, bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+            color: page,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(
+                child: Container(
+                    width: 42,
+                    height: 5,
+                    decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(5)))),
+            const SizedBox(height: 17),
+            Row(children: [
+              Expanded(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w800,
+                          color: ink))),
+              IconButton(
+                  onPressed: saving ? null : () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded))
+            ]),
+            const SizedBox(height: 16),
+            ...formFields(),
+            const SizedBox(height: 5),
+            SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: saving ? null : save,
-                  style: FilledButton.styleFrom(backgroundColor: brand, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))),
-                  child: saving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('প্রকাশ করুন', style: TextStyle(fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ]),
-          ),
+                    onPressed: saving ? null : save,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: brand,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(17))),
+                    child: saving
+                        ? const SizedBox(
+                            height: 21,
+                            width: 21,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Text('প্রকাশ করুন',
+                            style: TextStyle(fontWeight: FontWeight.w800)))),
+          ]),
         ),
-      );
+      ),
+    );
+  }
 }
-class _Spec { const _Spec(this.key, this.label); final String key, label; }
-
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.api, required this.onLoggedIn});
   final PirganjApiClient api;
   final Future<void> Function(Map<String, dynamic> result) onLoggedIn;
-  @override State<AuthScreen> createState() => _AuthScreenState();
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
 }
 
 class _AuthScreenState extends State<AuthScreen> {
@@ -702,24 +1601,50 @@ class _AuthScreenState extends State<AuthScreen> {
   bool busy = false;
 
   @override
-  void dispose() { phone.dispose(); password.dispose(); name.dispose(); address.dispose(); super.dispose(); }
+  void dispose() {
+    phone.dispose();
+    password.dispose();
+    name.dispose();
+    address.dispose();
+    super.dispose();
+  }
 
   Future<void> submit() async {
-    final incomplete = phone.text.trim().isEmpty || password.text.isEmpty || (register && (name.text.trim().isEmpty || address.text.trim().isEmpty));
-    if (incomplete) { _show('প্রয়োজনীয় তথ্য পূরণ করুন'); return; }
+    final incomplete = phone.text.trim().isEmpty ||
+        password.text.isEmpty ||
+        (register && (name.text.trim().isEmpty || address.text.trim().isEmpty));
+    if (incomplete) {
+      _show('প্রয়োজনীয় তথ্য পূরণ করুন');
+      return;
+    }
     setState(() => busy = true);
     try {
       final result = register
-          ? await widget.api.register(phone: phone.text.trim(), password: password.text, name: name.text.trim(), sex: sex, address: address.text.trim())
-          : await widget.api.login(phone: phone.text.trim(), password: password.text);
+          ? await widget.api.register(
+              phone: phone.text.trim(),
+              password: password.text,
+              name: name.text.trim(),
+              sex: sex,
+              address: address.text.trim())
+          : await widget.api
+              .login(phone: phone.text.trim(), password: password.text);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
       if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
-    } finally { if (mounted) setState(() => busy = false); }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
-  void _show(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-  InputDecoration dec(String label) => InputDecoration(labelText: label, filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none));
+  void _show(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  InputDecoration dec(String label) => InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none));
 
   @override
   Widget build(BuildContext context) {
@@ -729,23 +1654,70 @@ class _AuthScreenState extends State<AuthScreen> {
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(22),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Center(child: ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/pirganj_logo.jpg', width: 92, height: 92, fit: BoxFit.cover))),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Center(
+                  child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset('assets/pirganj_logo.jpg',
+                          width: 92, height: 92, fit: BoxFit.cover))),
               const SizedBox(height: 16),
-              Center(child: Text(register ? 'নতুন account তৈরি করুন' : 'Pirganj-এ login করুন', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: ink))),
+              Center(
+                  child: Text(
+                      register
+                          ? 'নতুন account তৈরি করুন'
+                          : 'Pirganj-এ login করুন',
+                      style: const TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w800,
+                          color: ink))),
               const SizedBox(height: 22),
-              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: dec('ফোন নম্বর')),
+              TextField(
+                  controller: phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: dec('ফোন নম্বর')),
               const SizedBox(height: 11),
-              TextField(controller: password, obscureText: true, decoration: dec('পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)')),
+              TextField(
+                  controller: password,
+                  obscureText: true,
+                  decoration: dec('পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)')),
               if (register) ...[
-                const SizedBox(height: 11), TextField(controller: name, decoration: dec('আপনার নাম')),
-                const SizedBox(height: 11), DropdownButtonFormField<String>(initialValue: sex, decoration: dec('লিঙ্গ'), items: const ['পুরুষ', 'নারী', 'অন্যান্য'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setState(() => sex = v ?? sex)),
-                const SizedBox(height: 11), TextField(controller: address, maxLines: 2, decoration: dec('ঠিকানা')),
+                const SizedBox(height: 11),
+                TextField(controller: name, decoration: dec('আপনার নাম')),
+                const SizedBox(height: 11),
+                DropdownButtonFormField<String>(
+                    initialValue: sex,
+                    decoration: dec('লিঙ্গ'),
+                    items: const ['পুরুষ', 'নারী', 'অন্যান্য']
+                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                        .toList(),
+                    onChanged: (v) => setState(() => sex = v ?? sex)),
+                const SizedBox(height: 11),
+                TextField(
+                    controller: address,
+                    maxLines: 2,
+                    decoration: dec('ঠিকানা')),
               ],
               const SizedBox(height: 18),
-              SizedBox(width: double.infinity, child: FilledButton(onPressed: busy ? null : submit, style: FilledButton.styleFrom(backgroundColor: brand, padding: const EdgeInsets.symmetric(vertical: 15)), child: busy ? const CircularProgressIndicator(color: Colors.white) : Text(register ? 'নিবন্ধন করুন' : 'Login'))),
+              SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                      onPressed: busy ? null : submit,
+                      style: FilledButton.styleFrom(
+                          backgroundColor: brand,
+                          padding: const EdgeInsets.symmetric(vertical: 15)),
+                      child: busy
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(register ? 'নিবন্ধন করুন' : 'Login'))),
               const SizedBox(height: 8),
-              Center(child: TextButton(onPressed: busy ? null : () => setState(() => register = !register), child: Text(register ? 'আগে account আছে? Login করুন' : 'নতুন account তৈরি করুন'))),
+              Center(
+                  child: TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => setState(() => register = !register),
+                      child: Text(register
+                          ? 'আগে account আছে? Login করুন'
+                          : 'নতুন account তৈরি করুন'))),
             ]),
           ),
         ),
@@ -755,55 +1727,673 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 
 class ProfilePanel extends StatefulWidget {
-  const ProfilePanel({super.key, required this.api, this.onLogout, this.refreshToken = 0});
+  const ProfilePanel(
+      {super.key, required this.api, this.onLogout, this.refreshToken = 0});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
   final int refreshToken;
-  @override State<ProfilePanel> createState() => _ProfilePanelState();
+  @override
+  State<ProfilePanel> createState() => _ProfilePanelState();
 }
 
 class _ProfilePanelState extends State<ProfilePanel> {
   late Future<Map<String, dynamic>> userFuture;
   late Future<List<dynamic>> itemsFuture;
-  @override void initState() { super.initState(); _reload(); }
-  void _reload() { userFuture = widget.api.me(); itemsFuture = widget.api.getMyItems(); }
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    userFuture = widget.api.me();
+    itemsFuture = widget.api.getMyItems();
+  }
+
+  String resourceLabel(String r) =>
+      {
+        'donors': 'রক্তদাতা',
+        'jobs': 'চাকরির খবর',
+        'blood_requests': 'রক্তের অনুরোধ',
+        'notices': 'নোটিশ',
+        'lost_found': 'হারানো/পাওয়া',
+        'services': 'স্থানীয় সেবা',
+        'posts': 'কমিউনিটি পোস্ট'
+      }[r] ??
+      'আমার তথ্য';
+  IconData resourceIcon(String r) =>
+      {
+        'donors': Icons.bloodtype_rounded,
+        'jobs': Icons.work_rounded,
+        'blood_requests': Icons.emergency_rounded,
+        'notices': Icons.campaign_rounded,
+        'lost_found': Icons.search_rounded,
+        'services': Icons.storefront_rounded,
+        'posts': Icons.forum_rounded
+      }[r] ??
+      Icons.description_rounded;
+  String itemTitle(Map<String, dynamic> item) {
+    final r = item['resource']?.toString() ?? '';
+    if (r == 'donors')
+      return '${item['name'] ?? 'রক্তদাতা'} · ${item['group'] ?? ''}';
+    if (r == 'blood_requests')
+      return '${item['patientName'] ?? 'রক্তের অনুরোধ'} · ${item['group'] ?? ''}';
+    if (r == 'jobs')
+      return '${item['title'] ?? 'চাকরি'} · ${item['company'] ?? ''}';
+    return item['title']?.toString() ?? item['name']?.toString() ?? 'আমার তথ্য';
+  }
+
+  String itemSubtitle(Map<String, dynamic> item) {
+    final r = item['resource']?.toString() ?? '';
+    if (r == 'donors')
+      return '${item['area'] ?? 'এলাকা দেওয়া হয়নি'}  •  ${item['phone'] ?? ''}';
+    if (r == 'blood_requests')
+      return '${item['hospital'] ?? ''}  •  ${item['phone'] ?? ''}';
+    if (r == 'jobs')
+      return '${item['location'] ?? 'স্থান দেওয়া হয়নি'}  •  ${item['contactPhone'] ?? ''}';
+    if (r == 'services')
+      return '${item['category'] ?? ''}  •  ${item['location'] ?? ''}';
+    return resourceLabel(r);
+  }
+
+  Future<void> editProfile() async {
+    final current = await userFuture;
+    final payload = current['data'];
+    final user = payload is Map
+        ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
+        : <String, dynamic>{};
+    final result = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (_) => _ProfileEditDialog(
+            initialName: user['name']?.toString() ?? '',
+            initialSex: user['sex']?.toString() ?? 'পুরুষ',
+            initialAddress: user['address']?.toString() ?? ''));
+    if (result == null) return;
+    try {
+      await widget.api.updateProfile(
+          name: result['name'], sex: result['sex'], address: result['address']);
+      if (mounted) setState(_reload);
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Profile update হয়নি: $e')));
+    }
+  }
 
   Future<void> _delete(Map<String, dynamic> item) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(title: const Text('তথ্য মুছে ফেলবেন?'), content: const Text('এটি শুধু আপনার নিজের যোগ করা তথ্য থেকে মুছে যাবে।'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('না')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('মুছুন'))]));
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+                title: const Text('তথ্য মুছে ফেলবেন?'),
+                content: Text(
+                    '${resourceLabel(item['resource'].toString())} তথ্যটি মুছে যাবে।'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('বাতিল')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('মুছুন'))
+                ]));
     if (ok != true) return;
-    try { await widget.api.deleteItem(item['resource'].toString(), item['id'].toString()); if (mounted) setState(_reload); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('মুছতে পারিনি: $e'))); }
+    try {
+      await widget.api
+          .deleteItem(item['resource'].toString(), item['id'].toString());
+      if (mounted) setState(_reload);
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('মুছতে পারিনি: $e')));
+    }
   }
 
   Future<void> _edit(Map<String, dynamic> item) async {
-    final result = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _EditItemDialog(item: item));
+    final result = await showDialog<Map<String, dynamic>>(
+        context: context, builder: (_) => _ResourceEditDialog(item: item));
     if (result == null) return;
-    try { await widget.api.updateItem(item['resource'].toString(), item['id'].toString(), result); if (mounted) setState(_reload); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('আপডেট করা যায়নি: $e'))); }
+    try {
+      await widget.api.updateItem(
+          item['resource'].toString(), item['id'].toString(), result);
+      if (mounted) setState(_reload);
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('আপডেট করা যায়নি: $e')));
+    }
   }
 
   @override
+  Widget build(BuildContext context) =>
+      ListView(padding: const EdgeInsets.fromLTRB(16, 18, 16, 30), children: [
+        FutureBuilder<Map<String, dynamic>>(
+            future: userFuture,
+            builder: (_, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting)
+                return const _ProfileHeaderSkeleton();
+              if (snapshot.hasError)
+                return const _ProfileHeader(
+                    name: 'Profile পাওয়া যায়নি',
+                    phone: '',
+                    address: 'আবার চেষ্টা করুন',
+                    onEdit: null);
+              final payload = snapshot.data?['data'];
+              final user = payload is Map
+                  ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
+                  : <String, dynamic>{};
+              return _ProfileHeader(
+                  name: user['name']?.toString() ?? 'আমার profile',
+                  phone: user['phone']?.toString() ?? '',
+                  address: '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+                  onEdit: editProfile);
+            }),
+        const SizedBox(height: 22),
+        Row(children: [
+          const Expanded(
+              child: Text('আমার তথ্য',
+                  style: TextStyle(
+                      fontSize: 23, fontWeight: FontWeight.w800, color: ink))),
+          TextButton.icon(
+              onPressed:
+                  widget.onLogout == null ? null : () => widget.onLogout!(),
+              icon: const Icon(Icons.logout_rounded, size: 18),
+              label: const Text('Logout'))
+        ]),
+        const SizedBox(height: 8),
+        FutureBuilder<List<dynamic>>(
+            future: itemsFuture,
+            builder: (_, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting)
+                return const _ProfileListSkeleton();
+              if (snapshot.hasError)
+                return _EmptyCard(
+                    text: 'তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
+              final items = snapshot.data ?? [];
+              if (items.isEmpty)
+                return const _EmptyCard(text: 'আপনি এখনো কোনো তথ্য যোগ করেননি');
+              return Column(
+                  children: items.map((raw) {
+                final item = Map<String, dynamic>.from(raw);
+                final r = item['resource']?.toString() ?? '';
+                return _OwnedItemCard(
+                    title: itemTitle(item),
+                    subtitle: itemSubtitle(item),
+                    label: resourceLabel(r),
+                    icon: resourceIcon(r),
+                    onEdit: () => _edit(item),
+                    onDelete: () => _delete(item));
+              }).toList());
+            }),
+      ]);
+}
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader(
+      {required this.name,
+      required this.phone,
+      required this.address,
+      required this.onEdit});
+  final String name, phone, address;
+  final VoidCallback? onEdit;
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFF126B5B), Color(0xFF2D987E)]),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x22167665), blurRadius: 18, offset: Offset(0, 8))
+          ]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+              width: 62,
+              height: 62,
+              decoration: const BoxDecoration(
+                  color: Color(0x33FFFFFF), shape: BoxShape.circle),
+              child: const Icon(Icons.person_rounded,
+                  color: Colors.white, size: 35)),
+          const SizedBox(width: 14),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800)),
+                Text(phone,
+                    style:
+                        const TextStyle(color: Color(0xD9FFFFFF), fontSize: 13))
+              ])),
+          if (onEdit != null)
+            IconButton(
+                onPressed: onEdit,
+                style: IconButton.styleFrom(
+                    backgroundColor: const Color(0x22FFFFFF)),
+                icon: const Icon(Icons.edit_rounded, color: Colors.white))
+        ]),
+        const SizedBox(height: 16),
+        Text(address,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xE6FFFFFF), height: 1.35))
+      ]));
+}
+
+class _OwnedItemCard extends StatelessWidget {
+  const _OwnedItemCard(
+      {required this.title,
+      required this.subtitle,
+      required this.label,
+      required this.icon,
+      required this.onEdit,
+      required this.onDelete});
+  final String title, subtitle, label;
+  final IconData icon;
+  final VoidCallback onEdit, onDelete;
+  @override
   Widget build(BuildContext context) {
-    return ListView(padding: const EdgeInsets.all(20), children: [
-      FutureBuilder<Map<String, dynamic>>(future: userFuture, builder: (_, snapshot) {
-        final payload = snapshot.data?['data'];
-        final user = payload is Map ? payload['user'] as Map? : null;
-        return Column(children: [const SizedBox(height: 10), const CircleAvatar(radius: 38, backgroundColor: Color(0xFFD8F2E9), child: Icon(Icons.person, color: brand, size: 42)), const SizedBox(height: 10), Text(user?['name']?.toString() ?? 'আমার profile', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: ink)), Text(user?['phone']?.toString() ?? '', style: const TextStyle(color: Colors.black54)), if (user != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text('${user['sex']} · ${user['address']}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54))), const SizedBox(height: 18)]);
-      }),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('আমার যোগ করা তথ্য', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)), TextButton(onPressed: widget.onLogout == null ? null : () => widget.onLogout!(), child: const Text('Logout'))]),
-      FutureBuilder<List<dynamic>>(future: itemsFuture, builder: (_, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Padding(padding: EdgeInsets.all(25), child: CircularProgressIndicator(color: brand));
-        if (snapshot.hasError) return _EmptyCard(text: 'আপনার তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
-        final items = snapshot.data ?? [];
-        if (items.isEmpty) return const _EmptyCard(text: 'আপনি এখনো কোনো তথ্য যোগ করেননি');
-        return Column(children: items.map((raw) { final item = Map<String, dynamic>.from(raw); return Card(elevation: 0, child: ListTile(title: Text(item['title']?.toString() ?? item['name']?.toString() ?? item['patientName']?.toString() ?? 'আমার তথ্য', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(item['resource']?.toString() ?? ''), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(onPressed: () => _edit(item), icon: const Icon(Icons.edit_outlined, color: brand)), IconButton(onPressed: () => _delete(item), icon: const Icon(Icons.delete_outline, color: Colors.red))]))); }).toList());
-      }),
-    ]);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 11),
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(21),
+          side: const BorderSide(color: Color(0xFFE4ECE8))),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 8, 12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFE3F4EE),
+                  borderRadius: BorderRadius.circular(15)),
+              child: Icon(icon, color: brand)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFEAF6F1),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Text(label,
+                        style: const TextStyle(
+                            color: brand,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700))),
+                const SizedBox(height: 7),
+                Text(title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: ink, fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.black54, height: 1.3)),
+              ])),
+          PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'edit') onEdit();
+                if (value == 'delete') onDelete();
+              },
+              itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete'))
+                  ]),
+        ]),
+      ),
+    );
   }
 }
 
-class _EditItemDialog extends StatefulWidget { const _EditItemDialog({required this.item}); final Map<String, dynamic> item; @override State<_EditItemDialog> createState() => _EditItemDialogState(); }
-class _EditItemDialogState extends State<_EditItemDialog> {
-  late final TextEditingController title, body, location, phone, name, group;
-  @override void initState() { super.initState(); title = TextEditingController(text: widget.item['title']?.toString() ?? ''); body = TextEditingController(text: widget.item['body']?.toString() ?? widget.item['description']?.toString() ?? ''); location = TextEditingController(text: widget.item['location']?.toString() ?? widget.item['area']?.toString() ?? ''); phone = TextEditingController(text: widget.item['phone']?.toString() ?? widget.item['contactPhone']?.toString() ?? ''); name = TextEditingController(text: widget.item['name']?.toString() ?? ''); group = TextEditingController(text: widget.item['group']?.toString() ?? ''); }
-  @override void dispose() { for (final c in [title, body, location, phone, name, group]) { c.dispose(); } super.dispose(); }
-  @override Widget build(BuildContext context) => AlertDialog(title: const Text('তথ্য আপডেট করুন'), content: SingleChildScrollView(child: Column(children: [TextField(controller: title, decoration: const InputDecoration(labelText: 'শিরোনাম')), TextField(controller: name, decoration: const InputDecoration(labelText: 'নাম')), TextField(controller: group, decoration: const InputDecoration(labelText: 'রক্তের গ্রুপ')), TextField(controller: body, maxLines: 3, decoration: const InputDecoration(labelText: 'বিস্তারিত')), TextField(controller: location, decoration: const InputDecoration(labelText: 'ঠিকানা/এলাকা')), TextField(controller: phone, decoration: const InputDecoration(labelText: 'ফোন'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('বাতিল')), FilledButton(onPressed: () => Navigator.pop(context, {'title': title.text, 'name': name.text, 'bloodGroup': group.text, 'body': body.text, 'description': body.text, 'location': location.text, 'area': location.text, 'phone': phone.text}), child: const Text('সংরক্ষণ'))]);
+class _ProfileHeaderSkeleton extends StatelessWidget {
+  const _ProfileHeaderSkeleton();
+  @override
+  Widget build(BuildContext context) =>
+      const _SkeletonBox(height: 174, radius: 28);
+}
+
+class _ProfileListSkeleton extends StatelessWidget {
+  const _ProfileListSkeleton();
+  @override
+  Widget build(BuildContext context) => Column(
+      children: List.generate(
+          3,
+          (_) => const Padding(
+              padding: EdgeInsets.only(bottom: 11),
+              child: _SkeletonBox(height: 118, radius: 21))));
+}
+
+class _SkeletonBox extends StatefulWidget {
+  const _SkeletonBox({required this.height, required this.radius});
+  final double height, radius;
+  @override
+  State<_SkeletonBox> createState() => _SkeletonBoxState();
+}
+
+class _SkeletonBoxState extends State<_SkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController animation;
+  @override
+  void initState() {
+    super.initState();
+    animation = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1100))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    animation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+      animation: animation,
+      builder: (_, __) => Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              gradient: LinearGradient(
+                  begin: Alignment(-1 + animation.value * 2, 0),
+                  end: const Alignment(1, 0),
+                  colors: const [
+                    Color(0xFFE8EFEC),
+                    Color(0xFFF8FAF9),
+                    Color(0xFFE8EFEC)
+                  ]))));
+}
+
+class _ProfileEditDialog extends StatefulWidget {
+  const _ProfileEditDialog(
+      {required this.initialName,
+      required this.initialSex,
+      required this.initialAddress});
+  final String initialName, initialSex, initialAddress;
+  @override
+  State<_ProfileEditDialog> createState() => _ProfileEditDialogState();
+}
+
+class _ProfileEditDialogState extends State<_ProfileEditDialog> {
+  late final TextEditingController name =
+      TextEditingController(text: widget.initialName);
+  late final TextEditingController address =
+      TextEditingController(text: widget.initialAddress);
+  late String sex = widget.initialSex;
+  @override
+  void dispose() {
+    name.dispose();
+    address.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+          title: const Text('Profile edit'),
+          content: SingleChildScrollView(
+              child: Column(children: [
+            TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'নাম')),
+            DropdownButtonFormField<String>(
+                initialValue: sex,
+                decoration: const InputDecoration(labelText: 'লিঙ্গ'),
+                items: const ['পুরুষ', 'নারী', 'অন্যান্য']
+                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                    .toList(),
+                onChanged: (v) => setState(() => sex = v ?? sex)),
+            TextField(
+                controller: address,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'ঠিকানা'))
+          ])),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('বাতিল')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context,
+                    {'name': name.text, 'sex': sex, 'address': address.text}),
+                child: const Text('সংরক্ষণ'))
+          ]);
+}
+
+class _ResourceEditDialog extends StatefulWidget {
+  const _ResourceEditDialog({required this.item});
+  final Map<String, dynamic> item;
+  @override
+  State<_ResourceEditDialog> createState() => _ResourceEditDialogState();
+}
+
+class _ResourceEditDialogState extends State<_ResourceEditDialog> {
+  final values = <String, String>{};
+  final controllers = <String, TextEditingController>{};
+  static const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  static const categories = [
+    'হাসপাতাল',
+    'ডাক্তার',
+    'ফার্মেসি',
+    'স্কুল',
+    'কলেজ',
+    'দোকান',
+    'রেস্টুরেন্ট',
+    'হোটেল',
+    'সরকারি অফিস',
+    'অন্যান্য'
+  ];
+  String get resource => widget.item['resource']?.toString() ?? '';
+  @override
+  void initState() {
+    super.initState();
+    for (final key in keys) {
+      final value = initialValue(key);
+      values[key] = value;
+      controllers[key] = TextEditingController(text: value);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  String initialValue(String key) {
+    final i = widget.item;
+    return switch (key) {
+      'name' => i['name']?.toString() ?? '',
+      'bloodGroup' => i['group']?.toString() ?? '',
+      'phone' => i['phone']?.toString() ?? i['contactPhone']?.toString() ?? '',
+      'area' => i['area']?.toString() ?? '',
+      'title' => i['title']?.toString() ?? '',
+      'company' => i['company']?.toString() ?? '',
+      'description' =>
+        i['description']?.toString() ?? i['body']?.toString() ?? '',
+      'body' => i['body']?.toString() ?? '',
+      'details' => i['details']?.toString() ?? '',
+      'location' => i['location']?.toString() ?? '',
+      'hospital' => i['hospital']?.toString() ?? '',
+      'patientName' => i['patientName']?.toString() ?? '',
+      'category' => i['category']?.toString() ?? '',
+      'meta' => i['meta']?.toString() ?? '',
+      'openHours' => i['open']?.toString() ?? '',
+      'label' => i['label']?.toString() ?? '',
+      'tag' => i['tag']?.toString() ?? '',
+      _ => ''
+    };
+  }
+
+  List<String> get keys => switch (resource) {
+        'donors' => ['name', 'bloodGroup', 'phone', 'area'],
+        'jobs' => ['title', 'company', 'description', 'location', 'phone'],
+        'blood_requests' => [
+            'patientName',
+            'bloodGroup',
+            'hospital',
+            'phone',
+            'area',
+            'details'
+          ],
+        'notices' => ['title', 'body', 'label'],
+        'lost_found' => ['title', 'description', 'location', 'phone'],
+        'services' => [
+            'name',
+            'category',
+            'meta',
+            'location',
+            'phone',
+            'openHours'
+          ],
+        _ => ['title', 'body', 'tag']
+      };
+  String label(String key) =>
+      {
+        'name': 'নাম',
+        'bloodGroup': 'রক্তের গ্রুপ',
+        'phone': 'ফোন নম্বর',
+        'area': 'এলাকা',
+        'title': 'শিরোনাম',
+        'company': 'প্রতিষ্ঠান',
+        'description': 'বিস্তারিত',
+        'body': 'বিস্তারিত',
+        'location': 'স্থান/ঠিকানা',
+        'hospital': 'হাসপাতাল',
+        'patientName': 'রোগীর নাম',
+        'category': 'ক্যাটাগরি',
+        'meta': 'সংক্ষিপ্ত পরিচয়',
+        'openHours': 'খোলার সময়',
+        'label': 'লেবেল',
+        'details': 'বিস্তারিত',
+        'tag': 'ধরন'
+      }[key] ??
+      key;
+  Widget input(String key) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+          controller: controllers[key],
+          onChanged: (v) => values[key] = v,
+          maxLines: ['body', 'description', 'details'].contains(key) ? 4 : 1,
+          decoration: InputDecoration(
+              labelText: label(key),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none))));
+  Widget select(String key, List<String> options) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DropdownButtonFormField<String>(
+          value: values[key]?.isEmpty ?? true ? null : values[key],
+          isExpanded: true,
+          decoration: InputDecoration(
+              labelText: label(key),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none)),
+          items: options
+              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+              .toList(),
+          onChanged: (v) => setState(() => values[key] = v ?? '')));
+  Widget fieldFor(String key) {
+    if (key == 'bloodGroup') return select(key, bloodGroups);
+    if (key == 'category') return select(key, categories);
+    if (key == 'label') return select(key, ['সরকারি', 'কমিউনিটি', 'জরুরি']);
+    if (key == 'tag') return select(key, ['কমিউনিটি', 'খবর', 'নোটিশ', 'জরুরি']);
+    return input(key);
+  }
+
+  Map<String, dynamic> payload() {
+    for (final e in controllers.entries) {
+      values[e.key] = e.value.text;
+    }
+    return switch (resource) {
+      'donors' => {
+          'name': values['name'],
+          'bloodGroup': values['bloodGroup'],
+          'phone': values['phone'],
+          'area': values['area']
+        },
+      'jobs' => {
+          'title': values['title'],
+          'company': values['company'],
+          'description': values['description'],
+          'location': values['location'],
+          'phone': values['phone']
+        },
+      'blood_requests' => {
+          'patientName': values['patientName'],
+          'bloodGroup': values['bloodGroup'],
+          'hospital': values['hospital'],
+          'phone': values['phone'],
+          'area': values['area'],
+          'details': values['details']
+        },
+      'notices' => {
+          'title': values['title'],
+          'body': values['body'],
+          'label': values['label']
+        },
+      'lost_found' => {
+          'title': values['title'],
+          'description': values['description'],
+          'location': values['location'],
+          'phone': values['phone']
+        },
+      'services' => {
+          'name': values['name'],
+          'category': values['category'],
+          'meta': values['meta'],
+          'location': values['location'],
+          'phone': values['phone'],
+          'openHours': values['openHours']
+        },
+      _ => {
+          'title': values['title'],
+          'body': values['body'],
+          'tag': values['tag']
+        }
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+          title: Text('Edit ${resourceLabel(resource)}'),
+          content: SingleChildScrollView(
+              child: Column(children: keys.map(fieldFor).toList())),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('বাতিল')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, payload()),
+                child: const Text('সংরক্ষণ'))
+          ]);
+  String resourceLabel(String r) =>
+      {
+        'donors': 'রক্তদাতা',
+        'jobs': 'চাকরির খবর',
+        'blood_requests': 'রক্তের অনুরোধ',
+        'notices': 'নোটিশ',
+        'lost_found': 'হারানো/পাওয়া',
+        'services': 'স্থানীয় সেবা',
+        'posts': 'কমিউনিটি পোস্ট'
+      }[r] ??
+      'তথ্য';
 }
