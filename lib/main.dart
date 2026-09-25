@@ -369,7 +369,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           context,
                           MaterialPageRoute(
                               builder: (_) =>
-                                  PostDetailsPage(api: api, post: item))));
+                                  PostDetailsPage(api: api, post: item))),
+                      onReact: (reaction) async {
+                        try {
+                          await api.togglePostReaction(item['id'].toString(),
+                              reaction: reaction);
+                          if (mounted)
+                            setState(() => postsFuture = api.getPosts());
+                        } catch (e) {
+                          _message('React করা যায়নি: $e');
+                        }
+                      });
                 }).toList());
               },
             ),
@@ -576,15 +586,29 @@ class _ActionCard extends StatelessWidget {
 
 class _PostCard extends StatelessWidget {
   const _PostCard(
-      {required this.post, required this.onLike, required this.onOpen});
+      {required this.post,
+      required this.onLike,
+      required this.onOpen,
+      required this.onReact});
   final Map<String, dynamic> post;
   final VoidCallback onLike, onOpen;
+  final ValueChanged<String> onReact;
   String date() {
     final raw = post['createdAt']?.toString();
     if (raw == null || raw.isEmpty) return '';
     final d = DateTime.tryParse(raw)?.toLocal();
     if (d == null) return '';
     return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} · ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showReactionPicker(BuildContext context) {
+    showModalBottomSheet(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => _ReactionPicker(onSelected: (value) {
+              Navigator.pop(context);
+              onReact(value);
+            }));
   }
 
   @override
@@ -644,10 +668,13 @@ class _PostCard extends StatelessWidget {
                               color: Colors.black54, height: 1.5)),
                       const SizedBox(height: 11),
                       Row(children: [
-                        TextButton.icon(
-                            onPressed: onLike,
-                            icon: const Icon(Icons.favorite_border, size: 18),
-                            label: Text('${post['likes'] ?? 0}')),
+                        GestureDetector(
+                            onLongPress: () => _showReactionPicker(context),
+                            child: TextButton.icon(
+                                onPressed: onLike,
+                                icon:
+                                    const Icon(Icons.favorite_border, size: 18),
+                                label: Text('${post['likes'] ?? 0}'))),
                         const SizedBox(width: 8),
                         Text('💬 ${post['comments'] ?? 0}',
                             style: const TextStyle(color: Colors.black54)),
@@ -656,6 +683,44 @@ class _PostCard extends StatelessWidget {
                             color: Colors.black38)
                       ])
                     ]))));
+  }
+}
+
+class _ReactionPicker extends StatelessWidget {
+  const _ReactionPicker({required this.onSelected});
+  final ValueChanged<String> onSelected;
+  static const reactions = <Map<String, String>>[
+    {'key': 'like', 'emoji': '👍', 'label': 'Like'},
+    {'key': 'love', 'emoji': '❤️', 'label': 'Love'},
+    {'key': 'haha', 'emoji': '😂', 'label': 'Haha'},
+    {'key': 'wow', 'emoji': '😮', 'label': 'Wow'},
+    {'key': 'sad', 'emoji': '😢', 'label': 'Sad'},
+    {'key': 'angry', 'emoji': '😡', 'label': 'Angry'},
+  ];
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: reactions.map((item) {
+          return InkWell(
+            onTap: () => onSelected(item['key']!),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(item['emoji']!, style: const TextStyle(fontSize: 28)),
+                const SizedBox(height: 3),
+                Text(item['label']!,
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
 
@@ -696,6 +761,40 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} · ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
+  Future<void> selectPostReaction(String reaction) async {
+    try {
+      final list = await widget.api
+          .togglePostReaction(widget.post['id'].toString(), reaction: reaction);
+      if (mounted) setState(() => reactionsFuture = Future.value(list));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('React করা যায়নি: $e')));
+    }
+  }
+
+  Future<void> showReactors([List<dynamic>? supplied]) async {
+    final list = supplied ?? await reactionsFuture;
+    if (!mounted) return;
+    showModalBottomSheet(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => ListView(padding: const EdgeInsets.all(18), children: [
+              const Text('কারা কোন react করেছেন',
+                  style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w800, color: ink)),
+              const SizedBox(height: 10),
+              if (list.isEmpty) const Text('এখনো কেউ react করেননি'),
+              ...list.map((e) => ListTile(
+                  leading: Text(_reactionEmoji(e['reaction']?.toString()),
+                      style: const TextStyle(fontSize: 24)),
+                  title: Text(e['userName']?.toString() ??
+                      e['userId']?.toString() ??
+                      'User'),
+                  subtitle: Text(_reactionLabel(e['reaction']?.toString()))))
+            ]));
+  }
+
   Future<void> sendComment() async {
     if (comment.text.trim().isEmpty) return;
     setState(() => sending = true);
@@ -714,37 +813,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     }
   }
 
-  Future<void> react() async {
+  Future<void> commentReaction(String commentId, String reaction) async {
     try {
-      final list =
-          await widget.api.togglePostReaction(widget.post['id'].toString());
-      if (mounted) setState(() => reactionsFuture = Future.value(list));
+      await widget.api.toggleCommentReaction(commentId, reaction: reaction);
+      if (mounted) setState(_reload);
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('React করা যায়নি: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Comment react করা যায়নি: $e')));
     }
-  }
-
-  Future<void> showReactors() async {
-    final list = await reactionsFuture;
-    if (!mounted) return;
-    showModalBottomSheet(
-        context: context,
-        showDragHandle: true,
-        builder: (_) => ListView(padding: const EdgeInsets.all(18), children: [
-              const Text('React করেছেন',
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w800, color: ink)),
-              const SizedBox(height: 10),
-              if (list.isEmpty) const Text('এখনো কেউ react করেননি'),
-              ...list.map((e) => ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
-                  title: Text(e['userName']?.toString() ??
-                      e['userId']?.toString() ??
-                      'User'),
-                  subtitle: Text(e['reaction']?.toString() ?? 'like')))
-            ]));
   }
 
   Future<void> editComment(Map<String, dynamic> item) async {
@@ -785,6 +862,88 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     }
   }
 
+  Widget commentTile(Map<String, dynamic> item) {
+    final reactions =
+        List<dynamic>.from(item['reactions'] as List? ?? const []);
+    final isAuthor =
+        item['ownerId']?.toString() == widget.post['ownerId']?.toString();
+    return Card(
+        elevation: 0,
+        color: Colors.white,
+        child: Padding(
+            padding: const EdgeInsets.all(12),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const CircleAvatar(
+                    radius: 16, child: Icon(Icons.person, size: 18)),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Row(children: [
+                        Text(item['author']?.toString() ?? 'User',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800)),
+                        if (isAuthor)
+                          Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: const Color(0xFFE6F4EE),
+                                  borderRadius: BorderRadius.circular(8)),
+                              child: const Text('Author',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: brand,
+                                      fontWeight: FontWeight.w800)))
+                      ]),
+                      Text(time(item['createdAt']),
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.black45))
+                    ])),
+                if (item['ownerId']?.toString() == widget.api.userId)
+                  PopupMenuButton<String>(
+                      onSelected: (v) {
+                        if (v == 'edit') editComment(item);
+                        if (v == 'delete') deleteComment(item);
+                      },
+                      itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'edit', child: Text('Edit')),
+                            PopupMenuItem(
+                                value: 'delete', child: Text('Delete'))
+                          ])
+              ]),
+              Text(item['body']?.toString() ?? '',
+                  style: const TextStyle(height: 1.4)),
+              Row(children: [
+                GestureDetector(
+                    onLongPress: () => showModalBottomSheet(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (_) => _ReactionPicker(onSelected: (v) {
+                              Navigator.pop(context);
+                              commentReaction(item['id'].toString(), v);
+                            })),
+                    child: TextButton.icon(
+                        onPressed: () =>
+                            commentReaction(item['id'].toString(), 'like'),
+                        icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
+                        label: Text('${reactions.length}'))),
+                if (reactions.isNotEmpty)
+                  TextButton(
+                      onPressed: () => showReactors(reactions),
+                      child: Text('${reactions.length} reactions')),
+                TextButton(
+                    onPressed: () =>
+                        setState(() => replyingTo = item['id']?.toString()),
+                    child: const Text('Reply'))
+              ])
+            ])));
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(
@@ -792,14 +951,25 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           backgroundColor: brand,
           foregroundColor: Colors.white),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        _PostCard(post: widget.post, onLike: react, onOpen: () => {}),
-        Row(children: [
-          TextButton.icon(
-              onPressed: react,
-              icon: const Icon(Icons.favorite_border),
-              label: Text('${widget.post['likes'] ?? 0} React')),
-          TextButton(onPressed: showReactors, child: const Text('React করেছেন'))
-        ]),
+        _PostCard(
+            post: widget.post,
+            onLike: () => selectPostReaction('like'),
+            onReact: selectPostReaction,
+            onOpen: () {}),
+        FutureBuilder<List<dynamic>>(
+            future: reactionsFuture,
+            builder: (_, snap) {
+              final list = snap.data ?? [];
+              return Row(children: [
+                TextButton.icon(
+                    onPressed: () => selectPostReaction('like'),
+                    icon: const Text('👍', style: TextStyle(fontSize: 20)),
+                    label: Text('${list.length}')),
+                TextButton(
+                    onPressed: () => showReactors(list),
+                    child: const Text('Reactions'))
+              ]);
+            }),
         const Divider(),
         const SizedBox(height: 8),
         const Text('Comments',
@@ -815,58 +985,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               final list = snap.data ?? [];
               if (list.isEmpty) return const Text('এখনো কোনো comment নেই');
               return Column(
-                  children: list.map((raw) {
-                final item = Map<String, dynamic>.from(raw);
-                return Card(
-                    elevation: 0,
-                    color: Colors.white,
-                    child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(children: [
-                                const CircleAvatar(
-                                    radius: 16,
-                                    child: Icon(Icons.person, size: 18)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                      Text(item['author']?.toString() ?? 'User',
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w800)),
-                                      Text(time(item['createdAt']),
-                                          style: const TextStyle(
-                                              fontSize: 10,
-                                              color: Colors.black45))
-                                    ])),
-                                if (item['ownerId']?.toString() ==
-                                    widget.api.userId)
-                                  PopupMenuButton<String>(
-                                      onSelected: (v) {
-                                        if (v == 'edit') editComment(item);
-                                        if (v == 'delete') deleteComment(item);
-                                      },
-                                      itemBuilder: (_) => const [
-                                            PopupMenuItem(
-                                                value: 'edit',
-                                                child: Text('Edit')),
-                                            PopupMenuItem(
-                                                value: 'delete',
-                                                child: Text('Delete'))
-                                          ])
-                              ]),
-                              Text(item['body']?.toString() ?? '',
-                                  style: const TextStyle(height: 1.4)),
-                              TextButton(
-                                  onPressed: () => setState(() =>
-                                      replyingTo = item['id']?.toString()),
-                                  child: const Text('Reply'))
-                            ])));
-              }).toList());
+                  children: list
+                      .map((raw) => commentTile(Map<String, dynamic>.from(raw)))
+                      .toList());
             }),
         if (replyingTo != null)
           TextButton(
@@ -874,16 +995,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               child: const Text('Reply cancel')),
         const SizedBox(height: 8),
         TextField(
-          controller: comment,
-          maxLines: 3,
-          decoration: InputDecoration(
-              hintText: replyingTo == null ? 'Comment লিখুন' : 'Reply লিখুন',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none)),
-        ),
+            controller: comment,
+            maxLines: 3,
+            decoration: InputDecoration(
+                hintText: replyingTo == null ? 'Comment লিখুন' : 'Reply লিখুন',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none))),
         const SizedBox(height: 8),
         SizedBox(
             width: double.infinity,
@@ -898,6 +1018,27 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     : Text(replyingTo == null ? 'Comment করুন' : 'Reply দিন')))
       ]));
 }
+
+String _reactionEmoji(String? key) =>
+    {
+      'like': '👍',
+      'love': '❤️',
+      'haha': '😂',
+      'wow': '😮',
+      'sad': '😢',
+      'angry': '😡'
+    }[key] ??
+    '👍';
+String _reactionLabel(String? key) =>
+    {
+      'like': 'Like',
+      'love': 'Love',
+      'haha': 'Haha',
+      'wow': 'Wow',
+      'sad': 'Sad',
+      'angry': 'Angry'
+    }[key] ??
+    'Like';
 
 class _EmptyCard extends StatelessWidget {
   const _EmptyCard({required this.text});

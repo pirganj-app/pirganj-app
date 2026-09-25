@@ -62,14 +62,29 @@ class PirganjApiClient {
     await _delete('/comments/$id');
   }
 
-  Future<List<dynamic>> togglePostReaction(String postId) async {
-    final json = await _post('/posts/$postId/reactions', {'reaction': 'like'});
+  Future<List<dynamic>> togglePostReaction(String postId,
+      {String reaction = 'like'}) async {
+    final json =
+        await _post('/posts/$postId/reactions', {'reaction': reaction});
     return List<dynamic>.from(json['data'] as List);
   }
 
   Future<List<dynamic>> getPostReactions(String postId) async {
     final json =
         await _get(Uri.parse('$baseUrl/api/v1/posts/$postId/reactions'));
+    return List<dynamic>.from(json['data'] as List);
+  }
+
+  Future<List<dynamic>> toggleCommentReaction(String commentId,
+      {String reaction = 'like'}) async {
+    final json =
+        await _post('/comments/$commentId/reactions', {'reaction': reaction});
+    return List<dynamic>.from(json['data'] as List);
+  }
+
+  Future<List<dynamic>> getCommentReactions(String commentId) async {
+    final json =
+        await _get(Uri.parse('$baseUrl/api/v1/comments/$commentId/reactions'));
     return List<dynamic>.from(json['data'] as List);
   }
 
