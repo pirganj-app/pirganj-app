@@ -62,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<ServiceCard>> servicesFuture;
   late Future<List<dynamic>> postsFuture;
   int tab = 0;
+  int profileRefreshToken = 0;
   String category = 'সব';
 
   @override
@@ -111,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => EntrySheet(kind: kind, api: api),
     );
     if (result == true && mounted) {
-      _reload();
+      setState(() { _reload(); profileRefreshToken++; });
       _message('তথ্য সফলভাবে যোগ হয়েছে');
     }
   }
@@ -147,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
           indicatorColor: const Color(0xFFD8F2E9),
           labelTextStyle: const WidgetStatePropertyAll(TextStyle(color: ink, fontWeight: FontWeight.w700)),
           selectedIndex: tab,
-          onDestinationSelected: (value) => setState(() => tab = value),
+          onDestinationSelected: (value) => setState(() { tab = value; if (value == 3) profileRefreshToken++; }),
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'হোম'),
             NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'কমিউনিটি'),
@@ -247,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       );
 
-  Widget _more() => ProfilePanel(api: api, onLogout: widget.onLogout);
+  Widget _more() => ProfilePanel(key: ValueKey(profileRefreshToken), api: api, onLogout: widget.onLogout, refreshToken: profileRefreshToken);
 }
 
 class _TopBar extends StatelessWidget {
@@ -754,9 +755,10 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 
 class ProfilePanel extends StatefulWidget {
-  const ProfilePanel({super.key, required this.api, this.onLogout});
+  const ProfilePanel({super.key, required this.api, this.onLogout, this.refreshToken = 0});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
+  final int refreshToken;
   @override State<ProfilePanel> createState() => _ProfilePanelState();
 }
 
@@ -789,6 +791,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('আমার যোগ করা তথ্য', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: ink)), TextButton(onPressed: widget.onLogout == null ? null : () => widget.onLogout!(), child: const Text('Logout'))]),
       FutureBuilder<List<dynamic>>(future: itemsFuture, builder: (_, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Padding(padding: EdgeInsets.all(25), child: CircularProgressIndicator(color: brand));
+        if (snapshot.hasError) return _EmptyCard(text: 'আপনার তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
         final items = snapshot.data ?? [];
         if (items.isEmpty) return const _EmptyCard(text: 'আপনি এখনো কোনো তথ্য যোগ করেননি');
         return Column(children: items.map((raw) { final item = Map<String, dynamic>.from(raw); return Card(elevation: 0, child: ListTile(title: Text(item['title']?.toString() ?? item['name']?.toString() ?? item['patientName']?.toString() ?? 'আমার তথ্য', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(item['resource']?.toString() ?? ''), trailing: Row(mainAxisSize: MainAxisSize.min, children: [IconButton(onPressed: () => _edit(item), icon: const Icon(Icons.edit_outlined, color: brand)), IconButton(onPressed: () => _delete(item), icon: const Icon(Icons.delete_outline, color: Colors.red))]))); }).toList());
