@@ -211,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
             NavigationDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person),
-                label: 'Profile'),
+                label: 'প্রোফাইল'),
           ],
         ),
       );
@@ -690,8 +690,12 @@ class _PostCard extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(18)),
                                 child: TextButton.icon(
                                     onPressed: onLike,
-                                    icon: Text(_reactionEmoji(activeReaction),
-                                        style: const TextStyle(fontSize: 19)),
+                                    icon: selected == null
+                                        ? const Icon(Icons.favorite_border,
+                                            color: Colors.black54, size: 20)
+                                        : Text(_reactionEmoji(activeReaction),
+                                            style:
+                                                const TextStyle(fontSize: 19)),
                                     label: Text('${post['likes'] ?? 0}',
                                         style:
                                             TextStyle(color: activeColor))))),
@@ -979,7 +983,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 horizontal: 5, vertical: 2)),
                         onPressed: () =>
                             commentReaction(item['id'].toString(), 'love'),
-                        icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
+                        icon: const Icon(Icons.favorite_border,
+                            color: Colors.black54, size: 16),
                         label: Text('${reactions.length}'))),
                 if (reactions.isNotEmpty)
                   TextButton(
@@ -2241,6 +2246,7 @@ class ProfilePanel extends StatefulWidget {
 }
 
 class _ProfilePanelState extends State<ProfilePanel> {
+  final ScrollController _profileScrollController = ScrollController();
   late Future<Map<String, dynamic>> userFuture;
   late Future<List<dynamic>> itemsFuture;
   @override
@@ -2419,7 +2425,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
 
   @override
   Widget build(BuildContext context) => ListView(
-          primary: true,
+          controller: _profileScrollController,
+          primary: false,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
@@ -2431,7 +2438,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                     return const _ProfileHeaderSkeleton();
                   if (snapshot.hasError)
                     return const _ProfileHeader(
-                        name: 'Profile পাওয়া যায়নি',
+                        name: 'প্রোফাইল পাওয়া যায়নি',
                         phone: '',
                         address: 'আবার চেষ্টা করুন',
                         onEdit: null);
@@ -2440,7 +2447,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                       ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
                       : <String, dynamic>{};
                   return _ProfileHeader(
-                      name: user['name']?.toString() ?? 'আমার profile',
+                      name: user['name']?.toString() ?? 'আমার প্রোফাইল',
                       phone: user['phone']?.toString() ?? '',
                       address:
                           '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
@@ -2481,10 +2488,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
             const SizedBox(height: 18),
             SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
+                child: FilledButton.icon(
                     onPressed: widget.onLogout == null
                         ? null
                         : () => widget.onLogout!(),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2D987E),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14)),
                     icon: const Icon(Icons.logout_rounded),
                     label: const Text('Logout'))),
             const SizedBox(height: 10),
