@@ -211,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
             NavigationDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person),
-                label: 'আমার'),
+                label: 'Profile'),
           ],
         ),
       );
@@ -692,8 +692,7 @@ class _PostCard extends StatelessWidget {
                                     onPressed: onLike,
                                     icon: Text(_reactionEmoji(activeReaction),
                                         style: const TextStyle(fontSize: 19)),
-                                    label: Text(
-                                        '${_reactionLabel(activeReaction)} ${post['likes'] ?? 0}',
+                                    label: Text('${post['likes'] ?? 0}',
                                         style:
                                             TextStyle(color: activeColor))))),
                         const SizedBox(width: 8),
@@ -904,7 +903,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         elevation: 0,
         color: Colors.white,
         child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(9, 7, 7, 5),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -917,8 +916,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                         children: [
                       Row(children: [
                         Text(item['author']?.toString() ?? 'User',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w800)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
                         if (isAuthor)
                           Container(
                               margin: const EdgeInsets.only(left: 6),
@@ -963,7 +962,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                             fontSize: 12,
                             fontWeight: FontWeight.w700))),
               Text(item['body']?.toString() ?? '',
-                  style: const TextStyle(height: 1.4)),
+                  style: const TextStyle(fontSize: 13, height: 1.25)),
               Row(children: [
                 GestureDetector(
                     onLongPress: () => showModalBottomSheet(
@@ -974,6 +973,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                               commentReaction(item['id'].toString(), v);
                             })),
                     child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2)),
                         onPressed: () =>
                             commentReaction(item['id'].toString(), 'love'),
                         icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
@@ -2415,82 +2418,87 @@ class _ProfilePanelState extends State<ProfilePanel> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      ListView(padding: const EdgeInsets.fromLTRB(16, 18, 16, 30), children: [
-        FutureBuilder<Map<String, dynamic>>(
-            future: userFuture,
-            builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting)
-                return const _ProfileHeaderSkeleton();
-              if (snapshot.hasError)
-                return const _ProfileHeader(
-                    name: 'Profile পাওয়া যায়নি',
-                    phone: '',
-                    address: 'আবার চেষ্টা করুন',
-                    onEdit: null);
-              final payload = snapshot.data?['data'];
-              final user = payload is Map
-                  ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
-                  : <String, dynamic>{};
-              return _ProfileHeader(
-                  name: user['name']?.toString() ?? 'আমার profile',
-                  phone: user['phone']?.toString() ?? '',
-                  address: '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
-                  onEdit: editProfile);
-            }),
-        const SizedBox(height: 22),
-        const Text('আমার তথ্য',
-            style: TextStyle(
-                fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
-        const SizedBox(height: 8),
-        FutureBuilder<List<dynamic>>(
-            future: itemsFuture,
-            builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting)
-                return const _ProfileListSkeleton();
-              if (snapshot.hasError)
-                return _EmptyCard(
-                    text: 'তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
-              final all = snapshot.data ?? [];
-              return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('আমার পোস্ট',
-                        style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: ink)),
-                    const SizedBox(height: 8),
-                    _managedItemsSection(all, posts: true),
-                    const SizedBox(height: 18),
-                    const Text('অন্যান্য তথ্য',
-                        style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: ink)),
-                    const SizedBox(height: 8),
-                    _managedItemsSection(all, posts: false),
-                  ]);
-            }),
-        const SizedBox(height: 22),
-        const Divider(height: 1),
-        const SizedBox(height: 18),
-        SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-                onPressed:
-                    widget.onLogout == null ? null : () => widget.onLogout!(),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Logout'))),
-        const SizedBox(height: 10),
-        SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-                onPressed: _deleteAccount,
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                icon: const Icon(Icons.delete_forever_rounded),
-                label: const Text('Delete account permanently'))),
-      ]);
+  Widget build(BuildContext context) => ListView(
+          primary: true,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+          children: [
+            FutureBuilder<Map<String, dynamic>>(
+                future: userFuture,
+                builder: (_, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    return const _ProfileHeaderSkeleton();
+                  if (snapshot.hasError)
+                    return const _ProfileHeader(
+                        name: 'Profile পাওয়া যায়নি',
+                        phone: '',
+                        address: 'আবার চেষ্টা করুন',
+                        onEdit: null);
+                  final payload = snapshot.data?['data'];
+                  final user = payload is Map
+                      ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
+                      : <String, dynamic>{};
+                  return _ProfileHeader(
+                      name: user['name']?.toString() ?? 'আমার profile',
+                      phone: user['phone']?.toString() ?? '',
+                      address:
+                          '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+                      onEdit: editProfile);
+                }),
+            const SizedBox(height: 22),
+            FutureBuilder<List<dynamic>>(
+                future: itemsFuture,
+                builder: (_, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    return const _ProfileListSkeleton();
+                  if (snapshot.hasError)
+                    return _EmptyCard(
+                        text: 'তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
+                  final all = snapshot.data ?? [];
+                  return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('আমার পোস্ট',
+                            style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: ink)),
+                        const SizedBox(height: 8),
+                        _managedItemsSection(all, posts: true),
+                        const SizedBox(height: 18),
+                        const Text('আমার তথ্য',
+                            style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: ink)),
+                        const SizedBox(height: 8),
+                        _managedItemsSection(all, posts: false),
+                      ]);
+                }),
+            const SizedBox(height: 22),
+            const Divider(height: 1),
+            const SizedBox(height: 18),
+            SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                    onPressed: widget.onLogout == null
+                        ? null
+                        : () => widget.onLogout!(),
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Logout'))),
+            const SizedBox(height: 10),
+            SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                    onPressed: _deleteAccount,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFD63D4F),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14)),
+                    icon: const Icon(Icons.delete_forever_rounded),
+                    label: const Text('Delete account permanently'))),
+          ]);
 }
 
 class _ProfileHeader extends StatelessWidget {
