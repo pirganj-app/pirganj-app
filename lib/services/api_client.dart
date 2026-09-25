@@ -33,6 +33,33 @@ class PirganjApiClient {
     return List<dynamic>.from(json['data'] as List);
   }
 
+  Future<List<dynamic>> getComments(String postId) async {
+    final json =
+        await _get(Uri.parse('$baseUrl/api/v1/posts/$postId/comments'));
+    return List<dynamic>.from(json['data'] as List);
+  }
+
+  Future<Map<String, dynamic>> addComment(String postId,
+          {required String body, String? parentId}) =>
+      _post('/posts/$postId/comments',
+          {'body': body, if (parentId != null) 'parentId': parentId});
+  Future<Map<String, dynamic>> updateComment(String id, String body) =>
+      _put('/comments/$id', {'body': body});
+  Future<void> deleteComment(String id) async {
+    await _delete('/comments/$id');
+  }
+
+  Future<List<dynamic>> togglePostReaction(String postId) async {
+    final json = await _post('/posts/$postId/reactions', {'reaction': 'like'});
+    return List<dynamic>.from(json['data'] as List);
+  }
+
+  Future<List<dynamic>> getPostReactions(String postId) async {
+    final json =
+        await _get(Uri.parse('$baseUrl/api/v1/posts/$postId/reactions'));
+    return List<dynamic>.from(json['data'] as List);
+  }
+
   Future<List<dynamic>> getDonors({String? group}) async =>
       _list('/donors', group == null ? null : {'group': group});
   Future<List<dynamic>> getBloodRequests({String? group}) async =>
