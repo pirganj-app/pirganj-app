@@ -151,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int tab = 0;
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
-  Timer? notificationTimer;
+  StreamSubscription<void>? pushEventSubscription;
   String category = 'সব';
 
   @override
@@ -161,14 +161,14 @@ class _HomeScreenState extends State<HomeScreen> {
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
     _refresh();
     _loadUnreadNotifications();
-    notificationTimer = Timer.periodic(
-        const Duration(seconds: 30), (_) => _loadUnreadNotifications());
+    pushEventSubscription = PushNotificationService.instance.events.stream
+        .listen((_) => _loadUnreadNotifications());
   }
 
   @override
   void dispose() {
     searchController.dispose();
-    notificationTimer?.cancel();
+    pushEventSubscription?.cancel();
     super.dispose();
   }
 

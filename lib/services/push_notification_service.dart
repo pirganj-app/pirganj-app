@@ -25,8 +25,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class PushNotificationService {
   PushNotificationService._();
   static final instance = PushNotificationService._();
+  final events = StreamController<void>.broadcast();
   StreamSubscription<String>? tokenSubscription;
   StreamSubscription<RemoteMessage>? messageSubscription;
+  StreamSubscription<RemoteMessage>? openedSubscription;
 
   Future<void> start(PirganjApiClient api) async {
     await Firebase.initializeApp();
@@ -51,7 +53,9 @@ class PushNotificationService {
       } catch (_) {}
     });
     await messageSubscription?.cancel();
+    await openedSubscription?.cancel();
     messageSubscription = FirebaseMessaging.onMessage.listen((message) {
+      events.add(null);
       final notification = message.notification;
       if (notification == null) return;
       localNotifications.show(
@@ -72,6 +76,9 @@ class PushNotificationService {
         payload: message.data['entityId']?.toString(),
       );
     });
+    openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((_) {
+      events.add(null);
+    });
   }
 
   Future<void> stop(PirganjApiClient api) async {
@@ -80,7 +87,9 @@ class PushNotificationService {
     } catch (_) {}
     await tokenSubscription?.cancel();
     await messageSubscription?.cancel();
+    await openedSubscription?.cancel();
     tokenSubscription = null;
     messageSubscription = null;
+    openedSubscription = null;
   }
 }
