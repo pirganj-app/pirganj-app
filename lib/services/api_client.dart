@@ -133,6 +133,14 @@ class PirganjApiClient {
     await _put('/notifications/read-all', {});
   }
 
+  Future<void> deleteNotification(String id) async {
+    await _delete('/notifications/$id');
+  }
+
+  Future<void> deleteAllNotifications() async {
+    await _delete('/notifications');
+  }
+
   Future<void> registerPushToken(String token,
       {String platform = 'android'}) async {
     await _post('/devices/push-token', {'token': token, 'platform': platform});

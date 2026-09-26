@@ -13,6 +13,18 @@ const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
 const maxImageBytes = 2 * 1024 * 1024;
 
+String relativeTime(dynamic raw) {
+  final date = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
+  if (date == null) return '';
+  final diff = DateTime.now().difference(date);
+  if (diff.isNegative) return 'এইমাত্র';
+  if (diff.inMinutes < 1) return 'এইমাত্র';
+  if (diff.inHours < 1) return '${diff.inMinutes} মিনিট আগে';
+  if (diff.inDays < 1) return '${diff.inHours} ঘণ্টা আগে';
+  if (diff.inDays < 7) return '${diff.inDays} দিন আগে';
+  return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+}
+
 Future<XFile?> pickImageUnderLimit(BuildContext context) async {
   final image = await ImagePicker()
       .pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 2200);
@@ -728,11 +740,7 @@ class _PostCard extends StatelessWidget {
   final List<dynamic>? reactionList;
   final VoidCallback? onShowReactions;
   String date() {
-    final raw = post['createdAt']?.toString();
-    if (raw == null || raw.isEmpty) return '';
-    final d = DateTime.tryParse(raw)?.toLocal();
-    if (d == null) return '';
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} · ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return relativeTime(post['createdAt']);
   }
 
   void _showReactionPicker(BuildContext context) {
@@ -939,9 +947,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   }
 
   String time(dynamic raw) {
-    final d = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
-    if (d == null) return '';
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} · ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return relativeTime(raw);
   }
 
   Future<void> selectPostReaction(String reaction) async {
@@ -1076,6 +1082,28 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     }
   }
 
+  List<Map<String, dynamic>> orderedComments(List<dynamic> raw) {
+    final items =
+        raw.map((value) => Map<String, dynamic>.from(value as Map)).toList();
+    final byParent = <String, List<Map<String, dynamic>>>{};
+    for (final item in items) {
+      final parent = item['parentId']?.toString() ?? '';
+      byParent.putIfAbsent(parent, () => []).add(item);
+    }
+    final ordered = <Map<String, dynamic>>[];
+    void addBranch(Map<String, dynamic> item) {
+      ordered.add(item);
+      for (final reply in byParent[item['id']?.toString() ?? ''] ?? const []) {
+        addBranch(reply);
+      }
+    }
+
+    for (final root in byParent[''] ?? const []) {
+      addBranch(root);
+    }
+    return ordered;
+  }
+
   Widget commentTile(Map<String, dynamic> item) {
     final reactions =
         List<dynamic>.from(item['reactions'] as List? ?? const []);
@@ -1157,18 +1185,21 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                           ])
               ]),
               if (item['parentId'] != null)
-                Container(
-                    margin: const EdgeInsets.only(top: 4, bottom: 5),
-                    padding: const EdgeInsets.only(left: 7),
-                    decoration: const BoxDecoration(
-                        border: Border(
-                            left: BorderSide(color: Colors.black87, width: 2))),
-                    child: Text(
-                        'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
-                        style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700))),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                        margin: const EdgeInsets.only(top: 4, bottom: 5),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFFE8F6F0),
+                            borderRadius: BorderRadius.circular(9)),
+                        child: Text(
+                            'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                            style: const TextStyle(
+                                color: brand,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700)))),
               Text(item['body']?.toString() ?? '',
                   style: const TextStyle(fontSize: 12, height: 1.18)),
               Row(children: [
@@ -1256,10 +1287,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 final list = snap.data ?? [];
                 if (list.isEmpty) return const Text('এখনো কোনো comment নেই');
                 return Column(
-                    children: list
-                        .map((raw) =>
-                            commentTile(Map<String, dynamic>.from(raw)))
-                        .toList());
+                    children: orderedComments(list).map(commentTile).toList());
               }),
           const SizedBox(height: 12),
         ])),
@@ -1399,18 +1427,30 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   String _time(dynamic raw) {
-    final date = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
-    if (date == null) return '';
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return 'এইমাত্র';
-    if (diff.inHours < 1) return '${diff.inMinutes} মিনিট আগে';
-    if (diff.inDays < 1) return '${diff.inHours} ঘণ্টা আগে';
-    if (diff.inDays < 7) return '${diff.inDays} দিন আগে';
-    return '${date.day}/${date.month}/${date.year}';
+    return relativeTime(raw);
   }
 
   Future<void> _markAll() async {
     await widget.api.markAllNotificationsRead();
+    if (mounted) setState(_reload);
+  }
+
+  Future<void> _deleteAll() async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+                title: const Text('সব notification মুছবেন?'),
+                content: const Text('মুছে ফেলার পর এগুলো আর ফেরত আনা যাবে না।'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('বাতিল')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('সব মুছুন'))
+                ]));
+    if (confirmed != true) return;
+    await widget.api.deleteAllNotifications();
     if (mounted) setState(_reload);
   }
 
@@ -1432,8 +1472,12 @@ class _NotificationPageState extends State<NotificationPage> {
           actions: [
             TextButton(
                 onPressed: _markAll,
-                child:
-                    const Text('সব পড়া', style: TextStyle(color: Colors.white)))
+                child: const Text('সব পড়া',
+                    style: TextStyle(color: Colors.white))),
+            IconButton(
+                onPressed: _deleteAll,
+                tooltip: 'সব মুছুন',
+                icon: const Icon(Icons.delete_sweep_rounded))
           ]),
       body: FutureBuilder<List<dynamic>>(
           future: notificationsFuture,
