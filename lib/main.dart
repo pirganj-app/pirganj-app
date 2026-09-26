@@ -44,6 +44,11 @@ String? _avatarUrl(dynamic value) {
   return raw;
 }
 
+ImageProvider<Object>? _avatarProvider(dynamic value) {
+  final url = _avatarUrl(value);
+  return url == null ? null : NetworkImage(url);
+}
+
 String relativeTime(dynamic raw) {
   final date = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
   if (date == null) return '';
@@ -310,10 +315,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (mounted) setState(() {});
     try {
-      final batch = await api.getPosts(limit: 20, offset: posts.length);
+      final batch = await api.getPosts(limit: 5, offset: posts.length);
       if (mounted) {
         posts.addAll(batch);
-        postsHasMore = batch.length == 20;
+        postsHasMore = batch.length == 5;
         postsError = null;
       }
     } catch (error) {
@@ -601,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই')
               else
                 ...posts.map((post) {
-                  final item = Map<String, dynamic>.from(post as Map);
+                  final item = post as Map<String, dynamic>;
                   return _PostCard(
                       post: item,
                       onLike: () async {
@@ -935,7 +940,7 @@ class _PostCard extends StatelessWidget {
                             backgroundImage:
                                 (post['authorAvatarUrl']?.toString() ?? '')
                                         .isNotEmpty
-                                    ? NetworkImage(
+                                    ? _avatarProvider(
                                         post['authorAvatarUrl'].toString())
                                     : null,
                             child: (post['authorAvatarUrl']?.toString() ?? '')
@@ -1148,7 +1153,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                         backgroundColor: const Color(0xFFDDF2E9),
                         backgroundImage:
                             (e['userAvatarUrl']?.toString() ?? '').isNotEmpty
-                                ? NetworkImage(e['userAvatarUrl'].toString())
+                                ? _avatarProvider(e['userAvatarUrl'].toString())
                                 : null,
                         child: (e['userAvatarUrl']?.toString() ?? '').isEmpty
                             ? const Icon(Icons.person, color: brand)
@@ -1294,10 +1299,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 CircleAvatar(
                     radius: 16,
                     backgroundColor: const Color(0xFFF0F2F1),
-                    backgroundImage:
-                        (item['authorAvatarUrl']?.toString() ?? '').isNotEmpty
-                            ? NetworkImage(item['authorAvatarUrl'].toString())
-                            : null,
+                    backgroundImage: (item['authorAvatarUrl']?.toString() ?? '')
+                            .isNotEmpty
+                        ? _avatarProvider(item['authorAvatarUrl'].toString())
+                        : null,
                     child: (item['authorAvatarUrl']?.toString() ?? '').isEmpty
                         ? const Icon(Icons.person,
                             size: 16, color: Colors.black54)
@@ -1776,7 +1781,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                             backgroundColor:
                                                 const Color(0xFFDDF2E9),
                                             backgroundImage: avatar.isNotEmpty
-                                                ? NetworkImage(avatar)
+                                                ? _avatarProvider(avatar)
                                                 : null,
                                             child: avatar.isEmpty
                                                 ? const Icon(
@@ -1923,11 +1928,45 @@ class ServiceCategoryPage extends StatefulWidget {
 }
 
 class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
-  late Future<List<ServiceCard>> future;
+  final data = <ServiceCard>[];
+  bool loading = false;
+  bool loadingMore = false;
+  bool hasMore = true;
+  Object? error;
   @override
   void initState() {
     super.initState();
-    future = widget.api.getServices(category: widget.category);
+    _load(refresh: true);
+  }
+
+  Future<void> _load({bool refresh = false}) async {
+    if (loading || loadingMore || (!refresh && !hasMore)) return;
+    if (refresh) {
+      data.clear();
+      hasMore = true;
+      error = null;
+      loading = true;
+    } else {
+      loadingMore = true;
+    }
+    if (mounted) setState(() {});
+    try {
+      final batch = await widget.api.getServices(
+          category: widget.category, limit: 10, offset: data.length);
+      if (mounted) {
+        data.addAll(batch);
+        hasMore = batch.length == 10;
+        error = null;
+      }
+    } catch (e) {
+      if (mounted) error = e;
+    } finally {
+      if (mounted) {
+        loading = false;
+        loadingMore = false;
+        setState(() {});
+      }
+    }
   }
 
   Future<void> _add() async {
@@ -1939,9 +1978,7 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
             kind: 'service',
             api: widget.api,
             initialCategory: widget.category));
-    if (result == true && mounted)
-      setState(() => future = widget.api
-          .getServices(category: widget.category, forceRefresh: true));
+    if (result == true && mounted) _load(refresh: true);
   }
 
   @override
@@ -1964,37 +2001,45 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
         ),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () async => setState(() => future = widget.api
-              .getServices(category: widget.category, forceRefresh: true)),
-          child: FutureBuilder<List<ServiceCard>>(
-            future: future,
-            builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting)
-                return const Center(
-                    child: CircularProgressIndicator(color: brand));
-              if (snapshot.hasError)
-                return ListView(children: const [
-                  Padding(
-                      padding: EdgeInsets.all(24),
-                      child: _EmptyCard(
-                          text:
-                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'))
-                ]);
-              final data = snapshot.data ?? [];
-              return ListView(
-                  padding: const EdgeInsets.fromLTRB(18, 17, 18, 30),
-                  children: [
-                    Text('${data.length}টি তথ্য',
-                        style: const TextStyle(
-                            fontSize: 21, color: Colors.black54)),
-                    const SizedBox(height: 14),
-                    if (data.isEmpty)
-                      const _EmptyCard(
-                          text:
-                              'এই category-তে এখনো কোনো তথ্য নেই। প্রথম তথ্যটি যোগ করুন।'),
-                    ...data.map((item) => _DetailedServiceCard(item: item)),
-                  ]);
+          onRefresh: () => _load(refresh: true),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics.pixels >=
+                  notification.metrics.maxScrollExtent - 400) _load();
+              return false;
             },
+            child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 17, 18, 30),
+                children: [
+                  Text('${data.length}টি তথ্য',
+                      style:
+                          const TextStyle(fontSize: 21, color: Colors.black54)),
+                  const SizedBox(height: 14),
+                  if (loading && data.isEmpty)
+                    const Padding(
+                        padding: EdgeInsets.all(30),
+                        child: Center(
+                            child: CircularProgressIndicator(color: brand)))
+                  else if (error != null && data.isEmpty)
+                    _NetworkErrorCard(onRetry: () => _load(refresh: true))
+                  else if (data.isEmpty)
+                    const _EmptyCard(
+                        text:
+                            'এই category-তে এখনো কোনো তথ্য নেই। প্রথম তথ্যটি যোগ করুন।')
+                  else
+                    ...data.map((item) => _DetailedServiceCard(item: item)),
+                  if (loadingMore)
+                    const Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Center(
+                            child: CircularProgressIndicator(color: brand))),
+                  if (!hasMore && data.isNotEmpty)
+                    const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(
+                            child: Text('সব তথ্য দেখানো হয়েছে',
+                                style: TextStyle(color: Colors.black45))))
+                ]),
           ),
         ),
       );
@@ -2578,20 +2623,30 @@ class _EntrySheetState extends State<EntrySheet> {
 
   Widget postImageField() => Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: OutlinedButton.icon(
-          onPressed: saving
-              ? null
-              : () async {
-                  final selected = await pickImageUnderLimit(context);
-                  if (selected != null && mounted)
-                    setState(() => postImage = selected);
-                },
-          icon: Icon(postImage == null
-              ? Icons.add_photo_alternate_rounded
-              : Icons.check_circle_rounded),
-          label: Text(postImage == null
-              ? 'Post picture যোগ করুন (max 2MB)'
-              : 'Post picture selected')));
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        OutlinedButton.icon(
+            onPressed: saving
+                ? null
+                : () async {
+                    final selected = await pickImageUnderLimit(context);
+                    if (selected != null && mounted)
+                      setState(() => postImage = selected);
+                  },
+            icon: Icon(postImage == null
+                ? Icons.add_photo_alternate_rounded
+                : Icons.check_circle_rounded),
+            label: Text(postImage == null
+                ? 'Post picture যোগ করুন (max 2MB)'
+                : 'Post picture selected')),
+        if (postImage != null) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Image.file(File(postImage!.path), fit: BoxFit.cover))),
+        ]
+      ]));
 
   @override
   void dispose() {
