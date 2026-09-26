@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -2410,20 +2411,31 @@ class _AuthScreenState extends State<AuthScreen> {
                     maxLines: 2,
                     decoration: dec('ঠিকানা')),
                 const SizedBox(height: 11),
-                OutlinedButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () async {
-                            final selected = await pickImageUnderLimit(context);
-                            if (selected != null && mounted)
-                              setState(() => profileImage = selected);
-                          },
-                    icon: Icon(profileImage == null
-                        ? Icons.add_a_photo_rounded
-                        : Icons.check_circle_rounded),
-                    label: Text(profileImage == null
-                        ? 'Profile picture দিন (required, max 2MB)'
-                        : 'Profile picture selected')),
+                Column(children: [
+                  if (profileImage != null)
+                    ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Image.file(File(profileImage!.path),
+                            height: 150,
+                            width: double.infinity,
+                            fit: BoxFit.cover)),
+                  if (profileImage != null) const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              final selected =
+                                  await pickImageUnderLimit(context);
+                              if (selected != null && mounted)
+                                setState(() => profileImage = selected);
+                            },
+                      icon: Icon(profileImage == null
+                          ? Icons.add_a_photo_rounded
+                          : Icons.check_circle_rounded),
+                      label: Text(profileImage == null
+                          ? 'Profile picture দিন (required, max 2MB)'
+                          : 'Profile picture change করুন')),
+                ]),
               ],
               const SizedBox(height: 18),
               SizedBox(

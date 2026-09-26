@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/service_card.dart';
 
@@ -27,6 +28,15 @@ class PirganjApiClient {
         'Accept': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token'
       };
+
+  MediaType _imageType(XFile image) {
+    final name = image.name.toLowerCase();
+    if (name.endsWith('.png')) return MediaType('image', 'png');
+    if (name.endsWith('.webp')) return MediaType('image', 'webp');
+    if (name.endsWith('.gif')) return MediaType('image', 'gif');
+    if (name.endsWith('.heic')) return MediaType('image', 'heic');
+    return MediaType('image', 'jpeg');
+  }
 
   Future<List<ServiceCard>> getServices(
       {String? category, String? search}) async {
@@ -260,7 +270,7 @@ class PirganjApiClient {
     });
     request.files.add(await http.MultipartFile.fromPath(
         'profileImage', profileImage.path,
-        filename: profileImage.name));
+        filename: profileImage.name, contentType: _imageType(profileImage)));
     return _decode(await http.Response.fromStream(await request.send()));
   }
 
@@ -271,7 +281,7 @@ class PirganjApiClient {
     request.headers.addAll(_headers);
     request.fields['kind'] = kind;
     request.files.add(await http.MultipartFile.fromPath('image', image.path,
-        filename: image.name));
+        filename: image.name, contentType: _imageType(image)));
     return _decode(await http.Response.fromStream(await request.send()));
   }
 
