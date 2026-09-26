@@ -113,6 +113,26 @@ class PirganjApiClient {
   Future<Map<String, dynamic>> getOverview() =>
       _get(Uri.parse('$baseUrl/api/overview'));
 
+  Future<List<dynamic>> getNotifications({int limit = 50}) async {
+    final json = await _get(Uri.parse('$baseUrl/api/notifications')
+        .replace(queryParameters: {'limit': '$limit'}));
+    return List<dynamic>.from(json['data'] as List);
+  }
+
+  Future<int> getUnreadNotificationCount() async {
+    final json =
+        await _get(Uri.parse('$baseUrl/api/notifications/unread-count'));
+    return ((json['data'] as Map?)?['count'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    await _put('/notifications/$id/read', {});
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _put('/notifications/read-all', {});
+  }
+
   Future<Map<String, dynamic>> register(
           {required String phone,
           required String password,

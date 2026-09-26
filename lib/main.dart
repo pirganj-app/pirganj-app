@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -139,6 +140,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<dynamic>> postsFuture;
   int tab = 0;
   int profileRefreshToken = 0;
+  int unreadNotifications = 0;
+  Timer? notificationTimer;
   String category = 'সব';
 
   @override
@@ -147,12 +150,25 @@ class _HomeScreenState extends State<HomeScreen> {
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
     _refresh();
+    _loadUnreadNotifications();
+    notificationTimer = Timer.periodic(
+        const Duration(seconds: 30), (_) => _loadUnreadNotifications());
   }
 
   @override
   void dispose() {
     searchController.dispose();
+    notificationTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final count = await api.getUnreadNotificationCount();
+      if (mounted && count != unreadNotifications) {
+        setState(() => unreadNotifications = count);
+      }
+    } catch (_) {}
   }
 
   void _refresh() {
@@ -214,8 +230,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: false,
                 child: _TopBar(
                   onAdd: () => _openEntry('post'),
-                  onNotice: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => NoticePage(api: api))),
+                  notificationCount: unreadNotifications,
+                  onNotice: () async {
+                    await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => NotificationPage(api: api)));
+                    _loadUnreadNotifications();
+                  },
                 ),
               ),
               Expanded(
@@ -531,8 +553,12 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onAdd, required this.onNotice});
+  const _TopBar(
+      {required this.onAdd,
+      required this.onNotice,
+      required this.notificationCount});
   final VoidCallback onAdd, onNotice;
+  final int notificationCount;
   @override
   Widget build(BuildContext context) => Container(
         color: brand,
@@ -559,10 +585,29 @@ class _TopBar extends StatelessWidget {
               onPressed: onAdd,
               icon: const Icon(Icons.edit_note_rounded,
                   color: Colors.white, size: 29)),
-          IconButton(
-              onPressed: onNotice,
-              icon: const Icon(Icons.notifications_none_rounded,
-                  color: Colors.white, size: 29)),
+          Stack(clipBehavior: Clip.none, children: [
+            IconButton(
+                onPressed: onNotice,
+                icon: const Icon(Icons.notifications_none_rounded,
+                    color: Colors.white, size: 29)),
+            if (notificationCount > 0)
+              Positioned(
+                  right: 2,
+                  top: 2,
+                  child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                          color: Color(0xFFE95B5B), shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text(
+                          notificationCount > 99 ? '99+' : '$notificationCount',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800))))
+          ]),
         ]),
       );
 }
@@ -1321,6 +1366,146 @@ class _PillButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))));
+}
+
+class NotificationPage extends StatefulWidget {
+  const NotificationPage({super.key, required this.api});
+  final PirganjApiClient api;
+  @override
+  State<NotificationPage> createState() => _NotificationPageState();
+}
+
+class _NotificationPageState extends State<NotificationPage> {
+  late Future<List<dynamic>> notificationsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    notificationsFuture = widget.api.getNotifications();
+  }
+
+  String _time(dynamic raw) {
+    final date = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return 'এইমাত্র';
+    if (diff.inHours < 1) return '${diff.inMinutes} মিনিট আগে';
+    if (diff.inDays < 1) return '${diff.inHours} ঘণ্টা আগে';
+    if (diff.inDays < 7) return '${diff.inDays} দিন আগে';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _markAll() async {
+    await widget.api.markAllNotificationsRead();
+    if (mounted) setState(_reload);
+  }
+
+  Future<void> _open(Map<String, dynamic> item) async {
+    if (item['isRead'] != true) {
+      await widget.api.markNotificationRead(item['id'].toString());
+      item['isRead'] = true;
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+      backgroundColor: page,
+      appBar: AppBar(
+          title: const Text('নোটিফিকেশন'),
+          backgroundColor: brand,
+          foregroundColor: Colors.white,
+          actions: [
+            TextButton(
+                onPressed: _markAll,
+                child:
+                    const Text('সব পড়া', style: TextStyle(color: Colors.white)))
+          ]),
+      body: FutureBuilder<List<dynamic>>(
+          future: notificationsFuture,
+          builder: (_, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting)
+              return const Center(
+                  child: CircularProgressIndicator(color: brand));
+            if (snapshot.hasError)
+              return const Center(child: Text('নোটিফিকেশন আনতে সমস্যা হয়েছে'));
+            final items = snapshot.data ?? const <dynamic>[];
+            if (items.isEmpty)
+              return const Center(child: Text('এখনো কোনো নোটিফিকেশন নেই'));
+            return RefreshIndicator(
+                color: brand,
+                onRefresh: () async => setState(_reload),
+                child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, index) {
+                      final item = Map<String, dynamic>.from(items[index]);
+                      final avatar = item['actorAvatarUrl']?.toString() ?? '';
+                      return Material(
+                          color: item['isRead'] == true
+                              ? Colors.white
+                              : const Color(0xFFE8F6F0),
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                              onTap: () => _open(item),
+                              borderRadius: BorderRadius.circular(18),
+                              child: Padding(
+                                  padding: const EdgeInsets.all(13),
+                                  child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        CircleAvatar(
+                                            radius: 24,
+                                            backgroundColor:
+                                                const Color(0xFFDDF2E9),
+                                            backgroundImage: avatar.isNotEmpty
+                                                ? NetworkImage(avatar)
+                                                : null,
+                                            child: avatar.isEmpty
+                                                ? const Icon(
+                                                    Icons.notifications_rounded,
+                                                    color: brand)
+                                                : null),
+                                        const SizedBox(width: 11),
+                                        Expanded(
+                                            child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                              Text(
+                                                  item['title']?.toString() ??
+                                                      'নোটিফিকেশন',
+                                                  style: const TextStyle(
+                                                      color: ink,
+                                                      fontWeight:
+                                                          FontWeight.w800)),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                  item['body']?.toString() ??
+                                                      '',
+                                                  style: const TextStyle(
+                                                      color: Colors.black54,
+                                                      height: 1.35)),
+                                              const SizedBox(height: 5),
+                                              Text(_time(item['createdAt']),
+                                                  style: const TextStyle(
+                                                      color: Colors.black45,
+                                                      fontSize: 11))
+                                            ])),
+                                        if (item['isRead'] != true)
+                                          const Padding(
+                                              padding: EdgeInsets.only(top: 5),
+                                              child: Icon(Icons.circle,
+                                                  color: brand, size: 9))
+                                      ]))));
+                    }));
+          }));
 }
 
 class NoticePage extends StatefulWidget {
