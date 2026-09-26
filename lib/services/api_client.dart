@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../models/service_card.dart';
 
 class PirganjApiClient {
@@ -47,8 +48,7 @@ class PirganjApiClient {
   }
 
   Future<List<dynamic>> getComments(String postId) async {
-    final json =
-        await _get(Uri.parse('$baseUrl/api/posts/$postId/comments'));
+    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/comments'));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -70,8 +70,7 @@ class PirganjApiClient {
   }
 
   Future<List<dynamic>> getPostReactions(String postId) async {
-    final json =
-        await _get(Uri.parse('$baseUrl/api/posts/$postId/reactions'));
+    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/reactions'));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -120,11 +119,19 @@ class PirganjApiClient {
   Future<Map<String, dynamic>> login(
           {required String phone, required String password}) =>
       _post('/auth/login', {'phone': phone, 'password': password});
-  Future<Map<String, dynamic>> me() =>
-      _get(Uri.parse('$baseUrl/api/auth/me'));
+  Future<Map<String, dynamic>> me() => _get(Uri.parse('$baseUrl/api/auth/me'));
   Future<Map<String, dynamic>> updateProfile(
-          {String? name, String? sex, String? address}) =>
-      _put('/auth/me', {'name': name, 'sex': sex, 'address': address});
+          {String? name,
+          String? sex,
+          String? address,
+          String? avatarUrl,
+          bool clearAvatar = false}) =>
+      _put('/auth/me', {
+        'name': name,
+        'sex': sex,
+        'address': address,
+        if (avatarUrl != null || clearAvatar) 'avatarUrl': avatarUrl
+      });
   Future<void> deleteAccount() async {
     await _delete('/auth/me');
   }
@@ -160,9 +167,15 @@ class PirganjApiClient {
           {required String author,
           required String title,
           required String body,
-          required String tag}) =>
-      _post('/posts',
-          {'author': author, 'title': title, 'body': body, 'tag': tag});
+          required String tag,
+          String? imageUrl}) =>
+      _post('/posts', {
+        'author': author,
+        'title': title,
+        'body': body,
+        'tag': tag,
+        if (imageUrl != null) 'imageUrl': imageUrl
+      });
   Future<Map<String, dynamic>> createDonor(
           {required String name,
           required String bloodGroup,
@@ -227,6 +240,41 @@ class PirganjApiClient {
     return _decode(response);
   }
 
+  Future<Map<String, dynamic>> registerWithImage({
+    required String phone,
+    required String password,
+    required String name,
+    required String sex,
+    required String address,
+    required XFile profileImage,
+  }) async {
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$baseUrl/api/auth/register'));
+    request.headers.addAll(_headers);
+    request.fields.addAll({
+      'phone': phone,
+      'password': password,
+      'name': name,
+      'sex': sex,
+      'address': address,
+    });
+    request.files.add(await http.MultipartFile.fromPath(
+        'profileImage', profileImage.path,
+        filename: profileImage.name));
+    return _decode(await http.Response.fromStream(await request.send()));
+  }
+
+  Future<Map<String, dynamic>> uploadImage(XFile image,
+      {required String kind}) async {
+    final request =
+        http.MultipartRequest('POST', Uri.parse('$baseUrl/api/uploads/image'));
+    request.headers.addAll(_headers);
+    request.fields['kind'] = kind;
+    request.files.add(await http.MultipartFile.fromPath('image', image.path,
+        filename: image.name));
+    return _decode(await http.Response.fromStream(await request.send()));
+  }
+
   Future<Map<String, dynamic>> _post(
       String path, Map<String, dynamic> body) async {
     final response = await _client.post(Uri.parse('$baseUrl/api$path'),
@@ -244,8 +292,8 @@ class PirganjApiClient {
   }
 
   Future<Map<String, dynamic>> _delete(String path) async {
-    final response = await _client.delete(Uri.parse('$baseUrl/api$path'),
-        headers: _headers);
+    final response =
+        await _client.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);
     return _decode(response);
   }
 

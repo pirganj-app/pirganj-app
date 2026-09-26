@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
@@ -7,6 +8,20 @@ import 'services/api_client.dart';
 const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
+const maxImageBytes = 2 * 1024 * 1024;
+
+Future<XFile?> pickImageUnderLimit(BuildContext context) async {
+  final image = await ImagePicker()
+      .pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 2200);
+  if (image == null) return null;
+  if (await image.length() > maxImageBytes) {
+    if (context.mounted)
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ছবির size সর্বোচ্চ 2MB হতে হবে')));
+    return null;
+  }
+  return image;
+}
 
 class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
   const _PremiumPageTransitionsBuilder();
@@ -695,9 +710,18 @@ class _PostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        const CircleAvatar(
-                            backgroundColor: Color(0xFFDDF2E9),
-                            child: Icon(Icons.person, color: brand)),
+                        CircleAvatar(
+                            backgroundColor: const Color(0xFFDDF2E9),
+                            backgroundImage:
+                                (post['authorAvatarUrl']?.toString() ?? '')
+                                        .isNotEmpty
+                                    ? NetworkImage(
+                                        post['authorAvatarUrl'].toString())
+                                    : null,
+                            child: (post['authorAvatarUrl']?.toString() ?? '')
+                                    .isEmpty
+                                ? const Icon(Icons.person, color: brand)
+                                : null),
                         const SizedBox(width: 10),
                         Expanded(
                             child: Column(
@@ -727,6 +751,16 @@ class _PostCard extends StatelessWidget {
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                               color: ink)),
+                      if ((post['imageUrl']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.network(post['imageUrl'].toString(),
+                                height: 190,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const SizedBox()))
+                      ],
                       const SizedBox(height: 5),
                       Text(post['body']?.toString() ?? '',
                           maxLines: 4,
@@ -1922,6 +1956,7 @@ class EntrySheet extends StatefulWidget {
 class _EntrySheetState extends State<EntrySheet> {
   final values = <String, String>{};
   final controllers = <String, TextEditingController>{};
+  XFile? postImage;
   bool saving = false;
   String accountName = 'আপনার account';
   static const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -1967,6 +2002,23 @@ class _EntrySheetState extends State<EntrySheet> {
               prefixIcon:
                   const Icon(Icons.verified_user_outlined, color: brand),
               helperText: 'আপনার account-এর নাম automatically ব্যবহার হবে')));
+
+  Widget postImageField() => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: OutlinedButton.icon(
+          onPressed: saving
+              ? null
+              : () async {
+                  final selected = await pickImageUnderLimit(context);
+                  if (selected != null && mounted)
+                    setState(() => postImage = selected);
+                },
+          icon: Icon(postImage == null
+              ? Icons.add_photo_alternate_rounded
+              : Icons.check_circle_rounded),
+          label: Text(postImage == null
+              ? 'Post picture যোগ করুন (max 2MB)'
+              : 'Post picture selected')));
 
   @override
   void dispose() {
@@ -2055,13 +2107,20 @@ class _EntrySheetState extends State<EntrySheet> {
     try {
       switch (widget.kind) {
         case 'post':
+          String? imageUrl;
+          if (postImage != null) {
+            final uploaded =
+                await widget.api.uploadImage(postImage!, kind: 'post');
+            imageUrl = (uploaded['data'] as Map?)?['url']?.toString();
+          }
           await widget.api.createPost(
               author: values['author']?.trim().isEmpty ?? true
                   ? 'পীরগঞ্জবাসী'
                   : values['author']!,
               title: values['title']!,
               body: values['body']!,
-              tag: values['tag'] ?? 'কমিউনিটি');
+              tag: values['tag'] ?? 'কমিউনিটি',
+              imageUrl: imageUrl);
           break;
         case 'service':
           await widget.api.createService(
@@ -2125,6 +2184,7 @@ class _EntrySheetState extends State<EntrySheet> {
             accountNameField(),
             field('title', 'শিরোনাম', required: true),
             field('body', 'বিস্তারিত', required: true, multiline: true),
+            postImageField(),
             select('tag', 'ধরন', ['কমিউনিটি', 'খবর', 'নোটিশ', 'জরুরি'])
           ],
         'service' => [
@@ -2242,6 +2302,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final name = TextEditingController();
   final address = TextEditingController();
   String sex = 'পুরুষ';
+  XFile? profileImage;
   bool register = false;
   bool busy = false;
 
@@ -2257,20 +2318,26 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> submit() async {
     final incomplete = phone.text.trim().isEmpty ||
         password.text.isEmpty ||
-        (register && (name.text.trim().isEmpty || address.text.trim().isEmpty));
+        (register &&
+            (name.text.trim().isEmpty ||
+                address.text.trim().isEmpty ||
+                profileImage == null));
     if (incomplete) {
-      _show('প্রয়োজনীয় তথ্য পূরণ করুন');
+      _show(register && profileImage == null
+          ? 'Profile picture নির্বাচন করুন'
+          : 'প্রয়োজনীয় তথ্য পূরণ করুন');
       return;
     }
     setState(() => busy = true);
     try {
       final result = register
-          ? await widget.api.register(
+          ? await widget.api.registerWithImage(
               phone: phone.text.trim(),
               password: password.text,
               name: name.text.trim(),
               sex: sex,
-              address: address.text.trim())
+              address: address.text.trim(),
+              profileImage: profileImage!)
           : await widget.api
               .login(phone: phone.text.trim(), password: password.text);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
@@ -2342,6 +2409,21 @@ class _AuthScreenState extends State<AuthScreen> {
                     controller: address,
                     maxLines: 2,
                     decoration: dec('ঠিকানা')),
+                const SizedBox(height: 11),
+                OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            final selected = await pickImageUnderLimit(context);
+                            if (selected != null && mounted)
+                              setState(() => profileImage = selected);
+                          },
+                    icon: Icon(profileImage == null
+                        ? Icons.add_a_photo_rounded
+                        : Icons.check_circle_rounded),
+                    label: Text(profileImage == null
+                        ? 'Profile picture দিন (required, max 2MB)'
+                        : 'Profile picture selected')),
               ],
               const SizedBox(height: 18),
               SizedBox(
@@ -2448,16 +2530,28 @@ class _ProfilePanelState extends State<ProfilePanel> {
     final user = payload is Map
         ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
         : <String, dynamic>{};
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
         context: context,
         builder: (_) => _ProfileEditDialog(
             initialName: user['name']?.toString() ?? '',
             initialSex: user['sex']?.toString() ?? 'পুরুষ',
-            initialAddress: user['address']?.toString() ?? ''));
+            initialAddress: user['address']?.toString() ?? '',
+            hasAvatar: (user['avatarUrl']?.toString() ?? '').isNotEmpty));
     if (result == null) return;
     try {
+      String? avatarUrl;
+      final selected = result['avatarImage'] as XFile?;
+      if (selected != null) {
+        final uploaded =
+            await widget.api.uploadImage(selected, kind: 'profile');
+        avatarUrl = (uploaded['data'] as Map?)?['url']?.toString();
+      }
       await widget.api.updateProfile(
-          name: result['name'], sex: result['sex'], address: result['address']);
+          name: result['name'],
+          sex: result['sex'],
+          address: result['address'],
+          avatarUrl: avatarUrl,
+          clearAvatar: result['removeAvatar'] == true);
       if (mounted) setState(_reload);
     } catch (e) {
       if (mounted)
@@ -2498,6 +2592,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
         context: context, builder: (_) => _ResourceEditDialog(item: item));
     if (result == null) return;
     try {
+      final image = result.remove('imageFile') as XFile?;
+      final removeImage = result.remove('removeImage') == true;
+      if (image != null) {
+        final uploaded = await widget.api.uploadImage(image, kind: 'post');
+        result['imageUrl'] = (uploaded['data'] as Map?)?['url']?.toString();
+      } else if (removeImage) {
+        result['imageUrl'] = null;
+      }
       await widget.api.updateItem(
           item['resource'].toString(), item['id'].toString(), result);
       if (mounted) setState(_reload);
@@ -2590,6 +2692,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   return _ProfileHeader(
                       name: user['name']?.toString() ?? 'আমার প্রোফাইল',
                       phone: user['phone']?.toString() ?? '',
+                      avatarUrl: user['avatarUrl']?.toString(),
                       address:
                           '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
                       onEdit: editProfile);
@@ -2658,8 +2761,10 @@ class _ProfileHeader extends StatelessWidget {
       {required this.name,
       required this.phone,
       required this.address,
+      this.avatarUrl,
       required this.onEdit});
   final String name, phone, address;
+  final String? avatarUrl;
   final VoidCallback? onEdit;
   @override
   Widget build(BuildContext context) => Container(
@@ -2674,13 +2779,16 @@ class _ProfileHeader extends StatelessWidget {
           ]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(
-              width: 62,
-              height: 62,
-              decoration: const BoxDecoration(
-                  color: Color(0x33FFFFFF), shape: BoxShape.circle),
-              child: const Icon(Icons.person_rounded,
-                  color: Colors.white, size: 35)),
+          CircleAvatar(
+              radius: 31,
+              backgroundColor: const Color(0x33FFFFFF),
+              backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
+                  ? NetworkImage(avatarUrl!)
+                  : null,
+              child: avatarUrl == null || avatarUrl!.isEmpty
+                  ? const Icon(Icons.person_rounded,
+                      color: Colors.white, size: 35)
+                  : null),
           const SizedBox(width: 14),
           Expanded(
               child: Column(
@@ -2848,8 +2956,10 @@ class _ProfileEditDialog extends StatefulWidget {
   const _ProfileEditDialog(
       {required this.initialName,
       required this.initialSex,
-      required this.initialAddress});
+      required this.initialAddress,
+      required this.hasAvatar});
   final String initialName, initialSex, initialAddress;
+  final bool hasAvatar;
   @override
   State<_ProfileEditDialog> createState() => _ProfileEditDialogState();
 }
@@ -2860,6 +2970,8 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
   late final TextEditingController address =
       TextEditingController(text: widget.initialAddress);
   late String sex = widget.initialSex;
+  XFile? avatarImage;
+  bool removeAvatar = false;
   @override
   void dispose() {
     name.dispose();
@@ -2885,15 +2997,45 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
             TextField(
                 controller: address,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: 'ঠিকানা'))
+                decoration: const InputDecoration(labelText: 'ঠিকানা')),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+                onPressed: () async {
+                  final selected = await pickImageUnderLimit(context);
+                  if (selected != null) {
+                    setState(() {
+                      avatarImage = selected;
+                      removeAvatar = false;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.photo_camera_back_rounded),
+                label: Text(avatarImage == null
+                    ? 'Profile picture বদলান (max 2MB)'
+                    : 'New profile picture selected')),
+            if (widget.hasAvatar)
+              TextButton.icon(
+                  onPressed: () => setState(() {
+                        removeAvatar = true;
+                        avatarImage = null;
+                      }),
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: Colors.red),
+                  label: const Text('Profile picture মুছুন',
+                      style: TextStyle(color: Colors.red)))
           ])),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('বাতিল')),
             FilledButton(
-                onPressed: () => Navigator.pop(context,
-                    {'name': name.text, 'sex': sex, 'address': address.text}),
+                onPressed: () => Navigator.pop(context, {
+                      'name': name.text,
+                      'sex': sex,
+                      'address': address.text,
+                      'avatarImage': avatarImage,
+                      'removeAvatar': removeAvatar
+                    }),
                 child: const Text('সংরক্ষণ'))
           ]);
 }
@@ -2908,6 +3050,8 @@ class _ResourceEditDialog extends StatefulWidget {
 class _ResourceEditDialogState extends State<_ResourceEditDialog> {
   final values = <String, String>{};
   final controllers = <String, TextEditingController>{};
+  XFile? postImage;
+  bool removePostImage = false;
   static const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
   static const categories = [
     'হাসপাতাল',
@@ -3050,6 +3194,31 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
     return input(key);
   }
 
+  Widget postImageEditor() => Column(children: [
+        OutlinedButton.icon(
+            onPressed: () async {
+              final selected = await pickImageUnderLimit(context);
+              if (selected != null)
+                setState(() {
+                  postImage = selected;
+                  removePostImage = false;
+                });
+            },
+            icon: const Icon(Icons.image_rounded),
+            label: Text(postImage == null
+                ? 'Post picture বদলান (max 2MB)'
+                : 'New post picture selected')),
+        if ((widget.item['imageUrl']?.toString() ?? '').isNotEmpty)
+          TextButton.icon(
+              onPressed: () => setState(() {
+                    removePostImage = true;
+                    postImage = null;
+                  }),
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              label: const Text('Post picture মুছুন',
+                  style: TextStyle(color: Colors.red)))
+      ]);
+
   Map<String, dynamic> payload() {
     for (final e in controllers.entries) {
       if (!['bloodGroup', 'category', 'label', 'tag'].contains(e.key)) {
@@ -3100,7 +3269,9 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
       _ => {
           'title': values['title'],
           'body': values['body'],
-          'tag': values['tag']
+          'tag': values['tag'],
+          'imageFile': postImage,
+          'removeImage': removePostImage
         }
     };
   }
@@ -3109,7 +3280,10 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
   Widget build(BuildContext context) => AlertDialog(
           title: Text('Edit ${resourceLabel(resource)}'),
           content: SingleChildScrollView(
-              child: Column(children: keys.map(fieldFor).toList())),
+              child: Column(children: [
+            ...keys.map(fieldFor),
+            if (resource == 'posts') postImageEditor()
+          ])),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
