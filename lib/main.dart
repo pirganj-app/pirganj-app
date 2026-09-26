@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/service_card.dart';
@@ -29,13 +30,34 @@ Future<XFile?> pickImageUnderLimit(BuildContext context) async {
   final image = await ImagePicker()
       .pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 2200);
   if (image == null) return null;
-  if (await image.length() > maxImageBytes) {
+  XFile? compressed;
+  for (final settings in const [
+    (quality: 72, width: 1600),
+    (quality: 58, width: 1280),
+  ]) {
+    final output =
+        '${Directory.systemTemp.path}/pirganj_${DateTime.now().microsecondsSinceEpoch}.jpg';
+    try {
+      compressed = await FlutterImageCompress.compressAndGetFile(
+          image.path, output,
+          quality: settings.quality,
+          minWidth: settings.width,
+          minHeight: settings.width,
+          format: CompressFormat.jpeg);
+      if (compressed != null && await compressed.length() <= maxImageBytes)
+        break;
+    } catch (_) {
+      compressed = null;
+    }
+  }
+  final selected = compressed ?? image;
+  if (await selected.length() > maxImageBytes) {
     if (context.mounted)
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ছবির size সর্বোচ্চ 2MB হতে হবে')));
+          const SnackBar(content: Text('ছবিটি compress করার পরও 2MB-এর বেশি')));
     return null;
   }
-  return image;
+  return selected;
 }
 
 class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
