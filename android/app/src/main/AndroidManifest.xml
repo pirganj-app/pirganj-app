@@ -7,6 +7,15 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false"
         android:enableOnBackInvokedCallback="false">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_pirganj" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="pirganj_high_importance" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

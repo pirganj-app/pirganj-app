@@ -39,7 +39,7 @@ class PushNotificationService {
         ?.createNotificationChannel(pirganjNotificationChannel);
     await localNotifications.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('ic_stat_pirganj'),
       ),
     );
     final messaging = FirebaseMessaging.instance;
@@ -70,7 +70,7 @@ class PushNotificationService {
                 'Comments, replies, reactions and urgent community updates',
             importance: Importance.high,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+            icon: 'ic_stat_pirganj',
           ),
         ),
         payload: message.data['entityId']?.toString(),
