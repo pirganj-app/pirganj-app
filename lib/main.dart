@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
+import 'services/push_notification_service.dart';
 
 const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
@@ -81,6 +82,11 @@ class _PirganjAppState extends State<PirganjApp> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
+    if (api.token != null) {
+      try {
+        await PushNotificationService.instance.start(api);
+      } catch (_) {}
+    }
     if (mounted) setState(() => loading = false);
   }
 
@@ -88,11 +94,15 @@ class _PirganjAppState extends State<PirganjApp> {
     final prefs = await SharedPreferences.getInstance();
     api.token = result['token']?.toString();
     await prefs.setString('pirganj_token', api.token!);
+    try {
+      await PushNotificationService.instance.start(api);
+    } catch (_) {}
     if (mounted) setState(() {});
   }
 
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
+    await PushNotificationService.instance.stop(api);
     await prefs.remove('pirganj_token');
     api.token = null;
     if (mounted) setState(() {});

@@ -133,6 +133,15 @@ class PirganjApiClient {
     await _put('/notifications/read-all', {});
   }
 
+  Future<void> registerPushToken(String token,
+      {String platform = 'android'}) async {
+    await _post('/devices/push-token', {'token': token, 'platform': platform});
+  }
+
+  Future<void> unregisterPushToken() async {
+    await _delete('/devices/push-token');
+  }
+
   Future<Map<String, dynamic>> register(
           {required String phone,
           required String password,

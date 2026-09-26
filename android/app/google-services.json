@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "107225362758",
+    "project_id": "pirganj-app",
+    "storage_bucket": "pirganj-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:107225362758:android:6b1b7b9512f0fbca703547",
+        "android_client_info": {
+          "package_name": "com.pirganj.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUaaquOwKmeNNTXdkg04i-WkBbZec2PJ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
