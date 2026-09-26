@@ -925,8 +925,28 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               const SizedBox(height: 10),
               if (list.isEmpty) const Text('এখনো কেউ react করেননি'),
               ...list.map((e) => ListTile(
-                  leading: Text(_reactionEmoji(e['reaction']?.toString()),
-                      style: const TextStyle(fontSize: 24)),
+                  leading: Stack(clipBehavior: Clip.none, children: [
+                    CircleAvatar(
+                        radius: 22,
+                        backgroundColor: const Color(0xFFDDF2E9),
+                        backgroundImage:
+                            (e['userAvatarUrl']?.toString() ?? '').isNotEmpty
+                                ? NetworkImage(e['userAvatarUrl'].toString())
+                                : null,
+                        child: (e['userAvatarUrl']?.toString() ?? '').isEmpty
+                            ? const Icon(Icons.person, color: brand)
+                            : null),
+                    Positioned(
+                        right: -5,
+                        bottom: -3,
+                        child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                                color: Colors.white, shape: BoxShape.circle),
+                            child: Text(
+                                _reactionEmoji(e['reaction']?.toString()),
+                                style: const TextStyle(fontSize: 14))))
+                  ]),
                   title: Text(e['userName']?.toString() ??
                       e['userId']?.toString() ??
                       'User'),
@@ -1031,10 +1051,17 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const CircleAvatar(
-                    radius: 14,
-                    backgroundColor: Color(0xFFF0F2F1),
-                    child: Icon(Icons.person, size: 16, color: Colors.black54)),
+                CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFFF0F2F1),
+                    backgroundImage:
+                        (item['authorAvatarUrl']?.toString() ?? '').isNotEmpty
+                            ? NetworkImage(item['authorAvatarUrl'].toString())
+                            : null,
+                    child: (item['authorAvatarUrl']?.toString() ?? '').isEmpty
+                        ? const Icon(Icons.person,
+                            size: 16, color: Colors.black54)
+                        : null),
                 const SizedBox(width: 6),
                 Expanded(
                     child: Column(
@@ -2413,12 +2440,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 11),
                 Column(children: [
                   if (profileImage != null)
-                    ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Image.file(File(profileImage!.path),
-                            height: 150,
-                            width: double.infinity,
-                            fit: BoxFit.cover)),
+                    Container(
+                        width: 150,
+                        height: 150,
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                            shape: BoxShape.circle, color: Color(0xFFDDF2E9)),
+                        child: CircleAvatar(
+                            backgroundImage:
+                                FileImage(File(profileImage!.path)))),
                   if (profileImage != null) const SizedBox(height: 8),
                   OutlinedButton.icon(
                       onPressed: busy
