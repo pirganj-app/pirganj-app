@@ -2985,7 +2985,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
         builder: (_) => AlertDialog(
                 title: const Text('Account permanently delete করবেন?'),
                 content: const Text(
-                    'আপনার profile এবং আপনার যোগ করা সব তথ্য স্থায়ীভাবে মুছে যাবে। এই কাজটি undo করা যাবে না.'),
+                    'আপনার profile, post, comment, notifications, যোগ করা সব তথ্য এবং upload করা সব image স্থায়ীভাবে মুছে যাবে। এই কাজটি undo করা যাবে না.'),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(context, false),
