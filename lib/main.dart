@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
 import 'services/push_notification_service.dart';
@@ -106,6 +107,7 @@ class PirganjApp extends StatefulWidget {
 class _PirganjAppState extends State<PirganjApp> {
   final api = PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
   bool loading = true;
+  Map<String, dynamic>? appOpenMessage;
   @override
   void initState() {
     super.initState();
@@ -116,6 +118,9 @@ class _PirganjAppState extends State<PirganjApp> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
+    try {
+      appOpenMessage = await api.getAppOpenMessage();
+    } catch (_) {}
     if (api.token != null) {
       try {
         await PushNotificationService.instance.start(api);
@@ -163,9 +168,64 @@ class _PirganjAppState extends State<PirganjApp> {
         home: loading
             ? const Scaffold(
                 body: Center(child: CircularProgressIndicator(color: brand)))
-            : api.token == null
-                ? AuthScreen(api: api, onLoggedIn: _loggedIn)
-                : HomeScreen(api: api, onLogout: _logout),
+            : appOpenMessage != null
+                ? AppOpenMessagePage(
+                    message: appOpenMessage!,
+                    onSkip: () => setState(() => appOpenMessage = null))
+                : api.token == null
+                    ? AuthScreen(api: api, onLoggedIn: _loggedIn)
+                    : HomeScreen(api: api, onLogout: _logout),
+      );
+}
+
+class AppOpenMessagePage extends StatefulWidget {
+  const AppOpenMessagePage(
+      {super.key, required this.message, required this.onSkip});
+  final Map<String, dynamic> message;
+  final VoidCallback onSkip;
+
+  @override
+  State<AppOpenMessagePage> createState() => _AppOpenMessagePageState();
+}
+
+class _AppOpenMessagePageState extends State<AppOpenMessagePage> {
+  late final WebViewController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.disabled)
+      ..setBackgroundColor(Colors.white)
+      ..loadHtmlString(_htmlDocument(widget.message['html']?.toString() ?? ''));
+  }
+
+  String _htmlDocument(String content) => '''<!doctype html>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#ffffff;">$content</body></html>''';
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            WebViewWidget(controller: controller),
+            Positioned(
+              top: 0,
+              right: 12,
+              child: SafeArea(
+                child: FilledButton(
+                  onPressed: widget.onSkip,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.72),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Skip'),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
 }
 
@@ -180,8 +240,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final PirganjApiClient api;
   final searchController = TextEditingController();
-  late Future<List<ServiceCard>> servicesFuture;
-  late Future<List<dynamic>> postsFuture;
+  final posts = <dynamic>[];
+  bool communityStarted = false;
+  bool postsLoading = false;
+  bool postsLoadingMore = false;
+  bool postsHasMore = true;
+  Object? postsError;
   int tab = 0;
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
@@ -193,10 +257,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
-    _refresh();
-    _loadUnreadNotifications();
-    pushEventSubscription = PushNotificationService.instance.events.stream
-        .listen((_) => _loadUnreadNotifications());
   }
 
   @override
@@ -215,15 +275,46 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
-  void _refresh() {
-    servicesFuture = api.getServices(
-      category: category == 'সব' ? null : category,
-      search: searchController.text,
-    );
-    postsFuture = api.getPosts();
+  Future<void> _loadPostsPage({bool refresh = false}) async {
+    if (postsLoading || postsLoadingMore) return;
+    if (!refresh && !postsHasMore) return;
+    if (refresh) {
+      posts.clear();
+      postsHasMore = true;
+      postsError = null;
+      postsLoading = true;
+    } else {
+      postsLoadingMore = true;
+    }
+    if (mounted) setState(() {});
+    try {
+      final batch = await api.getPosts(limit: 20, offset: posts.length);
+      if (mounted) {
+        posts.addAll(batch);
+        postsHasMore = batch.length == 20;
+        postsError = null;
+      }
+    } catch (error) {
+      if (mounted) postsError = error;
+    } finally {
+      if (mounted) {
+        postsLoading = false;
+        postsLoadingMore = false;
+        setState(() {});
+      }
+    }
   }
 
-  void _reload() => setState(_refresh);
+  void _startCommunity() {
+    if (communityStarted) return;
+    communityStarted = true;
+    _loadPostsPage(refresh: true);
+  }
+
+  void _reload() {
+    if (communityStarted) _loadPostsPage(refresh: true);
+    setState(() {});
+  }
 
   void _message(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -256,10 +347,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => EntrySheet(kind: kind, api: api),
     );
     if (result == true && mounted) {
-      setState(() {
-        _reload();
-        profileRefreshToken++;
-      });
+      profileRefreshToken++;
+      _reload();
       _message('তথ্য সফলভাবে যোগ হয়েছে');
     }
   }
@@ -287,10 +376,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: Container(
                   color: page,
-                  child: IndexedStack(
-                    index: tab,
-                    children: [_home(), _community(), _add(), _more()],
-                  ),
+                  child: _page(),
                 ),
               ),
             ],
@@ -303,10 +389,13 @@ class _HomeScreenState extends State<HomeScreen> {
           labelTextStyle: const WidgetStatePropertyAll(
               TextStyle(color: ink, fontWeight: FontWeight.w700)),
           selectedIndex: tab,
-          onDestinationSelected: (value) => setState(() {
-            tab = value;
-            if (value == 3) profileRefreshToken++;
-          }),
+          onDestinationSelected: (value) {
+            if (value == 1) _startCommunity();
+            setState(() {
+              tab = value;
+              if (value == 3) profileRefreshToken++;
+            });
+          },
           destinations: const [
             NavigationDestination(
                 icon: Icon(Icons.home_outlined),
@@ -327,6 +416,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       );
+
+  Widget _page() => switch (tab) {
+        0 => _home(),
+        1 => _community(),
+        2 => _add(),
+        _ => _more(),
+      };
 
   Widget _home() => RefreshIndicator(
         color: brand,
@@ -450,36 +546,40 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _community() => RefreshIndicator(
         color: brand,
-        onRefresh: () async => setState(() => postsFuture = api.getPosts()),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
-          children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('কমিউনিটি',
-                  style: TextStyle(
-                      fontSize: 26, fontWeight: FontWeight.w800, color: ink)),
-              _PillButton(
-                  label: 'পোস্ট লিখুন',
-                  icon: Icons.edit_rounded,
-                  onTap: () => _openEntry('post')),
-            ]),
-            const SizedBox(height: 14),
-            FutureBuilder<List<dynamic>>(
-              future: postsFuture,
-              builder: (_, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
-                  return const Center(
-                      child: Padding(
-                          padding: EdgeInsets.all(30),
-                          child: CircularProgressIndicator(color: brand)));
-                if (snapshot.hasError)
-                  return const _EmptyCard(text: 'পোস্ট আনতে সমস্যা হয়েছে');
-                final data = snapshot.data ?? [];
-                if (data.isEmpty)
-                  return const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই');
-                return Column(
-                    children: data.map((post) {
-                  final item = Map<String, dynamic>.from(post);
+        onRefresh: () => _loadPostsPage(refresh: true),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.metrics.pixels >=
+                notification.metrics.maxScrollExtent - 500) {
+              _loadPostsPage();
+            }
+            return false;
+          },
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
+            children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('কমিউনিটি',
+                    style: TextStyle(
+                        fontSize: 26, fontWeight: FontWeight.w800, color: ink)),
+                _PillButton(
+                    label: 'পোস্ট লিখুন',
+                    icon: Icons.edit_rounded,
+                    onTap: () => _openEntry('post')),
+              ]),
+              const SizedBox(height: 14),
+              if (postsLoading && posts.isEmpty)
+                const Padding(
+                    padding: EdgeInsets.all(30),
+                    child:
+                        Center(child: CircularProgressIndicator(color: brand)))
+              else if (postsError != null && posts.isEmpty)
+                _NetworkErrorCard(onRetry: () => _loadPostsPage(refresh: true))
+              else if (posts.isEmpty)
+                const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই')
+              else
+                ...posts.map((post) {
+                  final item = Map<String, dynamic>.from(post as Map);
                   return _PostCard(
                       post: item,
                       onLike: () async {
@@ -496,8 +596,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               ? reaction
                               : null;
                           if (mounted) setState(() {});
-                        } catch (e) {
-                          _message('রিঅ্যাকশন দেওয়া যায়নি: $e');
+                        } catch (_) {
+                          _message(
+                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
                         }
                       },
                       onOpen: () => Navigator.push(
@@ -517,14 +618,25 @@ class _HomeScreenState extends State<HomeScreen> {
                               ? reaction
                               : null;
                           if (mounted) setState(() {});
-                        } catch (e) {
-                          _message('React করা যায়নি: $e');
+                        } catch (_) {
+                          _message(
+                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
                         }
                       });
-                }).toList());
-              },
-            ),
-          ],
+                }),
+              if (postsLoadingMore)
+                const Padding(
+                    padding: EdgeInsets.all(18),
+                    child:
+                        Center(child: CircularProgressIndicator(color: brand))),
+              if (!postsHasMore && posts.isNotEmpty)
+                const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Center(
+                        child: Text('সব পোস্ট দেখানো হয়েছে',
+                            style: TextStyle(color: Colors.black45)))),
+            ],
+          ),
         ),
       );
 
@@ -1141,6 +1253,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     return Container(
         margin:
             EdgeInsets.only(left: item['parentId'] != null ? 22 : 0, bottom: 4),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
@@ -1405,6 +1518,38 @@ class _EmptyCard extends StatelessWidget {
       child: Padding(padding: const EdgeInsets.all(18), child: Text(text)));
 }
 
+class _NetworkErrorCard extends StatelessWidget {
+  const _NetworkErrorCard({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Icon(Icons.wifi_off_rounded,
+                  color: Colors.black45, size: 34),
+              const SizedBox(height: 8),
+              const Text('ইন্টারনেট কানেকশন সমস্যা হয়েছে',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w700, color: ink)),
+              const SizedBox(height: 4),
+              const Text('ইন্টারনেট সংযোগ পরীক্ষা করে আবার রিফ্রেশ করুন',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.black54)),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('রিফ্রেশ করুন')),
+            ],
+          ),
+        ),
+      );
+}
+
 class _PillButton extends StatelessWidget {
   const _PillButton(
       {required this.label, required this.icon, required this.onTap});
@@ -1574,7 +1719,9 @@ class _NotificationPageState extends State<NotificationPage> {
               return const Center(
                   child: CircularProgressIndicator(color: brand));
             if (snapshot.hasError)
-              return const Center(child: Text('নোটিফিকেশন আনতে সমস্যা হয়েছে'));
+              return const Center(
+                  child: Text(
+                      'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'));
             final items = snapshot.data ?? const <dynamic>[];
             if (items.isEmpty)
               return const Center(child: Text('এখনো কোনো নোটিফিকেশন নেই'));
@@ -1807,7 +1954,9 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
                 return ListView(children: const [
                   Padding(
                       padding: EdgeInsets.all(24),
-                      child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))
+                      child: _EmptyCard(
+                          text:
+                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'))
                 ]);
               final data = snapshot.data ?? [];
               return ListView(
@@ -1980,23 +2129,59 @@ class _TopicDataPageState extends State<TopicDataPage> {
     'O-'
   ];
   String bloodGroup = 'সব';
-  late Future<List<dynamic>> future;
+  final data = <dynamic>[];
+  bool loading = false;
+  bool loadingMore = false;
+  bool hasMore = true;
+  Object? error;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(refresh: true);
   }
 
-  void _load() {
-    future = switch (widget.topic) {
-      0 => widget.api.getDonors(group: bloodGroup == 'সব' ? null : bloodGroup),
-      1 => widget.api
-          .getBloodRequests(group: bloodGroup == 'সব' ? null : bloodGroup),
-      2 => widget.api.getNotices(),
-      3 => widget.api.getJobs(),
-      _ => widget.api.getLostFound(),
-    };
+  Future<List<dynamic>> _fetchPage() => switch (widget.topic) {
+        0 => widget.api.getDonors(
+            group: bloodGroup == 'সব' ? null : bloodGroup,
+            limit: 20,
+            offset: data.length),
+        1 => widget.api.getBloodRequests(
+            group: bloodGroup == 'সব' ? null : bloodGroup,
+            limit: 20,
+            offset: data.length),
+        2 => widget.api.getNotices(limit: 20, offset: data.length),
+        3 => widget.api.getJobs(limit: 20, offset: data.length),
+        _ => widget.api.getLostFound(limit: 20, offset: data.length),
+      };
+
+  Future<void> _load({bool refresh = false}) async {
+    if (loading || loadingMore || (!refresh && !hasMore)) return;
+    if (refresh) {
+      data.clear();
+      hasMore = true;
+      error = null;
+      loading = true;
+    } else {
+      loadingMore = true;
+    }
+    if (mounted) setState(() {});
+    try {
+      final batch = await _fetchPage();
+      if (mounted) {
+        data.addAll(batch);
+        hasMore = batch.length == 20;
+        error = null;
+      }
+    } catch (e) {
+      if (mounted) error = e;
+    } finally {
+      if (mounted) {
+        loading = false;
+        loadingMore = false;
+        setState(() {});
+      }
+    }
   }
 
   Future<void> _add() async {
@@ -2006,7 +2191,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => EntrySheet(kind: kinds[widget.topic], api: widget.api));
-    if (result == true && mounted) setState(_load);
+    if (result == true && mounted) _load(refresh: true);
   }
 
   @override
@@ -2023,55 +2208,63 @@ class _TopicDataPageState extends State<TopicDataPage> {
             ]),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () async => setState(_load),
-          child: FutureBuilder<List<dynamic>>(
-            future: future,
-            builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting)
-                return const Center(
-                    child: CircularProgressIndicator(color: brand));
-              if (snapshot.hasError)
-                return ListView(children: const [
-                  Padding(
-                      padding: EdgeInsets.all(24),
-                      child: _EmptyCard(text: 'তথ্য আনতে সমস্যা হয়েছে'))
-                ]);
-              final data = snapshot.data ?? [];
-              if (data.isEmpty)
-                return ListView(children: const [
-                  Padding(
-                      padding: EdgeInsets.all(24),
-                      child: _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))
-                ]);
-              return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                  children: [
-                    if (widget.topic < 2)
-                      Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: DropdownButtonFormField<String>(
-                              initialValue: bloodGroup,
-                              decoration: const InputDecoration(
-                                  labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার',
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                      borderSide: BorderSide.none)),
-                              items: bloodGroups
-                                  .map((group) => DropdownMenuItem(
-                                      value: group, child: Text(group)))
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  bloodGroup = value ?? 'সব';
-                                  _load();
-                                });
-                              })),
-                    ...data.map((item) => _TopicCard(
-                        topic: widget.topic,
-                        data: Map<String, dynamic>.from(item)))
-                  ]);
+          onRefresh: () => _load(refresh: true),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics.pixels >=
+                  notification.metrics.maxScrollExtent - 400) {
+                _load();
+              }
+              return false;
             },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              children: [
+                if (widget.topic < 2)
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: DropdownButtonFormField<String>(
+                          initialValue: bloodGroup,
+                          decoration: const InputDecoration(
+                              labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                  borderSide: BorderSide.none)),
+                          items: bloodGroups
+                              .map((group) => DropdownMenuItem(
+                                  value: group, child: Text(group)))
+                              .toList(),
+                          onChanged: (value) {
+                            bloodGroup = value ?? 'সব';
+                            _load(refresh: true);
+                          })),
+                if (loading && data.isEmpty)
+                  const Padding(
+                      padding: EdgeInsets.all(30),
+                      child: Center(
+                          child: CircularProgressIndicator(color: brand)))
+                else if (error != null && data.isEmpty)
+                  _NetworkErrorCard(onRetry: () => _load(refresh: true))
+                else if (data.isEmpty)
+                  const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি')
+                else
+                  ...data.map((item) => _TopicCard(
+                      topic: widget.topic,
+                      data: Map<String, dynamic>.from(item as Map))),
+                if (loadingMore)
+                  const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Center(
+                          child: CircularProgressIndicator(color: brand))),
+                if (!hasMore && data.isNotEmpty)
+                  const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(
+                          child: Text('সব তথ্য দেখানো হয়েছে',
+                              style: TextStyle(color: Colors.black45)))),
+              ],
+            ),
           ),
         ),
       );
@@ -2096,7 +2289,9 @@ class HomeBloodSection extends StatelessWidget {
                       padding: EdgeInsets.all(20),
                       child: CircularProgressIndicator(color: brand)));
             if (snapshot.hasError)
-              return const _EmptyCard(text: 'রক্তের তথ্য আনতে সমস্যা হয়েছে');
+              return const _EmptyCard(
+                  text:
+                      'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।');
             final donors = snapshot.data?[0] ?? <dynamic>[];
             final requests = snapshot.data?[1] ?? <dynamic>[];
             final cards = <Widget>[
@@ -2223,7 +2418,8 @@ class _EmergencyPageState extends State<EmergencyPage> {
                             Padding(
                                 padding: EdgeInsets.all(24),
                                 child: _EmptyCard(
-                                    text: 'এই topic-এর তথ্য আনতে সমস্যা হয়েছে'))
+                                    text:
+                                        'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'))
                           ]);
                         final data = snapshot.data ?? [];
                         if (data.isEmpty)
@@ -3074,7 +3270,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
                     return const _ProfileListSkeleton();
                   if (snapshot.hasError)
                     return _EmptyCard(
-                        text: 'তথ্য আনতে সমস্যা হয়েছে: ${snapshot.error}');
+                        text:
+                            'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।');
                   final all = snapshot.data ?? [];
                   return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

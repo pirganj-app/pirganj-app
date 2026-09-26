@@ -29,6 +29,13 @@ class PirganjApiClient {
         if (token != null) 'Authorization': 'Bearer $token'
       };
 
+  Future<Map<String, dynamic>?> getAppOpenMessage() async {
+    final json = await _get(Uri.parse('$baseUrl/api/app-open-message'));
+    final data = json['data'];
+    if (data is! Map || data['visible'] != true) return null;
+    return Map<String, dynamic>.from(data);
+  }
+
   MediaType _imageType(XFile image) {
     final name = image.name.toLowerCase();
     if (name.endsWith('.png')) return MediaType('image', 'png');
@@ -39,10 +46,15 @@ class PirganjApiClient {
   }
 
   Future<List<ServiceCard>> getServices(
-      {String? category, String? search}) async {
+      {String? category,
+      String? search,
+      int limit = 20,
+      int offset = 0}) async {
     final query = <String, String>{
       if (category != null && category.isNotEmpty) 'category': category,
-      if (search != null && search.isNotEmpty) 'search': search
+      if (search != null && search.isNotEmpty) 'search': search,
+      'limit': '$limit',
+      'offset': '$offset',
     };
     final json = await _get(
         Uri.parse('$baseUrl/api/services').replace(queryParameters: query));
@@ -51,9 +63,14 @@ class PirganjApiClient {
         .toList();
   }
 
-  Future<List<dynamic>> getPosts({String? tag}) async {
-    final json = await _get(Uri.parse('$baseUrl/api/posts')
-        .replace(queryParameters: tag == null ? null : {'tag': tag}));
+  Future<List<dynamic>> getPosts(
+      {String? tag, int limit = 20, int offset = 0}) async {
+    final json =
+        await _get(Uri.parse('$baseUrl/api/posts').replace(queryParameters: {
+      if (tag != null) 'tag': tag,
+      'limit': '$limit',
+      'offset': '$offset',
+    }));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -97,13 +114,32 @@ class PirganjApiClient {
     return List<dynamic>.from(json['data'] as List);
   }
 
-  Future<List<dynamic>> getDonors({String? group}) async =>
-      _list('/donors', group == null ? null : {'group': group});
-  Future<List<dynamic>> getBloodRequests({String? group}) async =>
-      _list('/blood-requests', group == null ? null : {'group': group});
-  Future<List<dynamic>> getNotices() async => _list('/notices');
-  Future<List<dynamic>> getJobs() async => _list('/jobs');
-  Future<List<dynamic>> getLostFound() async => _list('/lost-found');
+  Future<List<dynamic>> getDonors(
+      {String? group, int limit = 20, int offset = 0}) async {
+    final query = {
+      'limit': '$limit',
+      'offset': '$offset',
+      if (group != null) 'group': group
+    };
+    return _list('/donors', query);
+  }
+
+  Future<List<dynamic>> getBloodRequests(
+      {String? group, int limit = 20, int offset = 0}) async {
+    final query = {
+      'limit': '$limit',
+      'offset': '$offset',
+      if (group != null) 'group': group
+    };
+    return _list('/blood-requests', query);
+  }
+
+  Future<List<dynamic>> getNotices({int limit = 20, int offset = 0}) async =>
+      _list('/notices', {'limit': '$limit', 'offset': '$offset'});
+  Future<List<dynamic>> getJobs({int limit = 20, int offset = 0}) async =>
+      _list('/jobs', {'limit': '$limit', 'offset': '$offset'});
+  Future<List<dynamic>> getLostFound({int limit = 20, int offset = 0}) async =>
+      _list('/lost-found', {'limit': '$limit', 'offset': '$offset'});
   Future<List<dynamic>> _list(String path, [Map<String, String>? query]) async {
     final json = await _get(
         Uri.parse('$baseUrl/api$path').replace(queryParameters: query));
