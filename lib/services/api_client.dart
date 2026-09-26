@@ -34,21 +34,21 @@ class PirganjApiClient {
       if (search != null && search.isNotEmpty) 'search': search
     };
     final json = await _get(
-        Uri.parse('$baseUrl/api/v1/services').replace(queryParameters: query));
+        Uri.parse('$baseUrl/api/services').replace(queryParameters: query));
     return (json['data'] as List<dynamic>)
         .map((item) => ServiceCard.fromJson(Map<String, dynamic>.from(item)))
         .toList();
   }
 
   Future<List<dynamic>> getPosts({String? tag}) async {
-    final json = await _get(Uri.parse('$baseUrl/api/v1/posts')
+    final json = await _get(Uri.parse('$baseUrl/api/posts')
         .replace(queryParameters: tag == null ? null : {'tag': tag}));
     return List<dynamic>.from(json['data'] as List);
   }
 
   Future<List<dynamic>> getComments(String postId) async {
     final json =
-        await _get(Uri.parse('$baseUrl/api/v1/posts/$postId/comments'));
+        await _get(Uri.parse('$baseUrl/api/posts/$postId/comments'));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -71,7 +71,7 @@ class PirganjApiClient {
 
   Future<List<dynamic>> getPostReactions(String postId) async {
     final json =
-        await _get(Uri.parse('$baseUrl/api/v1/posts/$postId/reactions'));
+        await _get(Uri.parse('$baseUrl/api/posts/$postId/reactions'));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -84,7 +84,7 @@ class PirganjApiClient {
 
   Future<List<dynamic>> getCommentReactions(String commentId) async {
     final json =
-        await _get(Uri.parse('$baseUrl/api/v1/comments/$commentId/reactions'));
+        await _get(Uri.parse('$baseUrl/api/comments/$commentId/reactions'));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -97,12 +97,12 @@ class PirganjApiClient {
   Future<List<dynamic>> getLostFound() async => _list('/lost-found');
   Future<List<dynamic>> _list(String path, [Map<String, String>? query]) async {
     final json = await _get(
-        Uri.parse('$baseUrl/api/v1$path').replace(queryParameters: query));
+        Uri.parse('$baseUrl/api$path').replace(queryParameters: query));
     return List<dynamic>.from(json['data'] as List);
   }
 
   Future<Map<String, dynamic>> getOverview() =>
-      _get(Uri.parse('$baseUrl/api/v1/overview'));
+      _get(Uri.parse('$baseUrl/api/overview'));
 
   Future<Map<String, dynamic>> register(
           {required String phone,
@@ -121,7 +121,7 @@ class PirganjApiClient {
           {required String phone, required String password}) =>
       _post('/auth/login', {'phone': phone, 'password': password});
   Future<Map<String, dynamic>> me() =>
-      _get(Uri.parse('$baseUrl/api/v1/auth/me'));
+      _get(Uri.parse('$baseUrl/api/auth/me'));
   Future<Map<String, dynamic>> updateProfile(
           {String? name, String? sex, String? address}) =>
       _put('/auth/me', {'name': name, 'sex': sex, 'address': address});
@@ -130,7 +130,7 @@ class PirganjApiClient {
   }
 
   Future<List<dynamic>> getMyItems() async {
-    final json = await _get(Uri.parse('$baseUrl/api/v1/profile/items'));
+    final json = await _get(Uri.parse('$baseUrl/api/profile/items'));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -229,7 +229,7 @@ class PirganjApiClient {
 
   Future<Map<String, dynamic>> _post(
       String path, Map<String, dynamic> body) async {
-    final response = await _client.post(Uri.parse('$baseUrl/api/v1$path'),
+    final response = await _client.post(Uri.parse('$baseUrl/api$path'),
         headers: {..._headers, 'Content-Type': 'application/json'},
         body: jsonEncode(body));
     return _decode(response);
@@ -237,14 +237,14 @@ class PirganjApiClient {
 
   Future<Map<String, dynamic>> _put(
       String path, Map<String, dynamic> body) async {
-    final response = await _client.put(Uri.parse('$baseUrl/api/v1$path'),
+    final response = await _client.put(Uri.parse('$baseUrl/api$path'),
         headers: {..._headers, 'Content-Type': 'application/json'},
         body: jsonEncode(body));
     return _decode(response);
   }
 
   Future<Map<String, dynamic>> _delete(String path) async {
-    final response = await _client.delete(Uri.parse('$baseUrl/api/v1$path'),
+    final response = await _client.delete(Uri.parse('$baseUrl/api$path'),
         headers: _headers);
     return _decode(response);
   }

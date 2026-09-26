@@ -316,6 +316,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Color(0xFF3E6DBE),
                     () => _openCategory('সরকারি অফিস', 'সরকারি অফিস',
                         Icons.account_balance_rounded)),
+                _ActionCard(
+                    'অ্যাম্বুলেন্স',
+                    Icons.emergency_rounded,
+                    const Color(0xFFFFE7E7),
+                    const Color(0xFFD94242),
+                    () => _openCategory(
+                        'অ্যাম্বুলেন্স', 'অ্যাম্বুলেন্স', Icons.emergency_rounded)),
+                _ActionCard(
+                    'গাড়ি ভাড়া',
+                    Icons.directions_car_rounded,
+                    const Color(0xFFE4F1FF),
+                    const Color(0xFF2D72C7),
+                    () => _openCategory(
+                        'গাড়ি ভাড়া', 'গাড়ি ভাড়া', Icons.directions_car_rounded)),
               ],
             ),
           ],

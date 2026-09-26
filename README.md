@@ -130,19 +130,19 @@ The API wrapper is implemented in `lib/services/api_client.dart`.
 
 | Dart operation | HTTP method | Backend route |
 |---|---:|---|
-| `getServices()` | GET | `/api/v1/services` |
-| `getPosts()` | GET | `/api/v1/posts` |
-| `createPost()` | POST | `/api/v1/posts` |
-| `getDonors()` | GET | `/api/v1/donors` |
-| `createDonor()` | POST | `/api/v1/donors` |
-| `getBloodRequests()` | GET | `/api/v1/blood-requests` |
-| `createBloodRequest()` | POST | `/api/v1/blood-requests` |
-| `getNotices()` | GET | `/api/v1/notices` |
-| `createNotice()` | POST | `/api/v1/notices` |
-| `getJobs()` | GET | `/api/v1/jobs` |
-| `createJob()` | POST | `/api/v1/jobs` |
-| `getLostFound()` | GET | `/api/v1/lost-found` |
-| `createLostFound()` | POST | `/api/v1/lost-found` |
+| `getServices()` | GET | `/api/services` |
+| `getPosts()` | GET | `/api/posts` |
+| `createPost()` | POST | `/api/posts` |
+| `getDonors()` | GET | `/api/donors` |
+| `createDonor()` | POST | `/api/donors` |
+| `getBloodRequests()` | GET | `/api/blood-requests` |
+| `createBloodRequest()` | POST | `/api/blood-requests` |
+| `getNotices()` | GET | `/api/notices` |
+| `createNotice()` | POST | `/api/notices` |
+| `getJobs()` | GET | `/api/jobs` |
+| `createJob()` | POST | `/api/jobs` |
+| `getLostFound()` | GET | `/api/lost-found` |
+| `createLostFound()` | POST | `/api/lost-found` |
 
 All requests expect the backend response envelope:
 
@@ -198,7 +198,7 @@ Do not commit the following files:
 
 - [Flutter app repository](https://github.com/pirganj-app/pirganj-app)
 - [Express/Supabase backend repository](https://github.com/pirganj-app/pirganj-app-backend)
-- [Live API health endpoint](https://pirganj-app.onrender.com/api/v1/health)
+- [Live API health endpoint](https://pirganj-app.onrender.com/api/health)
 
 ## References
 
