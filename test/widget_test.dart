@@ -11,21 +11,53 @@ class MockClient extends http.BaseClient {
     final body = request.url.path.endsWith('/posts')
         ? {'success': true, 'data': []}
         : request.url.path.endsWith('/donors')
-            ? {'success': true, 'data': [{'name': 'শাহেদ', 'group': 'O+', 'area': 'পীরগঞ্জ', 'phone': '01700000000'}]}
+            ? {
+                'success': true,
+                'data': [
+                  {
+                    'name': 'শাহেদ',
+                    'group': 'O+',
+                    'area': 'পীরগঞ্জ',
+                    'phone': '01700000000'
+                  }
+                ]
+              }
             : {
-            'success': true,
-            'data': [
-              {'id': 'test', 'name': 'টেস্ট হাসপাতাল', 'category': 'হাসপাতাল', 'meta': '', 'location': 'পীরগঞ্জ', 'phone': '', 'open': 'এখন খোলা', 'icon': '+'}
-            ]
-            };
+                'success': true,
+                'data': [
+                  {
+                    'id': 'test',
+                    'name': 'টেস্ট হাসপাতাল',
+                    'category': 'হাসপাতাল',
+                    'meta': '',
+                    'location': 'পীরগঞ্জ',
+                    'phone': '',
+                    'open': 'এখন খোলা',
+                    'icon': '+'
+                  }
+                ]
+              };
     final bytes = utf8.encode(jsonEncode(body));
-    return http.StreamedResponse(Stream.fromIterable([bytes]), 200, contentLength: bytes.length, request: request);
+    return http.StreamedResponse(Stream.fromIterable([bytes]), 200,
+        contentLength: bytes.length, request: request);
+  }
+}
+
+class CountingClient extends MockClient {
+  int serviceCalls = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.path.endsWith('/services')) serviceCalls++;
+    return super.send(request);
   }
 }
 
 void main() {
-  testWidgets('Pirganj home screen opens and renders popular services', (tester) async {
-    final api = PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
+  testWidgets('Pirganj home screen opens and renders popular services',
+      (tester) async {
+    final api =
+        PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
     await tester.pumpWidget(PirganjAppWithApi(api: api));
     await tester.pumpAndSettle();
     expect(find.text('Pirganj'), findsOneWidget);
@@ -35,8 +67,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Emergency topic page renders add action and topic chips', (tester) async {
-    final api = PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
+  testWidgets('Emergency topic page renders add action and topic chips',
+      (tester) async {
+    final api =
+        PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
     await tester.pumpWidget(MaterialApp(home: EmergencyPage(api: api)));
     await tester.pump();
     expect(find.text('জরুরি সেবা'), findsOneWidget);
@@ -45,9 +79,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Category detail page renders count, cards and add action', (tester) async {
-    final api = PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
-    await tester.pumpWidget(MaterialApp(home: ServiceCategoryPage(api: api, category: 'হাসপাতাল', title: 'হাসপাতাল', icon: Icons.local_hospital)));
+  testWidgets('Category detail page renders count, cards and add action',
+      (tester) async {
+    final api =
+        PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
+    await tester.pumpWidget(MaterialApp(
+        home: ServiceCategoryPage(
+            api: api,
+            category: 'হাসপাতাল',
+            title: 'হাসপাতাল',
+            icon: Icons.local_hospital)));
     await tester.pumpAndSettle();
     expect(find.text('হাসপাতাল'), findsOneWidget);
     expect(find.text('1টি তথ্য'), findsOneWidget);
@@ -56,12 +97,22 @@ void main() {
   });
 
   testWidgets('Blood topic page renders only donor data cards', (tester) async {
-    final api = PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
-    await tester.pumpWidget(MaterialApp(home: TopicDataPage(api: api, topic: 0)));
+    final api =
+        PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
+    await tester
+        .pumpWidget(MaterialApp(home: TopicDataPage(api: api, topic: 0)));
     await tester.pumpAndSettle();
     expect(find.text('রক্তদাতা'), findsOneWidget);
     expect(find.text('রক্তের অনুরোধ'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  test('service requests are cached per API client', () async {
+    final client = CountingClient();
+    final api = PirganjApiClient(baseUrl: 'https://test.local', client: client);
+    await api.getServices(category: 'হাসপাতাল');
+    await api.getServices(category: 'হাসপাতাল');
+    expect(client.serviceCalls, 1);
   });
 }
 
@@ -69,5 +120,6 @@ class PirganjAppWithApi extends StatelessWidget {
   const PirganjAppWithApi({super.key, required this.api});
   final PirganjApiClient api;
   @override
-  Widget build(context) => MaterialApp(theme: ThemeData(useMaterial3: true), home: HomeScreen(api: api));
+  Widget build(context) => MaterialApp(
+      theme: ThemeData(useMaterial3: true), home: HomeScreen(api: api));
 }

@@ -15,6 +15,35 @@ const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
 const maxImageBytes = 2 * 1024 * 1024;
 
+String? _avatarUrl(dynamic value) {
+  var raw = value?.toString().trim() ?? '';
+  if (raw.isEmpty) return null;
+  const storageMarker = '/storage/v1/object/public/pirganj-images/';
+  if (raw.contains(storageMarker)) {
+    final path =
+        raw.substring(raw.indexOf(storageMarker) + storageMarker.length);
+    raw =
+        'https://pirganj-app.onrender.com/api/media/${Uri.encodeComponent(path).replaceAll('%2F', '/')}';
+  } else if (raw.startsWith('profiles/') || raw.startsWith('posts/')) {
+    raw =
+        'https://pirganj-app.onrender.com/api/media/${Uri.encodeComponent(raw).replaceAll('%2F', '/')}';
+  } else if (raw.startsWith('/api/media/')) {
+    raw = 'https://pirganj-app.onrender.com$raw';
+  } else {
+    final parsed = Uri.tryParse(raw);
+    if (parsed != null &&
+        (parsed.host == 'localhost' || parsed.host == '127.0.0.1')) {
+      raw = Uri(
+              scheme: 'https',
+              host: 'pirganj-app.onrender.com',
+              path: parsed.path,
+              query: parsed.query)
+          .toString();
+    }
+  }
+  return raw;
+}
+
 String relativeTime(dynamic raw) {
   final date = DateTime.tryParse(raw?.toString() ?? '')?.toLocal();
   if (date == null) return '';
@@ -75,15 +104,8 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
         parent: animation,
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic);
-    final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-        .animate(curved);
     final fade = Tween<double>(begin: 0, end: 1).animate(curved);
-    final scale = Tween<double>(begin: 0.985, end: 1).animate(curved);
-    return FadeTransition(
-        opacity: fade,
-        child: SlideTransition(
-            position: slide,
-            child: ScaleTransition(scale: scale, child: child)));
+    return FadeTransition(opacity: fade, child: child);
   }
 }
 
@@ -1918,8 +1940,8 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
             api: widget.api,
             initialCategory: widget.category));
     if (result == true && mounted)
-      setState(
-          () => future = widget.api.getServices(category: widget.category));
+      setState(() => future = widget.api
+          .getServices(category: widget.category, forceRefresh: true));
   }
 
   @override
@@ -1942,8 +1964,8 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
         ),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () async => setState(
-              () => future = widget.api.getServices(category: widget.category)),
+          onRefresh: () async => setState(() => future = widget.api
+              .getServices(category: widget.category, forceRefresh: true)),
           child: FutureBuilder<List<ServiceCard>>(
             future: future,
             builder: (_, snapshot) {
@@ -3257,7 +3279,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   return _ProfileHeader(
                       name: user['name']?.toString() ?? 'আমার প্রোফাইল',
                       phone: user['phone']?.toString() ?? '',
-                      avatarUrl: user['avatarUrl']?.toString(),
+                      avatarUrl:
+                          _avatarUrl(user['avatarUrl'] ?? user['avatar_url']),
                       address:
                           '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
                       onEdit: editProfile);
@@ -3333,57 +3356,68 @@ class _ProfileHeader extends StatelessWidget {
   final String? avatarUrl;
   final VoidCallback? onEdit;
   @override
-  Widget build(BuildContext context) => Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-          gradient: const LinearGradient(
-              colors: [Color(0xFF126B5B), Color(0xFF2D987E)]),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x22167665), blurRadius: 18, offset: Offset(0, 8))
+  Widget build(BuildContext context) {
+    final imageUrl = _avatarUrl(avatarUrl);
+    return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [Color(0xFF126B5B), Color(0xFF2D987E)]),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x22167665),
+                  blurRadius: 18,
+                  offset: Offset(0, 8))
+            ]),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+                width: 62,
+                height: 62,
+                clipBehavior: Clip.antiAlias,
+                decoration: const BoxDecoration(
+                    color: Color(0x33FFFFFF), shape: BoxShape.circle),
+                child: imageUrl == null
+                    ? const Icon(Icons.person_rounded,
+                        color: Colors.white, size: 35)
+                    : Image.network(imageUrl,
+                        fit: BoxFit.cover,
+                        cacheWidth: 256,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                            size: 35))),
+            const SizedBox(width: 14),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800)),
+                  Text(phone,
+                      style: const TextStyle(
+                          color: Color(0xD9FFFFFF), fontSize: 13))
+                ])),
+            if (onEdit != null)
+              IconButton(
+                  onPressed: onEdit,
+                  style: IconButton.styleFrom(
+                      backgroundColor: const Color(0x22FFFFFF)),
+                  icon: const Icon(Icons.edit_rounded, color: Colors.white))
           ]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CircleAvatar(
-              radius: 31,
-              backgroundColor: const Color(0x33FFFFFF),
-              backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
-                  ? NetworkImage(avatarUrl!)
-                  : null,
-              child: avatarUrl == null || avatarUrl!.isEmpty
-                  ? const Icon(Icons.person_rounded,
-                      color: Colors.white, size: 35)
-                  : null),
-          const SizedBox(width: 14),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800)),
-                Text(phone,
-                    style:
-                        const TextStyle(color: Color(0xD9FFFFFF), fontSize: 13))
-              ])),
-          if (onEdit != null)
-            IconButton(
-                onPressed: onEdit,
-                style: IconButton.styleFrom(
-                    backgroundColor: const Color(0x22FFFFFF)),
-                icon: const Icon(Icons.edit_rounded, color: Colors.white))
-        ]),
-        const SizedBox(height: 16),
-        Text(address,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xE6FFFFFF), height: 1.35))
-      ]));
+          const SizedBox(height: 16),
+          Text(address,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xE6FFFFFF), height: 1.35))
+        ]));
+  }
 }
 
 class _OwnedItemCard extends StatelessWidget {

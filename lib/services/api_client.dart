@@ -10,6 +10,7 @@ class PirganjApiClient {
   final String baseUrl;
   final http.Client _client;
   String? token;
+  final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
 
   String? get userId {
     try {
@@ -49,19 +50,36 @@ class PirganjApiClient {
       {String? category,
       String? search,
       int limit = 20,
-      int offset = 0}) async {
-    final query = <String, String>{
-      if (category != null && category.isNotEmpty) 'category': category,
-      if (search != null && search.isNotEmpty) 'search': search,
-      'limit': '$limit',
-      'offset': '$offset',
-    };
-    final json = await _get(
-        Uri.parse('$baseUrl/api/services').replace(queryParameters: query));
-    return (json['data'] as List<dynamic>)
-        .map((item) => ServiceCard.fromJson(Map<String, dynamic>.from(item)))
-        .toList();
+      int offset = 0,
+      bool forceRefresh = false}) {
+    final key = '${category ?? ''}|${search ?? ''}|$limit|$offset';
+    if (!forceRefresh && _serviceCache.containsKey(key)) {
+      return _serviceCache[key]!;
+    }
+    final request = () async {
+      try {
+        final query = <String, String>{
+          if (category != null && category.isNotEmpty) 'category': category,
+          if (search != null && search.isNotEmpty) 'search': search,
+          'limit': '$limit',
+          'offset': '$offset',
+        };
+        final json = await _get(
+            Uri.parse('$baseUrl/api/services').replace(queryParameters: query));
+        return (json['data'] as List<dynamic>)
+            .map(
+                (item) => ServiceCard.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      } catch (error) {
+        _serviceCache.remove(key);
+        rethrow;
+      }
+    }();
+    _serviceCache[key] = request;
+    return request;
   }
+
+  void clearServiceCache() => _serviceCache.clear();
 
   Future<List<dynamic>> getPosts(
       {String? tag, int limit = 20, int offset = 0}) async {
