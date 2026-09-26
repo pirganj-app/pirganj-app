@@ -8,6 +8,32 @@ const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
 
+class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _PremiumPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+      PageRoute<T> route,
+      BuildContext context,
+      Animation<double> animation,
+      Animation<double> secondaryAnimation,
+      Widget child) {
+    final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic);
+    final slide = Tween<Offset>(begin: const Offset(0.045, 0), end: Offset.zero)
+        .animate(curved);
+    final fade = Tween<double>(begin: 0, end: 1).animate(curved);
+    final scale = Tween<double>(begin: 0.985, end: 1).animate(curved);
+    return FadeTransition(
+        opacity: fade,
+        child: SlideTransition(
+            position: slide,
+            child: ScaleTransition(scale: scale, child: child)));
+  }
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -63,6 +89,10 @@ class _PirganjAppState extends State<PirganjApp> {
           useMaterial3: true,
           scaffoldBackgroundColor: page,
           colorScheme: ColorScheme.fromSeed(seedColor: brand),
+          pageTransitionsTheme: const PageTransitionsTheme(builders: {
+            TargetPlatform.android: _PremiumPageTransitionsBuilder(),
+            TargetPlatform.iOS: _PremiumPageTransitionsBuilder(),
+          }),
         ),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
@@ -185,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         bottomNavigationBar: NavigationBar(
-          height: 78,
+          height: 70,
           backgroundColor: Colors.white,
           indicatorColor: const Color(0xFFD8F2E9),
           labelTextStyle: const WidgetStatePropertyAll(
@@ -321,15 +351,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icons.emergency_rounded,
                     const Color(0xFFFFE7E7),
                     const Color(0xFFD94242),
-                    () => _openCategory(
-                        'অ্যাম্বুলেন্স', 'অ্যাম্বুলেন্স', Icons.emergency_rounded)),
+                    () => _openCategory('অ্যাম্বুলেন্স', 'অ্যাম্বুলেন্স',
+                        Icons.emergency_rounded)),
                 _ActionCard(
                     'গাড়ি ভাড়া',
                     Icons.directions_car_rounded,
                     const Color(0xFFE4F1FF),
                     const Color(0xFF2D72C7),
-                    () => _openCategory(
-                        'গাড়ি ভাড়া', 'গাড়ি ভাড়া', Icons.directions_car_rounded)),
+                    () => _openCategory('গাড়ি ভাড়া', 'গাড়ি ভাড়া',
+                        Icons.directions_car_rounded)),
               ],
             ),
           ],
@@ -490,7 +520,7 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         color: brand,
-        padding: const EdgeInsets.fromLTRB(17, 13, 13, 14),
+        padding: const EdgeInsets.fromLTRB(17, 7, 13, 10),
         child: Row(children: [
           ClipRRect(
               borderRadius: BorderRadius.circular(15),
@@ -1863,6 +1893,8 @@ class _EntrySheetState extends State<EntrySheet> {
     'রেস্টুরেন্ট',
     'হোটেল',
     'সরকারি অফিস',
+    'অ্যাম্বুলেন্স',
+    'গাড়ি ভাড়া',
     'অন্যান্য'
   ];
 
@@ -2846,6 +2878,8 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
     'রেস্টুরেন্ট',
     'হোটেল',
     'সরকারি অফিস',
+    'অ্যাম্বুলেন্স',
+    'গাড়ি ভাড়া',
     'অন্যান্য'
   ];
   String get resource => widget.item['resource']?.toString() ?? '';
