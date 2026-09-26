@@ -980,7 +980,9 @@ class _PostCard extends StatelessWidget {
                         const SizedBox(height: 10),
                         ClipRRect(
                             borderRadius: BorderRadius.circular(16),
-                            child: Image.network(post['imageUrl'].toString(),
+                            child: Image.network(
+                                _avatarUrl(post['imageUrl']) ??
+                                    post['imageUrl'].toString(),
                                 height: 190,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
