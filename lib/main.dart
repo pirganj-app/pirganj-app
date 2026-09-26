@@ -22,7 +22,7 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
         parent: animation,
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic);
-    final slide = Tween<Offset>(begin: const Offset(0.045, 0), end: Offset.zero)
+    final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
         .animate(curved);
     final fade = Tween<double>(begin: 0, end: 1).animate(curved);
     final scale = Tween<double>(begin: 0.985, end: 1).animate(curved);
@@ -1108,66 +1108,108 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           title: const Text('Post details'),
           backgroundColor: brand,
           foregroundColor: Colors.white),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        FutureBuilder<List<dynamic>>(
-            future: reactionsFuture,
-            builder: (_, snap) {
-              final list = snap.data ?? const <dynamic>[];
-              return _PostCard(
-                  post: widget.post,
-                  onLike: () => selectPostReaction(
-                      widget.post['myReaction']?.toString() ?? 'love'),
-                  onReact: selectPostReaction,
-                  onOpen: () {},
-                  reactionList: list,
-                  onShowReactions: () => showReactors(list));
-            }),
-        const Divider(),
-        const SizedBox(height: 8),
-        const Text('Comments',
-            style: TextStyle(
-                fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
-        const SizedBox(height: 8),
-        FutureBuilder<List<dynamic>>(
-            future: commentsFuture,
-            builder: (_, snap) {
-              if (snap.connectionState == ConnectionState.waiting)
-                return const Center(
-                    child: CircularProgressIndicator(color: brand));
-              final list = snap.data ?? [];
-              if (list.isEmpty) return const Text('এখনো কোনো comment নেই');
-              return Column(
-                  children: list
-                      .map((raw) => commentTile(Map<String, dynamic>.from(raw)))
-                      .toList());
-            }),
-        if (replyingTo != null)
-          TextButton(
-              onPressed: () => setState(() => replyingTo = null),
-              child: const Text('Reply cancel')),
-        const SizedBox(height: 8),
-        TextField(
-            controller: comment,
-            maxLines: 3,
-            decoration: InputDecoration(
-                hintText: replyingTo == null ? 'Comment লিখুন' : 'Reply লিখুন',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none))),
-        const SizedBox(height: 8),
-        SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-                onPressed: sending ? null : sendComment,
-                child: sending
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : Text(replyingTo == null ? 'Comment করুন' : 'Reply দিন')))
+      body: Column(children: [
+        Expanded(
+            child: ListView(padding: const EdgeInsets.all(16), children: [
+          FutureBuilder<List<dynamic>>(
+              future: reactionsFuture,
+              builder: (_, snap) {
+                final list = snap.data ?? const <dynamic>[];
+                return _PostCard(
+                    post: widget.post,
+                    onLike: () => selectPostReaction(
+                        widget.post['myReaction']?.toString() ?? 'love'),
+                    onReact: selectPostReaction,
+                    onOpen: () {},
+                    reactionList: list,
+                    onShowReactions: () => showReactors(list));
+              }),
+          const Divider(),
+          const SizedBox(height: 8),
+          const Text('Comments',
+              style: TextStyle(
+                  fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
+          const SizedBox(height: 8),
+          FutureBuilder<List<dynamic>>(
+              future: commentsFuture,
+              builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting)
+                  return const Center(
+                      child: CircularProgressIndicator(color: brand));
+                final list = snap.data ?? [];
+                if (list.isEmpty) return const Text('এখনো কোনো comment নেই');
+                return Column(
+                    children: list
+                        .map((raw) =>
+                            commentTile(Map<String, dynamic>.from(raw)))
+                        .toList());
+              }),
+          const SizedBox(height: 12),
+        ])),
+        SafeArea(
+            top: false,
+            child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
+                decoration: const BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                          color: Color(0x18000000),
+                          blurRadius: 14,
+                          offset: Offset(0, -4))
+                    ]),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (replyingTo != null)
+                    Row(children: [
+                      const Icon(Icons.reply_rounded, size: 15, color: brand),
+                      const SizedBox(width: 5),
+                      const Expanded(
+                          child: Text('Reply mode চালু',
+                              style: TextStyle(
+                                  color: brand,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700))),
+                      IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => setState(() => replyingTo = null),
+                          icon: const Icon(Icons.close_rounded, size: 18))
+                    ]),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(
+                        child: TextField(
+                            controller: comment,
+                            minLines: 1,
+                            maxLines: 1,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => sendComment(),
+                            decoration: InputDecoration(
+                                isDense: true,
+                                hintText: replyingTo == null
+                                    ? 'Comment লিখুন'
+                                    : 'Reply লিখুন',
+                                filled: true,
+                                fillColor: const Color(0xFFF2F6F4),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    borderSide: BorderSide.none)))),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                        onPressed: sending ? null : sendComment,
+                        style: IconButton.styleFrom(
+                            backgroundColor: brand,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: brand.withAlpha(120)),
+                        icon: sending
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.send_rounded, size: 20))
+                  ])
+                ])))
       ]));
 }
 
@@ -1894,8 +1936,7 @@ class _EntrySheetState extends State<EntrySheet> {
     'হোটেল',
     'সরকারি অফিস',
     'অ্যাম্বুলেন্স',
-    'গাড়ি ভাড়া',
-    'অন্যান্য'
+    'গাড়ি ভাড়া'
   ];
 
   @override
@@ -2879,8 +2920,7 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
     'হোটেল',
     'সরকারি অফিস',
     'অ্যাম্বুলেন্স',
-    'গাড়ি ভাড়া',
-    'অন্যান্য'
+    'গাড়ি ভাড়া'
   ];
   String get resource => widget.item['resource']?.toString() ?? '';
   @override
