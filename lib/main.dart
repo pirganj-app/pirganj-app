@@ -1122,13 +1122,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border(
-                left: BorderSide(
-                    color: Colors.black87,
-                    width: item['parentId'] != null ? 2 : 3),
-                top: const BorderSide(color: Color(0xFFE5E8E7)),
-                right: const BorderSide(color: Color(0xFFE5E8E7)),
-                bottom: const BorderSide(color: Color(0xFFE5E8E7)))),
+            border: item['parentId'] != null
+                ? const Border(
+                    left: BorderSide(color: Colors.black87, width: 2),
+                    top: BorderSide(color: Color(0xFFE5E8E7)),
+                    right: BorderSide(color: Color(0xFFE5E8E7)),
+                    bottom: BorderSide(color: Color(0xFFE5E8E7)))
+                : Border.all(color: const Color(0xFFE5E8E7))),
         child: Padding(
             padding: const EdgeInsets.fromLTRB(8, 5, 5, 2),
             child:
@@ -1168,9 +1168,20 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                       color: brand,
                                       fontWeight: FontWeight.w800)))
                       ]),
-                      Text(time(item['createdAt']),
-                          style: const TextStyle(
-                              fontSize: 10, color: Colors.black45))
+                      Row(children: [
+                        Text(time(item['createdAt']),
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.black45)),
+                        if (item['parentId'] != null) ...[
+                          const Spacer(),
+                          Text(
+                              'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                              style: const TextStyle(
+                                  color: brand,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700))
+                        ]
+                      ])
                     ])),
                 if (item['ownerId']?.toString() == widget.api.userId)
                   PopupMenuButton<String>(
@@ -1184,24 +1195,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 value: 'delete', child: Text('Delete'))
                           ])
               ]),
-              if (item['parentId'] != null)
-                Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                        margin: const EdgeInsets.only(top: 4, bottom: 5),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                            color: const Color(0xFFE8F6F0),
-                            borderRadius: BorderRadius.circular(9)),
-                        child: Text(
-                            'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
-                            style: const TextStyle(
-                                color: brand,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700)))),
               Text(item['body']?.toString() ?? '',
-                  style: const TextStyle(fontSize: 12, height: 1.18)),
+                  style: const TextStyle(fontSize: 15, height: 1.28)),
               Row(children: [
                 GestureDetector(
                     onLongPress: () => showModalBottomSheet(
@@ -1459,6 +1454,77 @@ class _NotificationPageState extends State<NotificationPage> {
       await widget.api.markNotificationRead(item['id'].toString());
       item['isRead'] = true;
       if (mounted) setState(() {});
+    }
+    await _openTopic(item);
+  }
+
+  Future<void> _openTopic(Map<String, dynamic> item) async {
+    final type = item['entityType']?.toString() ?? '';
+    final id = item['entityId']?.toString();
+    if (!mounted) return;
+    if (type == 'post' && id != null) {
+      try {
+        final posts = await widget.api.getPosts();
+        final match = posts
+            .cast<Map>()
+            .where((post) => (post['id'] ?? '').toString() == id)
+            .toList();
+        if (match.isNotEmpty && mounted) {
+          await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => PostDetailsPage(
+                      api: widget.api,
+                      post: Map<String, dynamic>.from(match.first))));
+        }
+      } catch (_) {}
+      return;
+    }
+    if (!mounted) return;
+    switch (type) {
+      case 'service':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => ServiceCategoryPage(
+                    api: widget.api,
+                    category: 'সব',
+                    title: 'স্থানীয় সেবা',
+                    icon: Icons.storefront_rounded)));
+        break;
+      case 'donor':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: widget.api, topic: 0)));
+        break;
+      case 'blood-request':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: widget.api, topic: 1)));
+        break;
+      case 'notice':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: widget.api, topic: 2)));
+        break;
+      case 'job':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: widget.api, topic: 3)));
+        break;
+      case 'lost-found':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: widget.api, topic: 4)));
+        break;
+      case 'comment':
+        Navigator.pop(context);
+        break;
     }
   }
 
