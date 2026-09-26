@@ -8,35 +8,40 @@ import 'package:pirganj/services/api_client.dart';
 class MockClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final body = request.url.path.endsWith('/posts')
-        ? {'success': true, 'data': []}
-        : request.url.path.endsWith('/donors')
-            ? {
-                'success': true,
-                'data': [
-                  {
-                    'name': 'শাহেদ',
-                    'group': 'O+',
-                    'area': 'পীরগঞ্জ',
-                    'phone': '01700000000'
+    final body = request.url.path.endsWith('/notifications/unread-count')
+        ? {
+            'success': true,
+            'data': {'count': 3}
+          }
+        : request.url.path.endsWith('/posts')
+            ? {'success': true, 'data': []}
+            : request.url.path.endsWith('/donors')
+                ? {
+                    'success': true,
+                    'data': [
+                      {
+                        'name': 'শাহেদ',
+                        'group': 'O+',
+                        'area': 'পীরগঞ্জ',
+                        'phone': '01700000000'
+                      }
+                    ]
                   }
-                ]
-              }
-            : {
-                'success': true,
-                'data': [
-                  {
-                    'id': 'test',
-                    'name': 'টেস্ট হাসপাতাল',
-                    'category': 'হাসপাতাল',
-                    'meta': '',
-                    'location': 'পীরগঞ্জ',
-                    'phone': '',
-                    'open': 'এখন খোলা',
-                    'icon': '+'
-                  }
-                ]
-              };
+                : {
+                    'success': true,
+                    'data': [
+                      {
+                        'id': 'test',
+                        'name': 'টেস্ট হাসপাতাল',
+                        'category': 'হাসপাতাল',
+                        'meta': '',
+                        'location': 'পীরগঞ্জ',
+                        'phone': '',
+                        'open': 'এখন খোলা',
+                        'icon': '+'
+                      }
+                    ]
+                  };
     final bytes = utf8.encode(jsonEncode(body));
     return http.StreamedResponse(Stream.fromIterable([bytes]), 200,
         contentLength: bytes.length, request: request);
@@ -63,6 +68,7 @@ void main() {
     expect(find.text('Pirganj'), findsOneWidget);
     expect(find.text('জনপ্রিয় সেবা'), findsOneWidget);
     expect(find.text('হাসপাতাল'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
     expect(tester.takeException(), isNull);
     expect(tester.takeException(), isNull);
   });
@@ -113,6 +119,9 @@ void main() {
     await api.getServices(category: 'হাসপাতাল');
     await api.getServices(category: 'হাসপাতাল');
     expect(client.serviceCalls, 1);
+    api.clearServiceCache();
+    await api.getServices(category: 'হাসপাতাল');
+    expect(client.serviceCalls, 2);
   });
 }
 

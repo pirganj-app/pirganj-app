@@ -284,6 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+    _loadUnreadNotifications();
   }
 
   @override
@@ -1948,6 +1949,7 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
       hasMore = true;
       error = null;
       loading = true;
+      widget.api.clearServiceCache();
     } else {
       loadingMore = true;
     }
