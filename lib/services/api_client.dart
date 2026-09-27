@@ -240,11 +240,13 @@ class PirganjApiClient {
           String? sex,
           String? address,
           String? avatarUrl,
-          bool clearAvatar = false}) =>
+          bool clearAvatar = false,
+          bool? profileLocked}) =>
       _put('/auth/me', {
         'name': name,
         'sex': sex,
         'address': address,
+        if (profileLocked != null) 'profileLocked': profileLocked,
         if (avatarUrl != null || clearAvatar) 'avatarUrl': avatarUrl
       });
   Future<void> deleteAccount() async {

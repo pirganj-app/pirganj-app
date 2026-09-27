@@ -8,6 +8,7 @@ import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
 import 'services/push_notification_service.dart';
@@ -16,6 +17,17 @@ const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
 const maxImageBytes = 2 * 1024 * 1024;
+
+Future<void> dialPhone(BuildContext context, String? value) async {
+  final phone = (value ?? '').replaceAll(RegExp(r'[^0-9+]'), '');
+  if (phone.isEmpty) return;
+  final ok = await launchUrl(Uri(scheme: 'tel', path: phone),
+      mode: LaunchMode.externalApplication);
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Phone dialer খোলা যায়নি')));
+  }
+}
 
 String? _avatarUrl(dynamic value) {
   var raw = value?.toString().trim() ?? '';
@@ -448,6 +460,51 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                     Map<String, dynamic>.from(snap.data!['user'] as Map? ?? {});
                 final items = List<dynamic>.from(
                     snap.data!['items'] as List? ?? const []);
+                final locked = user['profileLocked'] == true ||
+                    user['profile_locked'] == true;
+                final postItems = items.where((raw) {
+                  final resource =
+                      (raw as Map)['resource']?.toString().toLowerCase();
+                  return resource == 'post' || resource == 'posts';
+                }).toList();
+                final infoItems = items.where((raw) {
+                  final resource =
+                      (raw as Map)['resource']?.toString().toLowerCase();
+                  return resource != 'post' && resource != 'posts';
+                }).toList();
+                Widget section(String title, List<dynamic> values) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: ink)),
+                        const SizedBox(height: 8),
+                        if (values.isEmpty)
+                          const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ করা হয়নি'),
+                        ...values.map((raw) {
+                          final item = Map<String, dynamic>.from(raw);
+                          final resource =
+                              item['resource']?.toString().toLowerCase() ?? '';
+                          final isPost =
+                              resource == 'posts' || resource == 'post';
+                          final label = isPost
+                              ? 'পোস্ট'
+                              : resource == 'lost_found'
+                                  ? 'হারানো/পাওয়া'
+                                  : resource == 'services'
+                                      ? 'সেবা'
+                                      : 'তথ্য';
+                          return _PublicItemCard(
+                              item: item,
+                              label: label,
+                              onOpen: isPost
+                                  ? () => _openExistingPost(item)
+                                  : null);
+                        })
+                      ],
+                    );
                 return ListView(
                     padding: const EdgeInsets.all(16),
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -457,36 +514,19 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                           phone: '',
                           avatarUrl: user['avatarUrl']?.toString() ??
                               widget.fallbackAvatar,
-                          address:
-                              '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+                          address: user['address']?.toString() ?? '',
                           onEdit: null),
-                      const Text('পোস্ট ও যোগ করা তথ্য',
-                          style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                              color: ink)),
-                      const SizedBox(height: 8),
-                      if (items.isEmpty)
-                        const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ করা হয়নি'),
-                      ...items.map((raw) {
-                        final item = Map<String, dynamic>.from(raw);
-                        final resource =
-                            item['resource']?.toString().toLowerCase() ?? '';
-                        final isPost =
-                            resource == 'posts' || resource == 'post';
-                        final label = isPost
-                            ? 'পোস্ট'
-                            : resource == 'lost_found'
-                                ? 'হারানো/পাওয়া'
-                                : resource == 'services'
-                                    ? 'সেবা'
-                                    : 'তথ্য';
-                        return _PublicItemCard(
-                            item: item,
-                            label: label,
-                            onOpen:
-                                isPost ? () => _openExistingPost(item) : null);
-                      })
+                      if (locked)
+                        const Padding(
+                            padding: EdgeInsets.only(top: 18),
+                            child: _EmptyCard(
+                                text:
+                                    'এই profile locked। পোস্ট ও যোগ করা তথ্য দেখা যাবে না।'))
+                      else ...[
+                        section('পোস্ট', postItems),
+                        const SizedBox(height: 18),
+                        section('তথ্য', infoItems)
+                      ]
                     ]);
               })));
 }
@@ -755,8 +795,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _confirmExit() async {
+    final shouldExit = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+              title: const Text('অ্যাপ থেকে বের হবেন?'),
+              content: const Text('আপনি কি Pirganj app বন্ধ করতে চান?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('না')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('হ্যাঁ, বের হই'))
+              ],
+            ));
+    if (shouldExit == true) await SystemNavigator.pop();
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmExit();
+      },
+      child: Scaffold(
         body: Container(
           color: brand,
           child: Column(
@@ -817,7 +880,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'প্রোফাইল'),
           ],
         ),
-      );
+      ));
 
   Widget _page() => switch (tab) {
         0 => _home(),
@@ -2563,8 +2626,7 @@ class _DetailedServiceCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                     onPressed: item.phone.isEmpty
                         ? null
-                        : () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('ফোন: ${item.phone}'))),
+                        : () => dialPhone(context, item.phone),
                     icon: const Icon(Icons.phone_outlined),
                     label:
                         Text(item.phone.isEmpty ? 'ফোন নম্বর নেই' : item.phone),
@@ -2976,14 +3038,16 @@ class _TopicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     String title;
     String subtitle;
+    String phone = '';
     if (topic == 0) {
       title = '${data['name'] ?? ''} · ${data['group'] ?? ''}';
-      subtitle = '${data['area'] ?? ''}\n${data['phone'] ?? ''}';
+      subtitle = '${data['area'] ?? ''}';
+      phone = data['phone']?.toString() ?? '';
     } else if (topic == 1) {
       title =
           '${data['patient_name'] ?? data['patientName'] ?? 'রক্তের অনুরোধ'} · ${data['blood_group'] ?? data['bloodGroup'] ?? ''}';
-      subtitle =
-          '${data['hospital'] ?? ''} · ${data['area'] ?? ''}\n${data['contact_phone'] ?? data['phone'] ?? ''}';
+      subtitle = '${data['hospital'] ?? ''} · ${data['area'] ?? ''}';
+      phone = (data['contact_phone'] ?? data['phone'] ?? '').toString();
     } else if (topic == 2) {
       title = '${data['title'] ?? ''}';
       subtitle =
@@ -2992,8 +3056,8 @@ class _TopicCard extends StatelessWidget {
       title = topic == 3
           ? '${data['title'] ?? ''} · ${data['company'] ?? ''}'
           : '${data['title'] ?? ''}';
-      subtitle =
-          '${data['location'] ?? ''}\n${data['description'] ?? ''}\n${data['contactPhone'] ?? data['contact_phone'] ?? ''}';
+      subtitle = '${data['location'] ?? ''}\n${data['description'] ?? ''}';
+      phone = (data['contactPhone'] ?? data['contact_phone'] ?? '').toString();
     }
     final icon = topic == 0 || topic == 1
         ? Icons.bloodtype
@@ -3028,7 +3092,18 @@ class _TopicCard extends StatelessWidget {
                             child: Icon(icon, color: brand))))),
         title: Text(title,
             style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
-        subtitle: Text(subtitle, style: const TextStyle(height: 1.45)),
+        subtitle:
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(subtitle, style: const TextStyle(height: 1.45)),
+          if (phone.isNotEmpty)
+            GestureDetector(
+                onTap: () => dialPhone(context, phone),
+                child: Text(phone,
+                    style: const TextStyle(
+                        height: 1.45,
+                        color: brand,
+                        decoration: TextDecoration.underline)))
+        ]),
       ),
     );
   }
@@ -3594,6 +3669,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
   final ScrollController _profileScrollController = ScrollController();
   late Future<Map<String, dynamic>> userFuture;
   late Future<List<dynamic>> itemsFuture;
+  bool profileLocked = false;
   @override
   void initState() {
     super.initState();
@@ -3640,15 +3716,27 @@ class _ProfilePanelState extends State<ProfilePanel> {
 
   String itemSubtitle(Map<String, dynamic> item) {
     final r = item['resource']?.toString() ?? '';
-    if (r == 'donors')
-      return '${item['area'] ?? 'এলাকা দেওয়া হয়নি'}  •  ${item['phone'] ?? ''}';
-    if (r == 'blood_requests')
-      return '${item['hospital'] ?? ''}  •  ${item['phone'] ?? ''}';
-    if (r == 'jobs')
-      return '${item['location'] ?? 'স্থান দেওয়া হয়নি'}  •  ${item['contactPhone'] ?? ''}';
+    if (r == 'donors') return item['area'] ?? 'এলাকা দেওয়া হয়নি';
+    if (r == 'blood_requests') return item['hospital'] ?? '';
+    if (r == 'jobs') return item['location'] ?? 'স্থান দেওয়া হয়নি';
     if (r == 'services')
       return '${item['category'] ?? ''}  •  ${item['location'] ?? ''}';
     return resourceLabel(r);
+  }
+
+  Future<void> _setProfileLocked(bool value) async {
+    final previous = profileLocked;
+    setState(() => profileLocked = value);
+    try {
+      await widget.api.updateProfile(profileLocked: value);
+      if (mounted) setState(_reload);
+    } catch (e) {
+      if (mounted) {
+        setState(() => profileLocked = previous);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Profile lock update হয়নি: $e')));
+      }
+    }
   }
 
   Future<void> editProfile() async {
@@ -3787,6 +3875,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
           label: resourceLabel(r),
           icon: resourceIcon(r),
           imageUrl: item['imageUrl']?.toString(),
+          phone: item['phone']?.toString() ?? item['contactPhone']?.toString(),
           onTap: r == 'posts'
               ? () => Navigator.push(
                   context,
@@ -3829,6 +3918,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   final user = payload is Map
                       ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
                       : <String, dynamic>{};
+                  profileLocked = user['profileLocked'] == true ||
+                      user['profile_locked'] == true;
                   return _ProfileHeader(
                       name: user['name']?.toString() ?? 'আমার প্রোফাইল',
                       phone: user['phone']?.toString() ?? '',
@@ -3838,7 +3929,21 @@ class _ProfilePanelState extends State<ProfilePanel> {
                           '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
                       onEdit: editProfile);
                 }),
-            const SizedBox(height: 22),
+            const SizedBox(height: 10),
+            Card(
+                elevation: 0,
+                child: SwitchListTile.adaptive(
+                    value: profileLocked,
+                    onChanged: _setProfileLocked,
+                    title: const Text('প্রোফাইল লক করুন',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(profileLocked
+                        ? 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে না'
+                        : 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে'),
+                    secondary: Icon(profileLocked
+                        ? Icons.lock_rounded
+                        : Icons.lock_open_rounded))),
+            const SizedBox(height: 12),
             FutureBuilder<List<dynamic>>(
                 future: itemsFuture,
                 builder: (_, snapshot) {
@@ -3872,39 +3977,43 @@ class _ProfilePanelState extends State<ProfilePanel> {
             const SizedBox(height: 22),
             const Divider(height: 1),
             const SizedBox(height: 14),
+            Row(children: [
+              Expanded(
+                  child: FilledButton.icon(
+                      onPressed: widget.onLogout == null
+                          ? null
+                          : () => widget.onLogout!(),
+                      style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF2D987E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14)),
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Logout'))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: FilledButton.icon(
+                      onPressed: _deleteAccount,
+                      style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFD63D4F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14)),
+                      icon: const Icon(Icons.delete_forever_rounded),
+                      label: const Text('Delete')))
+            ]),
+            const SizedBox(height: 12),
             SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
+                child: FilledButton.icon(
                     onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                             builder: (_) => AboutPage(api: widget.api))),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: brand,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14)),
                     icon: const Icon(Icons.info_outline_rounded),
                     label: const Text('About'))),
-            const SizedBox(height: 18),
-            SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                    onPressed: widget.onLogout == null
-                        ? null
-                        : () => widget.onLogout!(),
-                    style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF2D987E),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14)),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('Logout'))),
-            const SizedBox(height: 10),
-            SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                    onPressed: _deleteAccount,
-                    style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFD63D4F),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14)),
-                    icon: const Icon(Icons.delete_forever_rounded),
-                    label: const Text('Delete account permanently'))),
           ]));
 }
 
@@ -3963,9 +4072,14 @@ class _ProfileHeader extends StatelessWidget {
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800)),
-                  Text(phone,
-                      style: const TextStyle(
-                          color: Color(0xD9FFFFFF), fontSize: 13))
+                  if (phone.isNotEmpty)
+                    GestureDetector(
+                        onTap: () => dialPhone(context, phone),
+                        child: Text(phone,
+                            style: const TextStyle(
+                                color: Color(0xD9FFFFFF),
+                                fontSize: 13,
+                                decoration: TextDecoration.underline)))
                 ])),
             if (onEdit != null)
               IconButton(
@@ -3990,12 +4104,13 @@ class _OwnedItemCard extends StatelessWidget {
       required this.label,
       required this.icon,
       this.imageUrl,
+      this.phone,
       this.onTap,
       required this.onEdit,
       required this.onDelete});
   final String title, subtitle, label;
   final IconData icon;
-  final String? imageUrl;
+  final String? imageUrl, phone;
   final VoidCallback? onTap;
   final VoidCallback onEdit, onDelete;
   @override
@@ -4062,6 +4177,13 @@ class _OwnedItemCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style:
                           const TextStyle(color: Colors.black54, height: 1.3)),
+                  if ((phone ?? '').isNotEmpty)
+                    GestureDetector(
+                        onTap: () => dialPhone(context, phone),
+                        child: Text(phone!,
+                            style: const TextStyle(
+                                color: brand,
+                                decoration: TextDecoration.underline))),
                 ])),
             PopupMenuButton<String>(
                 onSelected: (value) {
