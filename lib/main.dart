@@ -516,7 +516,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                           phone: '',
                           avatarUrl: user['avatarUrl']?.toString() ??
                               widget.fallbackAvatar,
-                          address: user['address']?.toString() ?? '',
+                          address:
+                              '${user['sex']?.toString() ?? ''}  •  ${user['address']?.toString() ?? ''}',
                           onEdit: null),
                       if (locked)
                         const Padding(
@@ -734,6 +735,18 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  void _runSearch() {
+    final query = searchController.text.trim();
+    if (query.isEmpty) {
+      _message('কী খুঁজছেন তা লিখুন');
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => SearchResultsPage(api: api, query: query)));
+  }
+
   void _message(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(text),
@@ -899,7 +912,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _HeroCard(onTap: () => setState(() => tab = 2)),
             const SizedBox(height: 16),
-            _SearchBox(controller: searchController, onSearch: _reload),
+            _SearchBox(controller: searchController, onSearch: _runSearch),
             const SizedBox(height: 24),
             const Text('জনপ্রিয় সেবা',
                 style: TextStyle(
@@ -1282,6 +1295,93 @@ class _HeroCard extends StatelessWidget {
               color: Color(0xFF9ACFC0), size: 76),
         ]),
       );
+}
+
+class SearchResultsPage extends StatefulWidget {
+  const SearchResultsPage({super.key, required this.api, required this.query});
+  final PirganjApiClient api;
+  final String query;
+
+  @override
+  State<SearchResultsPage> createState() => _SearchResultsPageState();
+}
+
+class _SearchResultsPageState extends State<SearchResultsPage> {
+  late Future<List<ServiceCard>> future = _load();
+
+  Future<List<ServiceCard>> _load() => widget.api
+      .getServices(search: widget.query, limit: 50, forceRefresh: true);
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+      appBar: AppBar(
+          title: Text('Search: ${widget.query}'),
+          backgroundColor: brand,
+          foregroundColor: Colors.white),
+      body: RefreshIndicator(
+          color: brand,
+          onRefresh: () async => setState(() => future = _load()),
+          child: FutureBuilder<List<ServiceCard>>(
+              future: future,
+              builder: (_, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: const [
+                        _SkeletonBox(height: 92, radius: 18),
+                        SizedBox(height: 12),
+                        _SkeletonBox(height: 92, radius: 18)
+                      ]);
+                }
+                if (snapshot.hasError) {
+                  return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        const Center(child: Text('Search করা যায়নি')),
+                        const SizedBox(height: 12),
+                        Center(
+                            child: TextButton(
+                                onPressed: () =>
+                                    setState(() => future = _load()),
+                                child: const Text('আবার চেষ্টা করুন')))
+                      ]);
+                }
+                final results = snapshot.data ?? const <ServiceCard>[];
+                if (results.isEmpty) {
+                  return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        const Center(child: Text('কোনো তথ্য পাওয়া যায়নি'))
+                      ]);
+                }
+                return ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: results.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, index) {
+                      final item = results[index];
+                      return Card(
+                          child: ListTile(
+                              leading: CircleAvatar(
+                                  backgroundColor: const Color(0xFFE1F3EC),
+                                  child: Text(item.icon)),
+                              title: Text(item.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              subtitle:
+                                  Text('${item.category}  •  ${item.location}'),
+                              trailing: item.phone.trim().isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Call',
+                                      icon: const Icon(Icons.phone_rounded),
+                                      onPressed: () =>
+                                          dialPhone(context, item.phone))));
+                    });
+              })));
 }
 
 class _SearchBox extends StatelessWidget {

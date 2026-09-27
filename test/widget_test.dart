@@ -167,6 +167,16 @@ void main() {
     expect((tester.widget<SwitchListTile>(find.byType(SwitchListTile))).value,
         isTrue);
   });
+
+  testWidgets('search results page loads matching services', (tester) async {
+    final api =
+        PirganjApiClient(baseUrl: 'https://test.local', client: MockClient());
+    await tester.pumpWidget(
+        MaterialApp(home: SearchResultsPage(api: api, query: 'হাসপাতাল')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ListTile), findsOneWidget);
+    expect(find.text('Search: হাসপাতাল'), findsOneWidget);
+  });
 }
 
 class PirganjAppWithApi extends StatelessWidget {
