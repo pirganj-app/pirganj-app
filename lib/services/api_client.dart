@@ -236,19 +236,30 @@ class PirganjApiClient {
       _post('/auth/login', {'phone': phone, 'password': password});
   Future<Map<String, dynamic>> me() => _get(Uri.parse('$baseUrl/api/auth/me'));
   Future<Map<String, dynamic>> updateProfile(
-          {String? name,
-          String? sex,
-          String? address,
-          String? avatarUrl,
-          bool clearAvatar = false,
-          bool? profileLocked}) =>
-      _put('/auth/me', {
-        if (name != null) 'name': name,
-        if (sex != null) 'sex': sex,
-        if (address != null) 'address': address,
-        if (profileLocked != null) 'profileLocked': profileLocked,
-        if (avatarUrl != null || clearAvatar) 'avatarUrl': avatarUrl
-      });
+      {String? name,
+      String? sex,
+      String? address,
+      String? avatarUrl,
+      bool clearAvatar = false,
+      bool? profileLocked}) async {
+    final response = await _put('/auth/me', {
+      if (name != null) 'name': name,
+      if (sex != null) 'sex': sex,
+      if (address != null) 'address': address,
+      if (profileLocked != null) 'profileLocked': profileLocked,
+      if (avatarUrl != null || clearAvatar) 'avatarUrl': avatarUrl
+    });
+    if (profileLocked != null) {
+      final user = (response['data'] as Map?)?['user'] as Map?;
+      final saved =
+          user?['profileLocked'] == true || user?['profile_locked'] == true;
+      if (saved != profileLocked) {
+        throw Exception('Profile lock save হয়নি');
+      }
+    }
+    return response;
+  }
+
   Future<void> deleteAccount() async {
     await _delete('/auth/me');
   }
