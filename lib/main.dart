@@ -3923,8 +3923,11 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   final user = payload is Map
                       ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
                       : <String, dynamic>{};
-                  profileLocked = user['profileLocked'] == true ||
-                      user['profile_locked'] == true;
+                  if (user.containsKey('profileLocked') ||
+                      user.containsKey('profile_locked')) {
+                    profileLocked = user['profileLocked'] == true ||
+                        user['profile_locked'] == true;
+                  }
                   return _ProfileHeader(
                       name: user['name']?.toString() ?? 'আমার প্রোফাইল',
                       phone: user['phone']?.toString() ?? '',
