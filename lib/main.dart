@@ -3735,7 +3735,6 @@ class _ProfilePanelState extends State<ProfilePanel> {
     setState(() => profileLocked = value);
     try {
       await widget.api.updateProfile(profileLocked: value);
-      if (mounted) setState(_reload);
     } catch (e) {
       if (mounted) {
         setState(() => profileLocked = previous);
