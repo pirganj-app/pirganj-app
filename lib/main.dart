@@ -963,8 +963,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       onOpen: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  PostDetailsPage(api: api, post: item))),
+                              builder: (_) => PostDetailsPage(
+                                  api: api,
+                                  post: item,
+                                  onLogout: widget.onLogout))),
                       onReact: (reaction) async {
                         try {
                           final list = await api.togglePostReaction(
@@ -1421,8 +1423,10 @@ class _ReactionPicker extends StatelessWidget {
 }
 
 class PostDetailsPage extends StatefulWidget {
-  const PostDetailsPage({super.key, required this.api, required this.post});
+  const PostDetailsPage(
+      {super.key, required this.api, required this.post, this.onLogout});
   final PirganjApiClient api;
+  final Future<void> Function()? onLogout;
   final Map<String, dynamic> post;
   @override
   State<PostDetailsPage> createState() => _PostDetailsPageState();
@@ -1462,7 +1466,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         context,
         MaterialPageRoute(
             builder: (_) => userId == widget.api.userId
-                ? ProfilePanel(api: widget.api)
+                ? ProfilePanel(api: widget.api, onLogout: widget.onLogout)
                 : PublicProfilePage(
                     api: widget.api,
                     userId: userId,
@@ -3733,8 +3737,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
               ? () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) =>
-                          PostDetailsPage(api: widget.api, post: item)))
+                      builder: (_) => PostDetailsPage(
+                          api: widget.api,
+                          post: item,
+                          onLogout: widget.onLogout)))
               : null,
           onEdit: () => _edit(item),
           onDelete: () => _delete(item));
