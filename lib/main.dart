@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -24,7 +26,9 @@ String? _avatarUrl(dynamic value) {
         raw.substring(raw.indexOf(storageMarker) + storageMarker.length);
     raw =
         'https://pirganj-app.onrender.com/api/media/${Uri.encodeComponent(path).replaceAll('%2F', '/')}';
-  } else if (raw.startsWith('profiles/') || raw.startsWith('posts/')) {
+  } else if (raw.startsWith('profiles/') ||
+      raw.startsWith('posts/') ||
+      raw.startsWith('lost_found/')) {
     raw =
         'https://pirganj-app.onrender.com/api/media/${Uri.encodeComponent(raw).replaceAll('%2F', '/')}';
   } else if (raw.startsWith('/api/media/')) {
@@ -47,6 +51,83 @@ String? _avatarUrl(dynamic value) {
 ImageProvider<Object>? _avatarProvider(dynamic value) {
   final url = _avatarUrl(value);
   return url == null ? null : NetworkImage(url);
+}
+
+String? _mapImageUrl(Map<String, dynamic> item,
+    [List<String> keys = const ['imageUrl', 'image_url']]) {
+  for (final key in keys) {
+    final value = item[key]?.toString();
+    final url = _avatarUrl(value);
+    if (url != null) return url;
+  }
+  return null;
+}
+
+void openImageViewer(BuildContext context, String? value) {
+  final url = _avatarUrl(value);
+  if (url == null || url.isEmpty) return;
+  Navigator.push(
+      context, MaterialPageRoute(builder: (_) => ImageViewerPage(url: url)));
+}
+
+class ImageViewerPage extends StatefulWidget {
+  const ImageViewerPage({super.key, required this.url});
+  final String url;
+  @override
+  State<ImageViewerPage> createState() => _ImageViewerPageState();
+}
+
+class _ImageViewerPageState extends State<ImageViewerPage> {
+  bool saving = false;
+  Future<void> _download() async {
+    if (saving) return;
+    setState(() => saving = true);
+    try {
+      final response = await http.get(Uri.parse(widget.url));
+      if (response.statusCode < 200 || response.statusCode >= 300)
+        throw Exception('download failed');
+      final granted = await Gal.requestAccess(toAlbum: true);
+      if (!granted) throw Exception('gallery permission denied');
+      await Gal.putImageBytes(response.bodyBytes, album: 'Pirganj');
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ছবি Pirganj ফোল্ডারে সেভ হয়েছে')));
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ছবি ডাউনলোড করা যায়নি')));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            actions: [
+              IconButton(
+                  onPressed: saving ? null : _download,
+                  tooltip: 'Download',
+                  icon: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.download_rounded))
+            ]),
+        body: Center(
+            child: InteractiveViewer(
+                child: Image.network(widget.url,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white,
+                        size: 64)))),
+      );
 }
 
 String relativeTime(dynamic raw) {
@@ -200,8 +281,7 @@ class _PirganjAppState extends State<PirganjApp> {
           child: child ?? const SizedBox.shrink(),
         ),
         home: loading
-            ? const Scaffold(
-                body: Center(child: CircularProgressIndicator(color: brand)))
+            ? const _SplashScreen()
             : appOpenMessage != null
                 ? AppOpenMessagePage(
                     message: appOpenMessage!,
@@ -210,6 +290,217 @@ class _PirganjAppState extends State<PirganjApp> {
                     ? AuthScreen(api: api, onLoggedIn: _loggedIn)
                     : HomeScreen(api: api, onLogout: _logout),
       );
+}
+
+class _SplashScreen extends StatefulWidget {
+  const _SplashScreen();
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1200))
+    ..repeat(reverse: true);
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+      backgroundColor: brand,
+      body: Center(
+          child: FadeTransition(
+              opacity: Tween(begin: .55, end: 1.0).animate(
+                  CurvedAnimation(parent: controller, curve: Curves.easeInOut)),
+              child: ScaleTransition(
+                  scale: Tween(begin: .88, end: 1.0).animate(CurvedAnimation(
+                      parent: controller, curve: Curves.easeOutBack)),
+                  child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Image.asset('assets/pirganj_logo.jpg',
+                          width: 150, height: 150, fit: BoxFit.cover))))));
+}
+
+class AboutPage extends StatefulWidget {
+  const AboutPage({super.key, required this.api});
+  final PirganjApiClient api;
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
+  late final Future<String> html = _loadAbout();
+  Future<String> _loadAbout() async {
+    try {
+      final remote = await widget.api.getAboutHtml();
+      if (remote.trim().isNotEmpty) return remote;
+    } catch (_) {}
+    return rootBundle.loadString('assets/about.html');
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+      appBar: AppBar(
+          title: const Text('About'),
+          backgroundColor: brand,
+          foregroundColor: Colors.white),
+      body: FutureBuilder<String>(
+          future: html,
+          builder: (_, snap) {
+            if (snap.connectionState == ConnectionState.waiting)
+              return const Center(child: _SkeletonBox(height: 240, radius: 20));
+            final content = snap.data ?? '';
+            return WebViewWidget(
+                controller: WebViewController()
+                  ..setJavaScriptMode(JavaScriptMode.disabled)
+                  ..loadHtmlString(
+                      '<!doctype html><html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font-family:sans-serif;padding:20px">$content</body></html>'));
+          }));
+}
+
+class PublicProfilePage extends StatefulWidget {
+  const PublicProfilePage(
+      {super.key,
+      required this.api,
+      required this.userId,
+      required this.fallbackName,
+      this.fallbackAvatar});
+  final PirganjApiClient api;
+  final String userId;
+  final String fallbackName;
+  final String? fallbackAvatar;
+  @override
+  State<PublicProfilePage> createState() => _PublicProfilePageState();
+}
+
+class _PublicProfilePageState extends State<PublicProfilePage> {
+  late Future<Map<String, dynamic>> future =
+      widget.api.getPublicProfile(widget.userId);
+  Future<void> refresh() async {
+    setState(() {
+      future = widget.api.getPublicProfile(widget.userId);
+    });
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+      appBar: AppBar(
+          title: const Text('Profile'),
+          backgroundColor: brand,
+          foregroundColor: Colors.white),
+      body: RefreshIndicator(
+          color: brand,
+          onRefresh: refresh,
+          child: FutureBuilder<Map<String, dynamic>>(
+              future: future,
+              builder: (_, snap) {
+                if (!snap.hasData)
+                  return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: const [
+                        _SkeletonBox(height: 170, radius: 24),
+                        SizedBox(height: 16),
+                        _SkeletonBox(height: 120, radius: 20),
+                        SizedBox(height: 12),
+                        _SkeletonBox(height: 120, radius: 20)
+                      ]);
+                final user =
+                    Map<String, dynamic>.from(snap.data!['user'] as Map? ?? {});
+                final items = List<dynamic>.from(
+                    snap.data!['items'] as List? ?? const []);
+                return ListView(
+                    padding: const EdgeInsets.all(16),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      _ProfileHeader(
+                          name: user['name']?.toString() ?? widget.fallbackName,
+                          phone: '',
+                          avatarUrl: user['avatarUrl']?.toString() ??
+                              widget.fallbackAvatar,
+                          address:
+                              '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+                          onEdit: null),
+                      const Text('পোস্ট ও যোগ করা তথ্য',
+                          style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: ink)),
+                      const SizedBox(height: 8),
+                      if (items.isEmpty)
+                        const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ করা হয়নি'),
+                      ...items.map((raw) {
+                        final item = Map<String, dynamic>.from(raw);
+                        final resource = item['resource']?.toString() ?? '';
+                        return _PublicItemCard(
+                            item: item,
+                            label: resource,
+                            onOpen: resource == 'posts'
+                                ? () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => PostDetailsPage(
+                                            api: widget.api, post: item)))
+                                : null);
+                      })
+                    ]);
+              })));
+}
+
+class _PublicItemCard extends StatelessWidget {
+  const _PublicItemCard({required this.item, required this.label, this.onOpen});
+  final Map<String, dynamic> item;
+  final String label;
+  final VoidCallback? onOpen;
+  @override
+  Widget build(BuildContext context) => Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                GestureDetector(
+                    onTap: () =>
+                        openImageViewer(context, item['imageUrl']?.toString()),
+                    child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: (item['imageUrl']?.toString() ?? '').isNotEmpty
+                            ? Image.network(
+                                _avatarUrl(item['imageUrl']) ??
+                                    item['imageUrl'].toString(),
+                                width: 52,
+                                height: 52,
+                                fit: BoxFit.cover)
+                            : Container(
+                                width: 52,
+                                height: 52,
+                                color: const Color(0xFFE3F4EE),
+                                child: const Icon(Icons.description_outlined,
+                                    color: brand)))),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(
+                          item['title']?.toString() ??
+                              item['name']?.toString() ??
+                              label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, color: ink)),
+                      const SizedBox(height: 4),
+                      Text(label, style: const TextStyle(color: Colors.black54))
+                    ])),
+              ]))));
 }
 
 class AppOpenMessagePage extends StatefulWidget {
@@ -357,6 +648,30 @@ class _HomeScreenState extends State<HomeScreen> {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ));
+  }
+
+  void _openProfile(String? userId, String name, String? avatarUrl) {
+    if (userId == null || userId.isEmpty) {
+      _message('এই profile-এর তথ্য পাওয়া যায়নি');
+      return;
+    }
+    if (userId == api.userId) {
+      setState(() {
+        tab = 3;
+        profileRefreshToken++;
+      });
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => userId == api.userId
+                ? ProfilePanel(api: api, onLogout: widget.onLogout)
+                : PublicProfilePage(
+                    api: api,
+                    userId: userId,
+                    fallbackName: name,
+                    fallbackAvatar: avatarUrl)));
   }
 
   void _openCategory(String categoryName, String title, IconData icon) {
@@ -606,8 +921,13 @@ class _HomeScreenState extends State<HomeScreen> {
               if (postsLoading && posts.isEmpty)
                 const Padding(
                     padding: EdgeInsets.all(30),
-                    child:
-                        Center(child: CircularProgressIndicator(color: brand)))
+                    child: Column(children: const [
+                      _SkeletonBox(height: 92, radius: 20),
+                      SizedBox(height: 12),
+                      _SkeletonBox(height: 150, radius: 20),
+                      SizedBox(height: 12),
+                      _SkeletonBox(height: 150, radius: 20),
+                    ]))
               else if (postsError != null && posts.isEmpty)
                 _NetworkErrorCard(onRetry: () => _loadPostsPage(refresh: true))
               else if (posts.isEmpty)
@@ -617,6 +937,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   final item = post as Map<String, dynamic>;
                   return _PostCard(
                       post: item,
+                      onProfile: () => _openProfile(
+                          item['ownerId']?.toString(),
+                          item['author']?.toString() ?? 'User',
+                          item['authorAvatarUrl']?.toString()),
                       onLike: () async {
                         try {
                           final reaction =
@@ -662,8 +986,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (postsLoadingMore)
                 const Padding(
                     padding: EdgeInsets.all(18),
-                    child:
-                        Center(child: CircularProgressIndicator(color: brand))),
+                    child: Center(child: _SkeletonBox(height: 92, radius: 18))),
               if (!postsHasMore && posts.isNotEmpty)
                 const Padding(
                     padding: EdgeInsets.all(12),
@@ -898,12 +1221,14 @@ class _ActionCard extends StatelessWidget {
 class _PostCard extends StatelessWidget {
   const _PostCard(
       {required this.post,
+      this.onProfile,
       required this.onLike,
       required this.onOpen,
       required this.onReact,
       this.reactionList,
       this.onShowReactions});
   final Map<String, dynamic> post;
+  final VoidCallback? onProfile;
   final VoidCallback onLike, onOpen;
   final Future<void> Function(String) onReact;
   final List<dynamic>? reactionList;
@@ -924,6 +1249,8 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authorImageUrl = _mapImageUrl(
+        post, const ['authorAvatarUrl', 'author_avatar_url', 'authorAvatar']);
     final selected = post['myReaction']?.toString();
     final activeReaction = selected ?? 'love';
     final activeColor = selected == null ? Colors.black54 : brand;
@@ -943,26 +1270,29 @@ class _PostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        CircleAvatar(
-                            backgroundColor: const Color(0xFFDDF2E9),
-                            backgroundImage:
-                                (post['authorAvatarUrl']?.toString() ?? '')
-                                        .isNotEmpty
-                                    ? _avatarProvider(
-                                        post['authorAvatarUrl'].toString())
-                                    : null,
-                            child: (post['authorAvatarUrl']?.toString() ?? '')
-                                    .isEmpty
-                                ? const Icon(Icons.person, color: brand)
-                                : null),
+                        GestureDetector(
+                            onTap: onProfile,
+                            child: CircleAvatar(
+                                backgroundColor: const Color(0xFFDDF2E9),
+                                backgroundImage: authorImageUrl == null
+                                    ? null
+                                    : NetworkImage(authorImageUrl),
+                                child: authorImageUrl == null
+                                    ? const Icon(Icons.person, color: brand)
+                                    : null)),
                         const SizedBox(width: 10),
                         Expanded(
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              Text(post['author']?.toString() ?? 'পীরগঞ্জবাসী',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800, color: ink)),
+                              GestureDetector(
+                                  onTap: onProfile,
+                                  child: Text(
+                                      post['author']?.toString() ??
+                                          'পীরগঞ্জবাসী',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: ink))),
                               if (date().isNotEmpty)
                                 Text(date(),
                                     style: const TextStyle(
@@ -986,15 +1316,19 @@ class _PostCard extends StatelessWidget {
                               color: ink)),
                       if ((post['imageUrl']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(height: 10),
-                        ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.network(
-                                _avatarUrl(post['imageUrl']) ??
-                                    post['imageUrl'].toString(),
-                                height: 190,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const SizedBox()))
+                        GestureDetector(
+                            onTap: () => openImageViewer(
+                                context, post['imageUrl']?.toString()),
+                            child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.network(
+                                    _avatarUrl(post['imageUrl']) ??
+                                        post['imageUrl'].toString(),
+                                    height: 190,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const SizedBox())))
                       ],
                       const SizedBox(height: 5),
                       Text(post['body']?.toString() ?? '',
@@ -1111,6 +1445,31 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     reactionsFuture = widget.api.getPostReactions(widget.post['id'].toString());
   }
 
+  Future<void> _refresh() async {
+    final comments = widget.api.getComments(widget.post['id'].toString());
+    final reactions = widget.api.getPostReactions(widget.post['id'].toString());
+    final results = await Future.wait([comments, reactions]);
+    if (!mounted) return;
+    setState(() {
+      commentsFuture = Future.value(results[0]);
+      reactionsFuture = Future.value(results[1]);
+    });
+  }
+
+  void _openProfile(String? userId, String name, String? avatarUrl) {
+    if (userId == null || userId.isEmpty) return;
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => userId == widget.api.userId
+                ? ProfilePanel(api: widget.api)
+                : PublicProfilePage(
+                    api: widget.api,
+                    userId: userId,
+                    fallbackName: name,
+                    fallbackAvatar: avatarUrl)));
+  }
+
   @override
   void dispose() {
     comment.dispose();
@@ -1190,11 +1549,14 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     if (comment.text.trim().isEmpty) return;
     setState(() => sending = true);
     try {
-      await widget.api.addComment(widget.post['id'].toString(),
+      final response = await widget.api.addComment(widget.post['id'].toString(),
           body: comment.text.trim(), parentId: replyingTo);
+      final current = await commentsFuture;
+      final added = Map<String, dynamic>.from(response['data'] as Map);
       comment.clear();
       replyingTo = null;
-      if (mounted) setState(_reload);
+      if (mounted)
+        setState(() => commentsFuture = Future.value([...current, added]));
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context)
@@ -1306,26 +1668,40 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                CircleAvatar(
-                    radius: 16,
-                    backgroundColor: const Color(0xFFF0F2F1),
-                    backgroundImage: (item['authorAvatarUrl']?.toString() ?? '')
-                            .isNotEmpty
-                        ? _avatarProvider(item['authorAvatarUrl'].toString())
-                        : null,
-                    child: (item['authorAvatarUrl']?.toString() ?? '').isEmpty
-                        ? const Icon(Icons.person,
-                            size: 16, color: Colors.black54)
-                        : null),
+                GestureDetector(
+                    onTap: () => _openProfile(
+                        item['ownerId']?.toString(),
+                        item['author']?.toString() ?? 'User',
+                        item['authorAvatarUrl']?.toString()),
+                    child: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: const Color(0xFFF0F2F1),
+                        backgroundImage: (item['authorAvatarUrl']?.toString() ??
+                                    '')
+                                .isNotEmpty
+                            ? _avatarProvider(
+                                item['authorAvatarUrl'].toString())
+                            : null,
+                        child:
+                            (item['authorAvatarUrl']?.toString() ?? '').isEmpty
+                                ? const Icon(Icons.person,
+                                    size: 16, color: Colors.black54)
+                                : null)),
                 const SizedBox(width: 6),
                 Expanded(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                       Row(children: [
-                        Text(item['author']?.toString() ?? 'User',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13)),
+                        GestureDetector(
+                            onTap: () => _openProfile(
+                                item['ownerId']?.toString(),
+                                item['author']?.toString() ?? 'User',
+                                item['authorAvatarUrl']?.toString()),
+                            child: Text(item['author']?.toString() ?? 'User',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13))),
                         if (isAuthor)
                           Container(
                               margin: const EdgeInsets.only(left: 6),
@@ -1425,39 +1801,55 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           foregroundColor: Colors.white),
       body: Column(children: [
         Expanded(
-            child: ListView(padding: const EdgeInsets.all(16), children: [
-          FutureBuilder<List<dynamic>>(
-              future: reactionsFuture,
-              builder: (_, snap) {
-                final list = snap.data ?? const <dynamic>[];
-                return _PostCard(
-                    post: widget.post,
-                    onLike: () => selectPostReaction(
-                        widget.post['myReaction']?.toString() ?? 'love'),
-                    onReact: selectPostReaction,
-                    onOpen: () {},
-                    reactionList: list,
-                    onShowReactions: () => showReactors(list));
-              }),
-          const Divider(),
-          const SizedBox(height: 8),
-          const Text('Comments',
-              style: TextStyle(
-                  fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
-          const SizedBox(height: 8),
-          FutureBuilder<List<dynamic>>(
-              future: commentsFuture,
-              builder: (_, snap) {
-                if (snap.connectionState == ConnectionState.waiting)
-                  return const Center(
-                      child: CircularProgressIndicator(color: brand));
-                final list = snap.data ?? [];
-                if (list.isEmpty) return const Text('এখনো কোনো comment নেই');
-                return Column(
-                    children: orderedComments(list).map(commentTile).toList());
-              }),
-          const SizedBox(height: 12),
-        ])),
+            child: RefreshIndicator(
+                color: brand,
+                onRefresh: _refresh,
+                child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      FutureBuilder<List<dynamic>>(
+                          future: reactionsFuture,
+                          builder: (_, snap) {
+                            final list = snap.data ?? const <dynamic>[];
+                            return _PostCard(
+                                post: widget.post,
+                                onProfile: () => _openProfile(
+                                    widget.post['ownerId']?.toString(),
+                                    widget.post['author']?.toString() ?? 'User',
+                                    widget.post['authorAvatarUrl']?.toString()),
+                                onLike: () => selectPostReaction(
+                                    widget.post['myReaction']?.toString() ??
+                                        'love'),
+                                onReact: selectPostReaction,
+                                onOpen: () {},
+                                reactionList: list,
+                                onShowReactions: () => showReactors(list));
+                          }),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      const Text('Comments',
+                          style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                              color: ink)),
+                      const SizedBox(height: 8),
+                      FutureBuilder<List<dynamic>>(
+                          future: commentsFuture,
+                          builder: (_, snap) {
+                            if (snap.connectionState == ConnectionState.waiting)
+                              return const Center(
+                                  child: _SkeletonBox(height: 92, radius: 18));
+                            final list = snap.data ?? [];
+                            if (list.isEmpty)
+                              return const Text('এখনো কোনো comment নেই');
+                            return Column(
+                                children: orderedComments(list)
+                                    .map(commentTile)
+                                    .toList());
+                          }),
+                      const SizedBox(height: 12),
+                    ]))),
         SafeArea(
             top: false,
             child: Container(
@@ -1753,8 +2145,7 @@ class _NotificationPageState extends State<NotificationPage> {
           future: notificationsFuture,
           builder: (_, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting)
-              return const Center(
-                  child: CircularProgressIndicator(color: brand));
+              return const Center(child: _SkeletonBox(height: 92, radius: 18));
             if (snapshot.hasError)
               return const Center(
                   child: Text(
@@ -1883,7 +2274,7 @@ class _NoticePageState extends State<NoticePage> {
               builder: (_, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting)
                   return const Center(
-                      child: CircularProgressIndicator(color: brand));
+                      child: _SkeletonBox(height: 92, radius: 18));
                 final data = snapshot.data ?? [];
                 if (data.isEmpty)
                   return ListView(children: [
@@ -2029,8 +2420,8 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
                   if (loading && data.isEmpty)
                     const Padding(
                         padding: EdgeInsets.all(30),
-                        child: Center(
-                            child: CircularProgressIndicator(color: brand)))
+                        child:
+                            Center(child: _SkeletonBox(height: 92, radius: 18)))
                   else if (error != null && data.isEmpty)
                     _NetworkErrorCard(onRetry: () => _load(refresh: true))
                   else if (data.isEmpty)
@@ -2043,7 +2434,7 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
                     const Padding(
                         padding: EdgeInsets.all(18),
                         child: Center(
-                            child: CircularProgressIndicator(color: brand))),
+                            child: _SkeletonBox(height: 92, radius: 18))),
                   if (!hasMore && data.isNotEmpty)
                     const Padding(
                         padding: EdgeInsets.all(12),
@@ -2320,8 +2711,8 @@ class _TopicDataPageState extends State<TopicDataPage> {
                 if (loading && data.isEmpty)
                   const Padding(
                       padding: EdgeInsets.all(30),
-                      child: Center(
-                          child: CircularProgressIndicator(color: brand)))
+                      child:
+                          Center(child: _SkeletonBox(height: 92, radius: 18)))
                 else if (error != null && data.isEmpty)
                   _NetworkErrorCard(onRetry: () => _load(refresh: true))
                 else if (data.isEmpty)
@@ -2333,8 +2724,8 @@ class _TopicDataPageState extends State<TopicDataPage> {
                 if (loadingMore)
                   const Padding(
                       padding: EdgeInsets.all(18),
-                      child: Center(
-                          child: CircularProgressIndicator(color: brand))),
+                      child:
+                          Center(child: _SkeletonBox(height: 92, radius: 18))),
                 if (!hasMore && data.isNotEmpty)
                   const Padding(
                       padding: EdgeInsets.all(12),
@@ -2365,7 +2756,7 @@ class HomeBloodSection extends StatelessWidget {
               return const Center(
                   child: Padding(
                       padding: EdgeInsets.all(20),
-                      child: CircularProgressIndicator(color: brand)));
+                      child: _SkeletonBox(height: 92, radius: 18)));
             if (snapshot.hasError)
               return const _EmptyCard(
                   text:
@@ -2490,7 +2881,7 @@ class _EmergencyPageState extends State<EmergencyPage> {
                       builder: (_, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting)
                           return const Center(
-                              child: CircularProgressIndicator(color: brand));
+                              child: _SkeletonBox(height: 92, radius: 18));
                         if (snapshot.hasError)
                           return ListView(children: const [
                             Padding(
@@ -2553,6 +2944,7 @@ class _TopicCard extends StatelessWidget {
             : topic == 3
                 ? Icons.work
                 : Icons.volunteer_activism;
+    final imageUrl = _mapImageUrl(data);
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 11),
@@ -2561,9 +2953,21 @@ class _TopicCard extends StatelessWidget {
           side: const BorderSide(color: Color(0xFFE0E9E4))),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-            backgroundColor: const Color(0xFFE0F3EB),
-            child: Icon(icon, color: brand)),
+        leading: imageUrl == null
+            ? CircleAvatar(
+                backgroundColor: const Color(0xFFE0F3EB),
+                child: Icon(icon, color: brand))
+            : GestureDetector(
+                onTap: () => openImageViewer(context, imageUrl),
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(imageUrl,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => CircleAvatar(
+                            backgroundColor: const Color(0xFFE0F3EB),
+                            child: Icon(icon, color: brand))))),
         title: Text(title,
             style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
         subtitle: Text(subtitle, style: const TextStyle(height: 1.45)),
@@ -2647,8 +3051,12 @@ class _EntrySheetState extends State<EntrySheet> {
                 ? Icons.add_photo_alternate_rounded
                 : Icons.check_circle_rounded),
             label: Text(postImage == null
-                ? 'Post picture যোগ করুন (max 2MB)'
-                : 'Post picture selected')),
+                ? (widget.kind == 'lostFound'
+                    ? 'ছবি যোগ করুন (max 2MB)'
+                    : 'Post picture যোগ করুন (max 2MB)')
+                : (widget.kind == 'lostFound'
+                    ? 'ছবি selected'
+                    : 'Post picture selected'))),
         if (postImage != null) ...[
           const SizedBox(height: 10),
           ClipRRect(
@@ -2801,12 +3209,19 @@ class _EntrySheetState extends State<EntrySheet> {
               phone: values['phone'] ?? '');
           break;
         default:
+          String? imageUrl;
+          if (postImage != null) {
+            final uploaded =
+                await widget.api.uploadImage(postImage!, kind: 'lost_found');
+            imageUrl = (uploaded['data'] as Map?)?['url']?.toString();
+          }
           await widget.api.createLostFound(
               title: values['title']!,
               type: values['type'] ?? 'lost',
               description: values['description'] ?? '',
               location: values['location'] ?? '',
-              phone: values['phone'] ?? '');
+              phone: values['phone'] ?? '',
+              imageUrl: imageUrl);
       }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
@@ -2863,6 +3278,7 @@ class _EntrySheetState extends State<EntrySheet> {
         _ => [
             select('type', 'ধরন', ['lost', 'found']),
             field('title', 'শিরোনাম', required: true),
+            postImageField(),
             field('description', 'বিস্তারিত', multiline: true),
             field('location', 'কোথায়'),
             field('phone', 'যোগাযোগ নম্বর')
@@ -3248,7 +3664,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
       final image = result.remove('imageFile') as XFile?;
       final removeImage = result.remove('removeImage') == true;
       if (image != null) {
-        final uploaded = await widget.api.uploadImage(image, kind: 'post');
+        final uploaded = await widget.api.uploadImage(image,
+            kind: item['resource']?.toString() == 'lost_found'
+                ? 'lost_found'
+                : 'post');
         result['imageUrl'] = (uploaded['data'] as Map?)?['url']?.toString();
       } else if (removeImage) {
         result['imageUrl'] = null;
@@ -3309,6 +3728,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
           subtitle: itemSubtitle(item),
           label: resourceLabel(r),
           icon: resourceIcon(r),
+          imageUrl: item['imageUrl']?.toString(),
+          onTap: r == 'posts'
+              ? () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          PostDetailsPage(api: widget.api, post: item)))
+              : null,
           onEdit: () => _edit(item),
           onDelete: () => _delete(item));
     }).toList());
@@ -3384,6 +3811,16 @@ class _ProfilePanelState extends State<ProfilePanel> {
                 }),
             const SizedBox(height: 22),
             const Divider(height: 1),
+            const SizedBox(height: 14),
+            SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => AboutPage(api: widget.api))),
+                    icon: const Icon(Icons.info_outline_rounded),
+                    label: const Text('About'))),
             const SizedBox(height: 18),
             SizedBox(
                 width: double.infinity,
@@ -3492,10 +3929,14 @@ class _OwnedItemCard extends StatelessWidget {
       required this.subtitle,
       required this.label,
       required this.icon,
+      this.imageUrl,
+      this.onTap,
       required this.onEdit,
       required this.onDelete});
   final String title, subtitle, label;
   final IconData icon;
+  final String? imageUrl;
+  final VoidCallback? onTap;
   final VoidCallback onEdit, onDelete;
   @override
   Widget build(BuildContext context) {
@@ -3506,54 +3947,73 @@ class _OwnedItemCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(21),
           side: const BorderSide(color: Color(0xFFE4ECE8))),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 8, 12),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                  color: const Color(0xFFE3F4EE),
-                  borderRadius: BorderRadius.circular(15)),
-              child: Icon(icon, color: brand)),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: const Color(0xFFEAF6F1),
-                        borderRadius: BorderRadius.circular(20)),
-                    child: Text(label,
-                        style: const TextStyle(
-                            color: brand,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700))),
-                const SizedBox(height: 7),
-                Text(title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: ink, fontSize: 16, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text(subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.black54, height: 1.3)),
-              ])),
-          PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') onEdit();
-                if (value == 'delete') onDelete();
-              },
-              itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete'))
-                  ]),
-        ]),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(21),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 8, 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            GestureDetector(
+                onTap: () => openImageViewer(context, imageUrl),
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: (imageUrl ?? '').isNotEmpty
+                        ? Image.network(_avatarUrl(imageUrl) ?? imageUrl!,
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                                width: 44,
+                                height: 44,
+                                color: const Color(0xFFE3F4EE),
+                                child: Icon(icon, color: brand)))
+                        : Container(
+                            width: 44,
+                            height: 44,
+                            color: const Color(0xFFE3F4EE),
+                            child: Icon(icon, color: brand)))),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFEAF6F1),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Text(label,
+                          style: const TextStyle(
+                              color: brand,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700))),
+                  const SizedBox(height: 7),
+                  Text(title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: ink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(color: Colors.black54, height: 1.3)),
+                ])),
+            PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(value: 'delete', child: Text('Delete'))
+                    ]),
+          ]),
+        ),
       ),
     );
   }
@@ -3922,7 +4382,9 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
           'title': values['title'],
           'description': values['description'],
           'location': values['location'],
-          'phone': values['phone']
+          'phone': values['phone'],
+          'imageFile': postImage,
+          'removeImage': removePostImage
         },
       'services' => {
           'name': values['name'],
@@ -3948,7 +4410,8 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
           content: SingleChildScrollView(
               child: Column(children: [
             ...keys.map(fieldFor),
-            if (resource == 'posts') postImageEditor()
+            if (resource == 'posts' || resource == 'lost_found')
+              postImageEditor()
           ])),
           actions: [
             TextButton(

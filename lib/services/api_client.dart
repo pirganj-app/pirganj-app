@@ -41,6 +41,16 @@ class PirganjApiClient {
     return Map<String, dynamic>.from(data);
   }
 
+  Future<String> getAboutHtml() async {
+    final json = await _get(Uri.parse('$baseUrl/api/about'));
+    return (json['data'] as Map?)?['html']?.toString() ?? '';
+  }
+
+  Future<Map<String, dynamic>> getPublicProfile(String userId) async {
+    final json = await _get(Uri.parse('$baseUrl/api/users/$userId/public'));
+    return Map<String, dynamic>.from(json['data'] as Map);
+  }
+
   MediaType _imageType(XFile image) {
     final name = image.name.toLowerCase();
     if (name.endsWith('.png')) return MediaType('image', 'png');
@@ -332,13 +342,15 @@ class PirganjApiClient {
           required String type,
           String description = '',
           String location = '',
-          String phone = ''}) =>
+          String phone = '',
+          String? imageUrl}) =>
       _post('/lost-found', {
         'title': title,
         'type': type,
         'description': description,
         'location': location,
-        'phone': phone
+        'phone': phone,
+        if (imageUrl != null) 'imageUrl': imageUrl
       });
   Future<Map<String, dynamic>> _get(Uri uri) async {
     Object? lastError;

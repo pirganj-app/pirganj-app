@@ -1,0 +1,61 @@
+import 'package:flutter/foundation.dart';
+import 'package:gal/src/gal_exception.dart';
+import 'package:gal/src/gal_platform.dart';
+
+/// Main class of gal.
+///
+/// See: [wiki](https://github.com/natsuk4ze/gal/wiki)
+@immutable
+final class Gal {
+  const Gal._();
+
+  /// Save a video to the gallery from file [path].
+  ///
+  /// Specify the album with [album]. If it does not exist, it will be created.
+  /// Throws an [GalException] If you do not have access premission or
+  /// if an error occurs during saving.
+  /// See: [Formats](https://github.com/natsuk4ze/gal/wiki/Formats)
+  static Future<void> putVideo(String path, {String? album}) async =>
+      GalPlatform.putVideo(path, album: album);
+
+  /// Save a image to the gallery from file [path].
+  ///
+  /// Specify the album with [album]. If it does not exist, it will be created.
+  /// Throws an [GalException] If you do not have access premission or
+  /// if an error occurs during saving.
+  /// See: [Formats](https://github.com/natsuk4ze/gal/wiki/Formats)
+  static Future<void> putImage(String path, {String? album}) async =>
+      GalPlatform.putImage(path, album: album);
+
+  /// Save a image to the gallery from [Uint8List].
+  ///
+  /// Specify the album with [album]. If it does not exist, it will be created.
+  /// Throws an [GalException] If you do not have access premission or
+  /// if an error occurs during saving.
+  /// See: [Formats](https://github.com/natsuk4ze/gal/wiki/Formats)
+  static Future<void> putImageBytes(Uint8List bytes, {String? album}) async =>
+      GalPlatform.putImageBytes(bytes, album: album);
+
+  /// Open gallery app.
+  ///
+  /// If there are multiple gallery apps, App selection sheet may be displayed.
+  static Future<void> open() async => GalPlatform.open();
+
+  /// Check if the app has access permissions.
+  ///
+  /// Use the [toAlbum] for additional permissions to save to an album.
+  /// If you want to save to an album other than the one created by your app
+  /// See: [Permissions](https://github.com/natsuk4ze/gal/wiki/Permissions)
+  static Future<bool> hasAccess({bool toAlbum = false}) async =>
+      GalPlatform.hasAccess(toAlbum: toAlbum);
+
+  /// Request access permissions.
+  ///
+  /// Returns [true] if access is granted, [false] if denied.
+  /// If access was already granted, the dialog is not displayed and returns true.
+  /// Use the [toAlbum] for additional permissions to save to an album.
+  /// If you want to save to an album other than the one created by your app
+  /// See: [Permissions](https://github.com/natsuk4ze/gal/wiki/Permissions)
+  static Future<bool> requestAccess({bool toAlbum = false}) async =>
+      GalPlatform.requestAccess(toAlbum: toAlbum);
+}

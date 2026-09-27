@@ -19,6 +19,8 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   flutter_image_compress: ^2.5.1
   webview_flutter: ^4.10.2
+  path_provider: ^2.1.5
+  gal: ^1.9.1
 
 dev_dependencies:
   flutter_test:
@@ -29,3 +31,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/pirganj_logo.jpg
+    - assets/about.html
+
+dependency_overrides:
+  gal:
+    path: third_party/gal
