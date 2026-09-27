@@ -526,6 +526,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                                 text:
                                     'এই profile locked। পোস্ট ও যোগ করা তথ্য দেখা যাবে না।'))
                       else ...[
+                        const SizedBox(height: 18),
                         section('পোস্ট', postItems),
                         const SizedBox(height: 18),
                         section('তথ্য', infoItems)
@@ -1739,6 +1740,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               const SizedBox(height: 10),
               if (list.isEmpty) const Text('এখনো কেউ react করেননি'),
               ...list.map((e) => ListTile(
+                  onTap: () => _openProfile(
+                      (e['userId'] ?? e['user_id'])?.toString(),
+                      e['userName']?.toString() ??
+                          e['userId']?.toString() ??
+                          'User',
+                      e['userAvatarUrl']?.toString()),
                   leading: Stack(clipBehavior: Clip.none, children: [
                     CircleAvatar(
                         radius: 22,
