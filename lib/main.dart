@@ -170,7 +170,7 @@ Future<XFile?> pickImageUnderLimit(BuildContext context) async {
   if (await selected.length() > maxImageBytes) {
     if (context.mounted)
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ছবিটি compress করার পরও 2MB-এর বেশি')));
+          const SnackBar(content: Text('ছবিটি প্রস্তুত করা যায়নি')));
     return null;
   }
   return selected;
@@ -457,50 +457,59 @@ class _PublicItemCard extends StatelessWidget {
   final String label;
   final VoidCallback? onOpen;
   @override
-  Widget build(BuildContext context) => Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      child: InkWell(
-          onTap: onOpen,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                GestureDetector(
-                    onTap: () =>
-                        openImageViewer(context, item['imageUrl']?.toString()),
-                    child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: (item['imageUrl']?.toString() ?? '').isNotEmpty
-                            ? Image.network(
-                                _avatarUrl(item['imageUrl']) ??
-                                    item['imageUrl'].toString(),
-                                width: 52,
-                                height: 52,
-                                fit: BoxFit.cover)
-                            : Container(
-                                width: 52,
-                                height: 52,
-                                color: const Color(0xFFE3F4EE),
-                                child: const Icon(Icons.description_outlined,
-                                    color: brand)))),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(
-                          item['title']?.toString() ??
-                              item['name']?.toString() ??
-                              label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, color: ink)),
-                      const SizedBox(height: 4),
-                      Text(label, style: const TextStyle(color: Colors.black54))
-                    ])),
-              ]))));
+  Widget build(BuildContext context) {
+    final imageUrl = _mapImageUrl(item);
+    return Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: InkWell(
+            onTap: onOpen,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(children: [
+                  GestureDetector(
+                      onTap: onOpen ?? () => openImageViewer(context, imageUrl),
+                      child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: imageUrl != null
+                              ? Image.network(imageUrl,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                      width: 64,
+                                      height: 64,
+                                      color: const Color(0xFFE3F4EE),
+                                      child: const Icon(
+                                          Icons.broken_image_outlined,
+                                          color: brand)))
+                              : Container(
+                                  width: 64,
+                                  height: 64,
+                                  color: const Color(0xFFE3F4EE),
+                                  child: const Icon(Icons.description_outlined,
+                                      color: brand)))),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(
+                            item['title']?.toString() ??
+                                item['name']?.toString() ??
+                                label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, color: ink)),
+                        const SizedBox(height: 4),
+                        Text(label,
+                            style: const TextStyle(color: Colors.black54))
+                      ])),
+                ]))));
+  }
 }
 
 class AppOpenMessagePage extends StatefulWidget {
@@ -3056,8 +3065,8 @@ class _EntrySheetState extends State<EntrySheet> {
                 : Icons.check_circle_rounded),
             label: Text(postImage == null
                 ? (widget.kind == 'lostFound'
-                    ? 'ছবি যোগ করুন (max 2MB)'
-                    : 'Post picture যোগ করুন (max 2MB)')
+                    ? 'ছবি যোগ করুন'
+                    : 'Post picture যোগ করুন')
                 : (widget.kind == 'lostFound'
                     ? 'ছবি selected'
                     : 'Post picture selected'))),
@@ -3494,7 +3503,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ? Icons.add_a_photo_rounded
                           : Icons.check_circle_rounded),
                       label: Text(profileImage == null
-                          ? 'Profile picture দিন (required, max 2MB)'
+                          ? 'Profile picture দিন (required)'
                           : 'Profile picture change করুন')),
                 ]),
               ],
@@ -4143,7 +4152,7 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
                 },
                 icon: const Icon(Icons.photo_camera_back_rounded),
                 label: Text(avatarImage == null
-                    ? 'Profile picture বদলান (max 2MB)'
+                    ? 'Profile picture বদলান'
                     : 'New profile picture selected')),
             if (widget.hasAvatar)
               TextButton.icon(
@@ -4338,7 +4347,7 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
             },
             icon: const Icon(Icons.image_rounded),
             label: Text(postImage == null
-                ? 'Post picture বদলান (max 2MB)'
+                ? 'Post picture বদলান'
                 : 'New post picture selected')),
         if ((widget.item['imageUrl']?.toString() ?? '').isNotEmpty)
           TextButton.icon(
