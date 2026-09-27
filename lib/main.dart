@@ -1509,7 +1509,7 @@ class _PostCard extends StatelessWidget {
             onTap: onOpen,
             borderRadius: BorderRadius.circular(21),
             child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1552,14 +1552,14 @@ class _PostCard extends StatelessWidget {
                                 style: const TextStyle(
                                     color: brand, fontSize: 12)))
                       ]),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       Text(post['title']?.toString() ?? '',
                           style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                               color: ink)),
                       if ((post['imageUrl']?.toString() ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         GestureDetector(
                             onTap: () => openImageViewer(
                                 context, post['imageUrl']?.toString()),
@@ -1568,19 +1568,19 @@ class _PostCard extends StatelessWidget {
                                 child: Image.network(
                                     _avatarUrl(post['imageUrl']) ??
                                         post['imageUrl'].toString(),
-                                    height: 180,
+                                    height: 198,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
                                         const SizedBox())))
                       ],
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 4),
                       Text(post['body']?.toString() ?? '',
                           maxLines: 4,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               color: Colors.black54, height: 1.5)),
-                      const SizedBox(height: 11),
+                      const SizedBox(height: 8),
                       Row(children: [
                         GestureDetector(
                             onLongPress: () => _showReactionPicker(context),
@@ -1756,19 +1756,25 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     showModalBottomSheet(
         context: context,
         showDragHandle: true,
-        builder: (_) => ListView(padding: const EdgeInsets.all(18), children: [
+        builder: (sheetContext) =>
+            ListView(padding: const EdgeInsets.all(18), children: [
               const Text('কারা কোন react করেছেন',
                   style: TextStyle(
                       fontSize: 20, fontWeight: FontWeight.w800, color: ink)),
               const SizedBox(height: 10),
               if (list.isEmpty) const Text('এখনো কেউ react করেননি'),
               ...list.map((e) => ListTile(
-                  onTap: () => _openProfile(
-                      (e['userId'] ?? e['user_id'])?.toString(),
-                      e['userName']?.toString() ??
-                          e['userId']?.toString() ??
-                          'User',
-                      e['userAvatarUrl']?.toString()),
+                  onTap: () {
+                    final userId = (e['userId'] ?? e['user_id'])?.toString();
+                    final name = e['userName']?.toString() ??
+                        e['userId']?.toString() ??
+                        'User';
+                    final avatar = e['userAvatarUrl']?.toString();
+                    Navigator.of(sheetContext).pop();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _openProfile(userId, name, avatar);
+                    });
+                  },
                   leading: Stack(clipBehavior: Clip.none, children: [
                     CircleAvatar(
                         radius: 22,
