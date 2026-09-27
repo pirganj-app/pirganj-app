@@ -300,7 +300,7 @@ class _PirganjAppState extends State<PirganjApp> {
                   borderSide:
                       const BorderSide(color: Colors.redAccent, width: 1.8))),
           dialogTheme: const DialogThemeData(
-              insetPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 24)),
+              insetPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 24)),
           pageTransitionsTheme: const PageTransitionsTheme(builders: {
             TargetPlatform.android: _PremiumPageTransitionsBuilder(),
             TargetPlatform.iOS: _PremiumPageTransitionsBuilder(),
@@ -1054,7 +1054,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return false;
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
+            padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
             children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('কমিউনিটি',
@@ -1115,7 +1115,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               builder: (_) => PostDetailsPage(
                                   api: api,
                                   post: item,
-                                  onLogout: widget.onLogout))),
+                                  onLogout: widget.onLogout,
+                                  onOpenOwnProfile: () => setState(() {
+                                        tab = 3;
+                                        profileRefreshToken++;
+                                      })))),
                       onReact: (reaction) async {
                         try {
                           final list = await api.togglePostReaction(
@@ -1509,7 +1513,7 @@ class _PostCard extends StatelessWidget {
             onTap: onOpen,
             borderRadius: BorderRadius.circular(21),
             child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1552,14 +1556,14 @@ class _PostCard extends StatelessWidget {
                                 style: const TextStyle(
                                     color: brand, fontSize: 12)))
                       ]),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(post['title']?.toString() ?? '',
                           style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w800,
                               color: ink)),
                       if ((post['imageUrl']?.toString() ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         GestureDetector(
                             onTap: () => openImageViewer(
                                 context, post['imageUrl']?.toString()),
@@ -1568,19 +1572,19 @@ class _PostCard extends StatelessWidget {
                                 child: Image.network(
                                     _avatarUrl(post['imageUrl']) ??
                                         post['imageUrl'].toString(),
-                                    height: 198,
+                                    height: 180,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
                                         const SizedBox())))
                       ],
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       Text(post['body']?.toString() ?? '',
                           maxLines: 4,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               color: Colors.black54, height: 1.5)),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 11),
                       Row(children: [
                         GestureDetector(
                             onLongPress: () => _showReactionPicker(context),
@@ -1666,9 +1670,14 @@ class _ReactionPicker extends StatelessWidget {
 
 class PostDetailsPage extends StatefulWidget {
   const PostDetailsPage(
-      {super.key, required this.api, required this.post, this.onLogout});
+      {super.key,
+      required this.api,
+      required this.post,
+      this.onLogout,
+      this.onOpenOwnProfile});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
+  final VoidCallback? onOpenOwnProfile;
   final Map<String, dynamic> post;
   @override
   State<PostDetailsPage> createState() => _PostDetailsPageState();
@@ -1704,6 +1713,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
   void _openProfile(String? userId, String name, String? avatarUrl) {
     if (userId == null || userId.isEmpty) return;
+    if (userId == widget.api.userId) {
+      Navigator.pop(context);
+      widget.onOpenOwnProfile?.call();
+      return;
+    }
     Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -1842,7 +1856,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         context: context,
         builder: (_) => AlertDialog(
                 title: const Text('Comment edit'),
-                content: TextField(controller: c, maxLines: 4),
+                content: SizedBox(
+                    width: double.maxFinite,
+                    child: TextField(controller: c, maxLines: 4)),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(context),
@@ -4456,48 +4472,50 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
           title: const Text('Profile edit'),
-          content: SingleChildScrollView(
-              child: Column(children: [
-            TextField(
-                controller: name,
-                decoration: const InputDecoration(labelText: 'নাম')),
-            DropdownButtonFormField<String>(
-                initialValue: sex,
-                decoration: const InputDecoration(labelText: 'লিঙ্গ'),
-                items: const ['পুরুষ', 'নারী', 'অন্যান্য']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                    .toList(),
-                onChanged: (v) => setState(() => sex = v ?? sex)),
-            TextField(
-                controller: address,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: 'ঠিকানা')),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-                onPressed: () async {
-                  final selected = await pickImageUnderLimit(context);
-                  if (selected != null) {
-                    setState(() {
-                      avatarImage = selected;
-                      removeAvatar = false;
-                    });
-                  }
-                },
-                icon: const Icon(Icons.photo_camera_back_rounded),
-                label: Text(avatarImage == null
-                    ? 'Profile picture বদলান'
-                    : 'New profile picture selected')),
-            if (widget.hasAvatar)
-              TextButton.icon(
-                  onPressed: () => setState(() {
-                        removeAvatar = true;
-                        avatarImage = null;
-                      }),
-                  icon: const Icon(Icons.delete_outline_rounded,
-                      color: Colors.red),
-                  label: const Text('Profile picture মুছুন',
-                      style: TextStyle(color: Colors.red)))
-          ])),
+          content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                  child: Column(children: [
+                TextField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'নাম')),
+                DropdownButtonFormField<String>(
+                    initialValue: sex,
+                    decoration: const InputDecoration(labelText: 'লিঙ্গ'),
+                    items: const ['পুরুষ', 'নারী', 'অন্যান্য']
+                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                        .toList(),
+                    onChanged: (v) => setState(() => sex = v ?? sex)),
+                TextField(
+                    controller: address,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'ঠিকানা')),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                    onPressed: () async {
+                      final selected = await pickImageUnderLimit(context);
+                      if (selected != null) {
+                        setState(() {
+                          avatarImage = selected;
+                          removeAvatar = false;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                    label: Text(avatarImage == null
+                        ? 'Profile picture বদলান'
+                        : 'New profile picture selected')),
+                if (widget.hasAvatar)
+                  TextButton.icon(
+                      onPressed: () => setState(() {
+                            removeAvatar = true;
+                            avatarImage = null;
+                          }),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: Colors.red),
+                      label: const Text('Profile picture মুছুন',
+                          style: TextStyle(color: Colors.red)))
+              ]))),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -4755,12 +4773,14 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
           title: Text('Edit ${resourceLabel(resource)}'),
-          content: SingleChildScrollView(
-              child: Column(children: [
-            ...keys.map(fieldFor),
-            if (resource == 'posts' || resource == 'lost_found')
-              postImageEditor()
-          ])),
+          content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                  child: Column(children: [
+                ...keys.map(fieldFor),
+                if (resource == 'posts' || resource == 'lost_found')
+                  postImageEditor()
+              ]))),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
