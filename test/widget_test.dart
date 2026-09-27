@@ -58,6 +58,33 @@ class CountingClient extends MockClient {
   }
 }
 
+class LockedProfileClient extends MockClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final path = request.url.path;
+    final body = path.endsWith('/auth/me')
+        ? {
+            'success': true,
+            'data': {
+              'user': {
+                'id': 'locked-user',
+                'phone': '01700000000',
+                'name': 'Locked User',
+                'sex': 'পুরুষ',
+                'address': 'পীরগঞ্জ',
+                'profileLocked': true
+              }
+            }
+          }
+        : path.endsWith('/profile/items')
+            ? {'success': true, 'data': <dynamic>[]}
+            : {'success': true, 'data': <dynamic>[]};
+    final bytes = utf8.encode(jsonEncode(body));
+    return http.StreamedResponse(Stream.fromIterable([bytes]), 200,
+        contentLength: bytes.length, request: request);
+  }
+}
+
 void main() {
   testWidgets('Pirganj home screen opens and renders popular services',
       (tester) async {
@@ -122,6 +149,23 @@ void main() {
     api.clearServiceCache();
     await api.getServices(category: 'হাসপাতাল');
     expect(client.serviceCalls, 2);
+  });
+
+  testWidgets('database profile lock stays on after profile refresh',
+      (tester) async {
+    final api = PirganjApiClient(
+        baseUrl: 'https://test.local', client: LockedProfileClient());
+    await tester.pumpWidget(
+        MaterialApp(home: ProfilePanel(api: api, onLogout: () async {})));
+    await tester.pumpAndSettle();
+    expect((tester.widget<SwitchListTile>(find.byType(SwitchListTile))).value,
+        isTrue);
+
+    await tester.pumpWidget(
+        MaterialApp(home: ProfilePanel(api: api, onLogout: () async {})));
+    await tester.pumpAndSettle();
+    expect((tester.widget<SwitchListTile>(find.byType(SwitchListTile))).value,
+        isTrue);
   });
 }
 
