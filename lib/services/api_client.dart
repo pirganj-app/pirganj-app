@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +13,8 @@ class PirganjApiClient {
   final http.Client _client;
   String? token;
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
+  static const _requestTimeout = Duration(seconds: 10);
+  static const _maxGetAttempts = 2;
 
   String? get userId {
     try {
@@ -337,8 +341,26 @@ class PirganjApiClient {
         'phone': phone
       });
   Future<Map<String, dynamic>> _get(Uri uri) async {
-    final response = await _client.get(uri, headers: _headers);
-    return _decode(response);
+    Object? lastError;
+    for (var attempt = 1; attempt <= _maxGetAttempts; attempt++) {
+      try {
+        final response =
+            await _client.get(uri, headers: _headers).timeout(_requestTimeout);
+        if (response.statusCode >= 500 && attempt < _maxGetAttempts) {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          continue;
+        }
+        return _decode(response);
+      } on TimeoutException catch (error) {
+        lastError = error;
+      } on SocketException catch (error) {
+        lastError = error;
+      }
+      if (attempt < _maxGetAttempts) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    }
+    throw lastError ?? const HttpException('Network request failed');
   }
 
   Future<Map<String, dynamic>> registerWithImage({
@@ -378,23 +400,28 @@ class PirganjApiClient {
 
   Future<Map<String, dynamic>> _post(
       String path, Map<String, dynamic> body) async {
-    final response = await _client.post(Uri.parse('$baseUrl/api$path'),
-        headers: {..._headers, 'Content-Type': 'application/json'},
-        body: jsonEncode(body));
+    final response = await _client
+        .post(Uri.parse('$baseUrl/api$path'),
+            headers: {..._headers, 'Content-Type': 'application/json'},
+            body: jsonEncode(body))
+        .timeout(_requestTimeout);
     return _decode(response);
   }
 
   Future<Map<String, dynamic>> _put(
       String path, Map<String, dynamic> body) async {
-    final response = await _client.put(Uri.parse('$baseUrl/api$path'),
-        headers: {..._headers, 'Content-Type': 'application/json'},
-        body: jsonEncode(body));
+    final response = await _client
+        .put(Uri.parse('$baseUrl/api$path'),
+            headers: {..._headers, 'Content-Type': 'application/json'},
+            body: jsonEncode(body))
+        .timeout(_requestTimeout);
     return _decode(response);
   }
 
   Future<Map<String, dynamic>> _delete(String path) async {
-    final response =
-        await _client.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);
+    final response = await _client
+        .delete(Uri.parse('$baseUrl/api$path'), headers: _headers)
+        .timeout(_requestTimeout);
     return _decode(response);
   }
 

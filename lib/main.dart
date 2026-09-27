@@ -145,15 +145,22 @@ class _PirganjAppState extends State<PirganjApp> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
+    if (mounted) setState(() => loading = false);
+    _loadRemoteStartupData();
+  }
+
+  Future<void> _loadRemoteStartupData() async {
     try {
       appOpenMessage = await api.getAppOpenMessage();
-    } catch (_) {}
+      if (mounted && appOpenMessage != null) setState(() {});
+    } catch (_) {
+      // The app remains usable when the optional announcement is unavailable.
+    }
     if (api.token != null) {
       try {
         await PushNotificationService.instance.start(api);
       } catch (_) {}
     }
-    if (mounted) setState(() => loading = false);
   }
 
   Future<void> _loggedIn(Map<String, dynamic> result) async {
