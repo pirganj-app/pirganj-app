@@ -368,11 +368,13 @@ class PublicProfilePage extends StatefulWidget {
       required this.api,
       required this.userId,
       required this.fallbackName,
-      this.fallbackAvatar});
+      this.fallbackAvatar,
+      this.originPost});
   final PirganjApiClient api;
   final String userId;
   final String fallbackName;
   final String? fallbackAvatar;
+  final Map<String, dynamic>? originPost;
   @override
   State<PublicProfilePage> createState() => _PublicProfilePageState();
 }
@@ -380,6 +382,24 @@ class PublicProfilePage extends StatefulWidget {
 class _PublicProfilePageState extends State<PublicProfilePage> {
   late Future<Map<String, dynamic>> future =
       widget.api.getPublicProfile(widget.userId);
+
+  void _openExistingPost(Map<String, dynamic> item) {
+    final originId = widget.originPost?['id']?.toString();
+    final itemId = item['id']?.toString();
+    // The profile was opened from this already-rendered post. Close only the
+    // profile route so the original post screen remains intact; never rebuild
+    // or recreate the post here.
+    if (originId != null && originId.isNotEmpty && originId == itemId) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => PostDetailsPage(
+                api: widget.api, post: Map<String, dynamic>.from(item))));
+  }
+
   Future<void> refresh() async {
     setState(() {
       future = widget.api.getPublicProfile(widget.userId);
@@ -464,15 +484,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                         return _PublicItemCard(
                             item: item,
                             label: label,
-                            onOpen: isPost
-                                ? () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => PostDetailsPage(
-                                            api: widget.api,
-                                            post: Map<String, dynamic>.from(
-                                                item))))
-                                : null);
+                            onOpen:
+                                isPost ? () => _openExistingPost(item) : null);
                       })
                     ]);
               })));
@@ -687,7 +700,8 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
   }
 
-  void _openProfile(String? userId, String name, String? avatarUrl) {
+  void _openProfile(String? userId, String name, String? avatarUrl,
+      {Map<String, dynamic>? originPost}) {
     if (userId == null || userId.isEmpty) {
       _message('এই profile-এর তথ্য পাওয়া যায়নি');
       return;
@@ -708,7 +722,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     api: api,
                     userId: userId,
                     fallbackName: name,
-                    fallbackAvatar: avatarUrl)));
+                    fallbackAvatar: avatarUrl,
+                    originPost: originPost)));
   }
 
   void _openCategory(String categoryName, String title, IconData icon) {
@@ -977,7 +992,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onProfile: () => _openProfile(
                           item['ownerId']?.toString(),
                           item['author']?.toString() ?? 'User',
-                          item['authorAvatarUrl']?.toString()),
+                          item['authorAvatarUrl']?.toString(),
+                          originPost: item),
                       onLike: () async {
                         try {
                           final reaction =
@@ -1508,7 +1524,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     api: widget.api,
                     userId: userId,
                     fallbackName: name,
-                    fallbackAvatar: avatarUrl)));
+                    fallbackAvatar: avatarUrl,
+                    originPost: widget.post)));
   }
 
   @override
