@@ -282,6 +282,23 @@ class _PirganjAppState extends State<PirganjApp> {
           useMaterial3: true,
           scaffoldBackgroundColor: page,
           colorScheme: ColorScheme.fromSeed(seedColor: brand),
+          inputDecorationTheme: InputDecorationTheme(
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide: const BorderSide(color: Color(0xFFD5E0DB))),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide: const BorderSide(color: Color(0xFFD5E0DB))),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide: const BorderSide(color: brand, width: 1.8)),
+              errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide: const BorderSide(color: Colors.redAccent)),
+              focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  borderSide:
+                      const BorderSide(color: Colors.redAccent, width: 1.8))),
           dialogTheme: const DialogThemeData(
               insetPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 24)),
           pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -1037,7 +1054,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return false;
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
+            padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
             children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('কমিউনিটি',
@@ -1404,7 +1421,13 @@ class _SearchBox extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(vertical: 20),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(21),
-              borderSide: BorderSide.none)));
+              borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(21),
+              borderSide: const BorderSide(color: Color(0xFFD5E0DB))),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(21),
+              borderSide: const BorderSide(color: brand, width: 1.8))));
 }
 
 class _ActionCard extends StatelessWidget {
@@ -1486,7 +1509,7 @@ class _PostCard extends StatelessWidget {
             onTap: onOpen,
             borderRadius: BorderRadius.circular(21),
             child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1545,7 +1568,7 @@ class _PostCard extends StatelessWidget {
                                 child: Image.network(
                                     _avatarUrl(post['imageUrl']) ??
                                         post['imageUrl'].toString(),
-                                    height: 190,
+                                    height: 180,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
@@ -1681,7 +1704,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
   void _openProfile(String? userId, String name, String? avatarUrl) {
     if (userId == null || userId.isEmpty) return;
-    Navigator.push(
+    Navigator.pushReplacement(
         context,
         MaterialPageRoute(
             builder: (_) => userId == widget.api.userId
@@ -2036,7 +2059,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 onRefresh: _refresh,
                 child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
                     children: [
                       FutureBuilder<List<dynamic>>(
                           future: reactionsFuture,
@@ -2127,7 +2150,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     horizontal: 14, vertical: 10),
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(20),
-                                    borderSide: BorderSide.none)))),
+                                    borderSide: BorderSide.none),
+                                enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFD5E0DB))),
+                                focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                    borderSide: const BorderSide(
+                                        color: brand, width: 1.8))))),
                     const SizedBox(width: 8),
                     IconButton.filled(
                         onPressed: sending ? null : sendComment,
@@ -4375,6 +4406,7 @@ class _SkeletonBoxState extends State<_SkeletonBox>
   Widget build(BuildContext context) => AnimatedBuilder(
       animation: animation,
       builder: (_, __) => Container(
+          width: double.infinity,
           height: widget.height,
           decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.radius),
