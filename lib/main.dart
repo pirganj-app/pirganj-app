@@ -399,6 +399,21 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           child: FutureBuilder<Map<String, dynamic>>(
               future: future,
               builder: (_, snap) {
+                if (snap.hasError)
+                  return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        const Icon(Icons.cloud_off_rounded,
+                            size: 48, color: brand),
+                        const SizedBox(height: 12),
+                        const Center(child: Text('Profile load করা যায়নি')),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                            onPressed: refresh,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('আবার চেষ্টা করুন'))
+                      ]);
                 if (!snap.hasData)
                   return ListView(
                       padding: const EdgeInsets.all(16),
@@ -435,16 +450,28 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                         const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ করা হয়নি'),
                       ...items.map((raw) {
                         final item = Map<String, dynamic>.from(raw);
-                        final resource = item['resource']?.toString() ?? '';
+                        final resource =
+                            item['resource']?.toString().toLowerCase() ?? '';
+                        final isPost =
+                            resource == 'posts' || resource == 'post';
+                        final label = isPost
+                            ? 'পোস্ট'
+                            : resource == 'lost_found'
+                                ? 'হারানো/পাওয়া'
+                                : resource == 'services'
+                                    ? 'সেবা'
+                                    : 'তথ্য';
                         return _PublicItemCard(
                             item: item,
-                            label: resource,
-                            onOpen: resource == 'posts'
+                            label: label,
+                            onOpen: isPost
                                 ? () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                         builder: (_) => PostDetailsPage(
-                                            api: widget.api, post: item)))
+                                            api: widget.api,
+                                            post: Map<String, dynamic>.from(
+                                                item))))
                                 : null);
                       })
                     ]);
@@ -470,6 +497,7 @@ class _PublicItemCard extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 child: Row(children: [
                   GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: onOpen ?? () => openImageViewer(context, imageUrl),
                       child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
