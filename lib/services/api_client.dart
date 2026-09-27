@@ -243,9 +243,9 @@ class PirganjApiClient {
           bool clearAvatar = false,
           bool? profileLocked}) =>
       _put('/auth/me', {
-        'name': name,
-        'sex': sex,
-        'address': address,
+        if (name != null) 'name': name,
+        if (sex != null) 'sex': sex,
+        if (address != null) 'address': address,
         if (profileLocked != null) 'profileLocked': profileLocked,
         if (avatarUrl != null || clearAvatar) 'avatarUrl': avatarUrl
       });

@@ -282,6 +282,8 @@ class _PirganjAppState extends State<PirganjApp> {
           useMaterial3: true,
           scaffoldBackgroundColor: page,
           colorScheme: ColorScheme.fromSeed(seedColor: brand),
+          dialogTheme: const DialogThemeData(
+              insetPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 24)),
           pageTransitionsTheme: const PageTransitionsTheme(builders: {
             TargetPlatform.android: _PremiumPageTransitionsBuilder(),
             TargetPlatform.iOS: _PremiumPageTransitionsBuilder(),
@@ -3102,7 +3104,7 @@ class _TopicCard extends StatelessWidget {
                     style: const TextStyle(
                         height: 1.45,
                         color: brand,
-                        decoration: TextDecoration.underline)))
+                        decoration: TextDecoration.none)))
         ]),
       ),
     );
@@ -3575,6 +3577,10 @@ class _AuthScreenState extends State<AuthScreen> {
               TextField(
                   controller: phone,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11)
+                  ],
                   decoration: dec('ফোন নম্বর')),
               const SizedBox(height: 11),
               TextField(
@@ -3980,6 +3986,16 @@ class _ProfilePanelState extends State<ProfilePanel> {
             Row(children: [
               Expanded(
                   child: FilledButton.icon(
+                      onPressed: _deleteAccount,
+                      style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFD63D4F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14)),
+                      icon: const Icon(Icons.delete_forever_rounded),
+                      label: const Text('Delete'))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: FilledButton.icon(
                       onPressed: widget.onLogout == null
                           ? null
                           : () => widget.onLogout!(),
@@ -3988,17 +4004,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14)),
                       icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Logout'))),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: FilledButton.icon(
-                      onPressed: _deleteAccount,
-                      style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFD63D4F),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14)),
-                      icon: const Icon(Icons.delete_forever_rounded),
-                      label: const Text('Delete')))
+                      label: const Text('Logout')))
             ]),
             const SizedBox(height: 12),
             SizedBox(
@@ -4079,7 +4085,7 @@ class _ProfileHeader extends StatelessWidget {
                             style: const TextStyle(
                                 color: Color(0xD9FFFFFF),
                                 fontSize: 13,
-                                decoration: TextDecoration.underline)))
+                                decoration: TextDecoration.none)))
                 ])),
             if (onEdit != null)
               IconButton(
@@ -4183,7 +4189,7 @@ class _OwnedItemCard extends StatelessWidget {
                         child: Text(phone!,
                             style: const TextStyle(
                                 color: brand,
-                                decoration: TextDecoration.underline))),
+                                decoration: TextDecoration.none))),
                 ])),
             PopupMenuButton<String>(
                 onSelected: (value) {
