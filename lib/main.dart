@@ -1054,7 +1054,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return false;
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),
+            padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
             children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('কমিউনিটি',
@@ -1348,7 +1348,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               builder: (_, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return ListView(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(10, 16, 10, 28),
                       children: const [
                         _SkeletonBox(height: 92, radius: 18),
                         SizedBox(height: 12),
@@ -2694,7 +2694,7 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
               return false;
             },
             child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 17, 18, 30),
+                padding: const EdgeInsets.fromLTRB(10, 17, 10, 30),
                 children: [
                   Text('${data.length}টি তথ্য',
                       style:
@@ -2969,7 +2969,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
               return false;
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              padding: const EdgeInsets.fromLTRB(10, 16, 10, 28),
               children: [
                 if (widget.topic < 2)
                   Padding(
@@ -3181,7 +3181,7 @@ class _EmergencyPageState extends State<EmergencyPage> {
                                     _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))
                           ]);
                         return ListView(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                            padding: const EdgeInsets.fromLTRB(10, 12, 10, 28),
                             children: data
                                 .map((item) => _TopicCard(
                                     topic: selected,
