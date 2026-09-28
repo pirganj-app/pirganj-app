@@ -3795,6 +3795,10 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> submit() async {
+    if (register && googleAccessToken == null) {
+      _show('প্রথমে Continue with Google করে email verify করুন');
+      return;
+    }
     if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(email.text.trim())) {
       _show('সঠিক email address দিন');
       return;
@@ -3928,10 +3932,9 @@ class _AuthScreenState extends State<AuthScreen> {
               TextField(
                   controller: email,
                   keyboardType: TextInputType.emailAddress,
-                  readOnly: register && googleAccessToken != null,
-                  decoration: dec(register && googleAccessToken != null
-                      ? 'Verified email'
-                      : 'Email address')),
+                  readOnly: register,
+                  decoration:
+                      dec(register ? 'Verified email' : 'Email address')),
               const SizedBox(height: 11),
               TextField(
                   controller: phone,
