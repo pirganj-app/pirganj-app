@@ -790,6 +790,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool postsHasMore = true;
   Object? postsError;
   int tab = 0;
+  final List<int> tabHistory = <int>[];
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
   StreamSubscription<void>? pushEventSubscription;
@@ -855,6 +856,25 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadPostsPage(refresh: true);
   }
 
+  void _switchTab(int value) {
+    if (value == tab) return;
+    tabHistory.add(tab);
+    setState(() {
+      tab = value;
+      if (value == 3) profileRefreshToken++;
+    });
+  }
+
+  bool _goBackToPreviousTab() {
+    if (tabHistory.isEmpty) return false;
+    final previous = tabHistory.removeLast();
+    setState(() {
+      tab = previous;
+      if (previous == 3) profileRefreshToken++;
+    });
+    return true;
+  }
+
   void _reload() {
     if (communityStarted) _loadPostsPage(refresh: true);
     setState(() {});
@@ -887,10 +907,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     if (userId == api.userId) {
-      setState(() {
-        tab = 3;
-        profileRefreshToken++;
-      });
+      _switchTab(3);
       return;
     }
     Navigator.push(
@@ -961,7 +978,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) => PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmExit();
+        if (!didPop && !_goBackToPreviousTab()) _confirmExit();
       },
       child: Scaffold(
         body: Container(
@@ -982,10 +999,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onOpenOwnProfile: () {
                                   Navigator.popUntil(
                                       context, (route) => route.isFirst);
-                                  setState(() {
-                                    tab = 3;
-                                    profileRefreshToken++;
-                                  });
+                                  _switchTab(3);
                                 })));
                     _loadUnreadNotifications();
                   },
@@ -1009,10 +1023,7 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedIndex: tab,
           onDestinationSelected: (value) {
             if (value == 1) _startCommunity();
-            setState(() {
-              tab = value;
-              if (value == 3) profileRefreshToken++;
-            });
+            _switchTab(value);
           },
           destinations: const [
             NavigationDestination(
@@ -1048,7 +1059,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(8, 17, 8, 17),
           children: [
-            _HeroCard(onTap: () => setState(() => tab = 2)),
+            _HeroCard(onTap: () => _switchTab(2)),
             const SizedBox(height: 16),
             _SearchBox(controller: searchController, onSearch: _runSearch),
             const SizedBox(height: 24),
@@ -1236,10 +1247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   api: api,
                                   post: item,
                                   onLogout: widget.onLogout,
-                                  onOpenOwnProfile: () => setState(() {
-                                        tab = 3;
-                                        profileRefreshToken++;
-                                      })))),
+                                  onOpenOwnProfile: () => _switchTab(3)))),
                       onReact: (reaction) async {
                         try {
                           final list = await api.togglePostReaction(
