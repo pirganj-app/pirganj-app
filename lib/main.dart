@@ -870,7 +870,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     await Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => NotificationPage(api: api)));
+                            builder: (_) => NotificationPage(
+                                api: api,
+                                onOpenOwnProfile: () {
+                                  Navigator.popUntil(
+                                      context, (route) => route.isFirst);
+                                  setState(() {
+                                    tab = 3;
+                                    profileRefreshToken++;
+                                  });
+                                })));
                     _loadUnreadNotifications();
                   },
                 ),
@@ -1718,13 +1727,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   void _openProfile(String? userId, String name, String? avatarUrl) {
     if (userId == null || userId.isEmpty) return;
     if (userId == widget.api.userId) {
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => ProfilePanel(
-                  api: widget.api,
-                  onLogout: widget.onLogout,
-                  originPost: widget.post)));
+      Navigator.pop(context);
+      widget.onOpenOwnProfile?.call();
       return;
     }
     Navigator.pushReplacement(
@@ -2290,8 +2294,9 @@ class _PillButton extends StatelessWidget {
 }
 
 class NotificationPage extends StatefulWidget {
-  const NotificationPage({super.key, required this.api});
+  const NotificationPage({super.key, required this.api, this.onOpenOwnProfile});
   final PirganjApiClient api;
+  final VoidCallback? onOpenOwnProfile;
   @override
   State<NotificationPage> createState() => _NotificationPageState();
 }
@@ -2363,7 +2368,8 @@ class _NotificationPageState extends State<NotificationPage> {
               MaterialPageRoute(
                   builder: (_) => PostDetailsPage(
                       api: widget.api,
-                      post: Map<String, dynamic>.from(match.first))));
+                      post: Map<String, dynamic>.from(match.first),
+                      onOpenOwnProfile: widget.onOpenOwnProfile)));
         }
       } catch (_) {}
       return;
@@ -3832,15 +3838,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
 class ProfilePanel extends StatefulWidget {
   const ProfilePanel(
-      {super.key,
-      required this.api,
-      this.onLogout,
-      this.refreshToken = 0,
-      this.originPost});
+      {super.key, required this.api, this.onLogout, this.refreshToken = 0});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
   final int refreshToken;
-  final Map<String, dynamic>? originPost;
   @override
   State<ProfilePanel> createState() => _ProfilePanelState();
 }
@@ -3852,12 +3853,6 @@ class _ProfilePanelState extends State<ProfilePanel> {
   bool profileLocked = false;
 
   void _openPostFromProfile(Map<String, dynamic> item) {
-    final originId = widget.originPost?['id']?.toString();
-    final itemId = item['id']?.toString();
-    if (originId != null && originId.isNotEmpty && originId == itemId) {
-      Navigator.pop(context);
-      return;
-    }
     Navigator.push(
         context,
         MaterialPageRoute(
