@@ -273,7 +273,8 @@ class _PirganjAppState extends State<PirganjApp> {
       updateRequired =
           data is! Map || data['version']?.toString() != appVersion;
     } catch (_) {
-      versionCheckFailed = true;
+      // A network outage must not be treated as an app-version mismatch.
+      versionCheckFailed = false;
     }
     if (mounted) setState(() => loading = false);
     if (!updateRequired && !versionCheckFailed) _loadRemoteStartupData();
@@ -350,9 +351,9 @@ class _PirganjAppState extends State<PirganjApp> {
         ),
         home: loading
             ? const _SplashScreen()
-            : updateRequired || versionCheckFailed
+            : updateRequired
                 ? UpdateRequiredPage(
-                    versionCheckFailed: versionCheckFailed,
+                    versionCheckFailed: false,
                     onRetry: () {
                       setState(() {
                         loading = true;
@@ -432,7 +433,7 @@ class UpdateRequiredPage extends StatelessWidget {
                 Text(
                     versionCheckFailed
                         ? 'সংযোগ যাচাই করা যায়নি'
-                        : 'অ্যাপ আপডেট প্রয়োজন',
+                        : 'আপনার অ্যাপের নতুন ভার্সন এসেছে',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                         fontSize: 25, fontWeight: FontWeight.w800, color: ink)),
@@ -440,7 +441,7 @@ class UpdateRequiredPage extends StatelessWidget {
                 Text(
                     versionCheckFailed
                         ? 'অ্যাপ চালু করতে ইন্টারনেট সংযোগ চালু করে আবার চেষ্টা করুন।'
-                        : 'অ্যাপের নতুন সংস্করণ ডাউনলোড করে ইনস্টল করুন।',
+                        : 'নতুন ভার্সন ডাউনলোড করে ইনস্টল করুন।',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.black54, height: 1.5)),
                 const SizedBox(height: 22),
@@ -1045,7 +1046,7 @@ class _HomeScreenState extends State<HomeScreen> {
         color: brand,
         onRefresh: () async => _reload(),
         child: ListView(
-          padding: const EdgeInsets.all(17),
+          padding: const EdgeInsets.fromLTRB(8, 17, 8, 17),
           children: [
             _HeroCard(onTap: () => setState(() => tab = 2)),
             const SizedBox(height: 16),
