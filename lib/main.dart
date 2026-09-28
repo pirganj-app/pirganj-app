@@ -273,8 +273,8 @@ class _PirganjAppState extends State<PirganjApp> {
       updateRequired =
           data is! Map || data['version']?.toString() != appVersion;
     } catch (_) {
-      // A network outage must not be treated as an app-version mismatch.
-      versionCheckFailed = false;
+      // Network failure is a no-internet state, never a version mismatch.
+      versionCheckFailed = true;
     }
     if (mounted) setState(() => loading = false);
     if (!updateRequired && !versionCheckFailed) _loadRemoteStartupData();
@@ -351,9 +351,9 @@ class _PirganjAppState extends State<PirganjApp> {
         ),
         home: loading
             ? const _SplashScreen()
-            : updateRequired
+            : updateRequired || versionCheckFailed
                 ? UpdateRequiredPage(
-                    versionCheckFailed: false,
+                    versionCheckFailed: versionCheckFailed,
                     onRetry: () {
                       setState(() {
                         loading = true;
@@ -427,8 +427,12 @@ class UpdateRequiredPage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(28),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.system_update_alt_rounded,
-                    size: 72, color: brand),
+                Icon(
+                    versionCheckFailed
+                        ? Icons.wifi_off_rounded
+                        : Icons.system_update_alt_rounded,
+                    size: 72,
+                    color: brand),
                 const SizedBox(height: 18),
                 Text(
                     versionCheckFailed
@@ -451,10 +455,11 @@ class UpdateRequiredPage extends StatelessWidget {
                       icon: const Icon(Icons.refresh_rounded),
                       label: const Text('আবার চেষ্টা করুন')),
                 const SizedBox(height: 10),
-                FilledButton.icon(
-                    onPressed: () => _openDownload(context),
-                    icon: const Icon(Icons.download_rounded),
-                    label: const Text('নতুন অ্যাপ ডাউনলোড করুন')),
+                if (!versionCheckFailed)
+                  FilledButton.icon(
+                      onPressed: () => _openDownload(context),
+                      icon: const Icon(Icons.download_rounded),
+                      label: const Text('নতুন অ্যাপ ডাউনলোড করুন')),
               ]),
             ),
           ),
