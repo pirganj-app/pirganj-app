@@ -1718,8 +1718,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   void _openProfile(String? userId, String name, String? avatarUrl) {
     if (userId == null || userId.isEmpty) return;
     if (userId == widget.api.userId) {
-      Navigator.pop(context);
-      widget.onOpenOwnProfile?.call();
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => ProfilePanel(
+                  api: widget.api,
+                  onLogout: widget.onLogout,
+                  originPost: widget.post)));
       return;
     }
     Navigator.pushReplacement(
@@ -3827,10 +3832,15 @@ class _AuthScreenState extends State<AuthScreen> {
 
 class ProfilePanel extends StatefulWidget {
   const ProfilePanel(
-      {super.key, required this.api, this.onLogout, this.refreshToken = 0});
+      {super.key,
+      required this.api,
+      this.onLogout,
+      this.refreshToken = 0,
+      this.originPost});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
   final int refreshToken;
+  final Map<String, dynamic>? originPost;
   @override
   State<ProfilePanel> createState() => _ProfilePanelState();
 }
@@ -3840,6 +3850,21 @@ class _ProfilePanelState extends State<ProfilePanel> {
   late Future<Map<String, dynamic>> userFuture;
   late Future<List<dynamic>> itemsFuture;
   bool profileLocked = false;
+
+  void _openPostFromProfile(Map<String, dynamic> item) {
+    final originId = widget.originPost?['id']?.toString();
+    final itemId = item['id']?.toString();
+    if (originId != null && originId.isNotEmpty && originId == itemId) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => PostDetailsPage(
+                api: widget.api, post: item, onLogout: widget.onLogout)));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -4057,15 +4082,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
           icon: resourceIcon(r),
           imageUrl: item['imageUrl']?.toString(),
           phone: item['phone']?.toString() ?? item['contactPhone']?.toString(),
-          onTap: r == 'posts'
-              ? () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => PostDetailsPage(
-                          api: widget.api,
-                          post: item,
-                          onLogout: widget.onLogout)))
-              : null,
+          onTap: r == 'posts' ? () => _openPostFromProfile(item) : null,
           onEdit: () => _edit(item),
           onDelete: () => _delete(item));
     }).toList());
