@@ -4023,6 +4023,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           : () => setState(() {
                                 register = !register;
                                 googleAccessToken = null;
+                                if (register) email.clear();
                               }),
                       child: Text(register
                           ? 'আগে account আছে? Login করুন'
