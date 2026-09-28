@@ -243,8 +243,8 @@ class PirganjApiClient {
   Future<Map<String, dynamic>> login(
           {required String phone, required String password}) =>
       _post('/auth/login', {'phone': phone, 'password': password});
-  Future<Map<String, dynamic>> loginWithGoogle(String idToken) =>
-      _post('/auth/google', {'idToken': idToken});
+  Future<Map<String, dynamic>> loginWithGoogle(String accessToken) =>
+      _post('/auth/google', {'accessToken': accessToken});
   Future<Map<String, dynamic>> me() => _get(Uri.parse('$baseUrl/api/auth/me'));
   Future<Map<String, dynamic>> updateProfile(
       {String? name,

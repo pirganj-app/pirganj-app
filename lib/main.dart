@@ -5,10 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:gal/gal.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -221,7 +220,10 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-void main() {
+const supabaseUrl = 'https://jhpgickyoauaxersolse.supabase.co';
+const supabasePublishableKey = 'sb_publishable_WvDaFoV1pw3Qn-siuxJNeQ_J0eXqXBk';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: brand,
@@ -229,6 +231,7 @@ void main() {
     systemNavigationBarColor: brand,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
   runApp(const PirganjApp());
 }
 
@@ -3810,16 +3813,22 @@ class _AuthScreenState extends State<AuthScreen> {
     if (busy) return;
     setState(() => busy = true);
     try {
-      await Firebase.initializeApp();
-      final google = await GoogleSignIn(scopes: const ['email', 'profile']).signIn();
+      final google = await GoogleSignIn(
+        scopes: const ['email', 'profile'],
+        serverClientId: '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com',
+      ).signIn();
       if (google == null) return;
       final auth = await google.authentication;
-      final credential = GoogleAuthProvider.credential(
-          accessToken: auth.accessToken, idToken: auth.idToken);
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      final idToken = auth.idToken;
       if (idToken == null || idToken.isEmpty) throw Exception('Google token পাওয়া যায়নি');
-      final result = await widget.api.loginWithGoogle(idToken);
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: auth.accessToken,
+      );
+      final accessToken = response.session?.accessToken;
+      if (accessToken == null || accessToken.isEmpty) throw Exception('Supabase session পাওয়া যায়নি');
+      final result = await widget.api.loginWithGoogle(accessToken);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
       if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
