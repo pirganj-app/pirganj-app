@@ -228,12 +228,14 @@ class PirganjApiClient {
   }
 
   Future<Map<String, dynamic>> register(
-          {required String phone,
+          {required String email,
+          required String phone,
           required String password,
           required String name,
           required String sex,
           required String address}) =>
       _post('/auth/register', {
+        'email': email,
         'phone': phone,
         'password': password,
         'name': name,
@@ -241,10 +243,40 @@ class PirganjApiClient {
         'address': address
       });
   Future<Map<String, dynamic>> login(
-          {required String phone, required String password}) =>
-      _post('/auth/login', {'phone': phone, 'password': password});
+          {required String email, required String password}) =>
+      _post('/auth/login', {'email': email, 'password': password});
   Future<Map<String, dynamic>> loginWithGoogle(String accessToken) =>
       _post('/auth/google', {'accessToken': accessToken});
+  Future<Map<String, dynamic>> completeGoogleRegistration({
+    required String accessToken,
+    required String email,
+    required String phone,
+    required String password,
+    required String name,
+    required String sex,
+    required String address,
+    XFile? profileImage,
+  }) async {
+    final request = http.MultipartRequest(
+        'POST', Uri.parse('$baseUrl/api/auth/google/register'));
+    request.headers.addAll(_headers);
+    request.fields.addAll({
+      'accessToken': accessToken,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'name': name,
+      'sex': sex,
+      'address': address,
+    });
+    if (profileImage != null) {
+      request.files.add(await http.MultipartFile.fromPath(
+          'profileImage', profileImage.path,
+          filename: profileImage.name, contentType: _imageType(profileImage)));
+    }
+    return _decode(await http.Response.fromStream(await request.send()));
+  }
+
   Future<Map<String, dynamic>> me() => _get(Uri.parse('$baseUrl/api/auth/me'));
   Future<Map<String, dynamic>> updateProfile(
       {String? name,
@@ -400,6 +432,7 @@ class PirganjApiClient {
   }
 
   Future<Map<String, dynamic>> registerWithImage({
+    required String email,
     required String phone,
     required String password,
     required String name,
@@ -411,6 +444,7 @@ class PirganjApiClient {
         http.MultipartRequest('POST', Uri.parse('$baseUrl/api/auth/register'));
     request.headers.addAll(_headers);
     request.fields.addAll({
+      'email': email,
       'phone': phone,
       'password': password,
       'name': name,

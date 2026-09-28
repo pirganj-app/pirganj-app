@@ -83,7 +83,8 @@ String? _mapImageUrl(Map<String, dynamic> item,
 IconData _serviceCategoryIcon(String category) {
   if (category.contains('হাসপাতাল')) return Icons.local_hospital_rounded;
   if (category.contains('ফার্মেসি')) return Icons.local_pharmacy_rounded;
-  if (category.contains('স্কুল') || category.contains('কলেজ')) return Icons.school_rounded;
+  if (category.contains('স্কুল') || category.contains('কলেজ'))
+    return Icons.school_rounded;
   if (category.contains('ডাক্তার')) return Icons.medical_services_rounded;
   return Icons.storefront_rounded;
 }
@@ -231,7 +232,8 @@ Future<void> main() async {
     systemNavigationBarColor: brand,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
-  await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
+  await Supabase.initialize(
+      url: supabaseUrl, publishableKey: supabasePublishableKey);
   runApp(const PirganjApp());
 }
 
@@ -258,7 +260,8 @@ class _PirganjAppState extends State<PirganjApp> {
     var deviceId = prefs.getString('pirganj_device_id');
     if (deviceId == null || deviceId.isEmpty) {
       final random = Random();
-      deviceId = '${DateTime.now().microsecondsSinceEpoch}-${List.generate(16, (_) => random.nextInt(36).toRadixString(36)).join()}';
+      deviceId =
+          '${DateTime.now().microsecondsSinceEpoch}-${List.generate(16, (_) => random.nextInt(36).toRadixString(36)).join()}';
       await prefs.setString('pirganj_device_id', deviceId);
     }
     api.deviceId = deviceId;
@@ -267,7 +270,8 @@ class _PirganjAppState extends State<PirganjApp> {
     try {
       final response = await api.getVersion();
       final data = response['data'];
-      updateRequired = data is! Map || data['version']?.toString() != appVersion;
+      updateRequired =
+          data is! Map || data['version']?.toString() != appVersion;
     } catch (_) {
       versionCheckFailed = true;
     }
@@ -356,13 +360,13 @@ class _PirganjAppState extends State<PirganjApp> {
                       });
                       _restore();
                     })
-            : appOpenMessage != null
-                ? AppOpenMessagePage(
-                    message: appOpenMessage!,
-                    onSkip: () => setState(() => appOpenMessage = null))
-                : api.token == null
-                    ? AuthScreen(api: api, onLoggedIn: _loggedIn)
-                    : HomeScreen(api: api, onLogout: _logout),
+                : appOpenMessage != null
+                    ? AppOpenMessagePage(
+                        message: appOpenMessage!,
+                        onSkip: () => setState(() => appOpenMessage = null))
+                    : api.token == null
+                        ? AuthScreen(api: api, onLoggedIn: _loggedIn)
+                        : HomeScreen(api: api, onLogout: _logout),
       );
 }
 
@@ -400,14 +404,17 @@ class _SplashScreenState extends State<_SplashScreen>
 }
 
 class UpdateRequiredPage extends StatelessWidget {
-  const UpdateRequiredPage({super.key, required this.versionCheckFailed, this.onRetry});
+  const UpdateRequiredPage(
+      {super.key, required this.versionCheckFailed, this.onRetry});
   final bool versionCheckFailed;
   final VoidCallback? onRetry;
 
   Future<void> _openDownload(BuildContext context) async {
-    final opened = await launchUrl(Uri.parse(apkDownloadUrl), mode: LaunchMode.externalApplication);
+    final opened = await launchUrl(Uri.parse(apkDownloadUrl),
+        mode: LaunchMode.externalApplication);
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড পেজ খোলা যায়নি')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ডাউনলোড পেজ খোলা যায়নি')));
     }
   }
 
@@ -419,20 +426,29 @@ class UpdateRequiredPage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(28),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.system_update_alt_rounded, size: 72, color: brand),
+                const Icon(Icons.system_update_alt_rounded,
+                    size: 72, color: brand),
                 const SizedBox(height: 18),
-                Text(versionCheckFailed ? 'সংযোগ যাচাই করা যায়নি' : 'অ্যাপ আপডেট প্রয়োজন',
+                Text(
+                    versionCheckFailed
+                        ? 'সংযোগ যাচাই করা যায়নি'
+                        : 'অ্যাপ আপডেট প্রয়োজন',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: ink)),
+                    style: const TextStyle(
+                        fontSize: 25, fontWeight: FontWeight.w800, color: ink)),
                 const SizedBox(height: 10),
-                Text(versionCheckFailed
-                    ? 'অ্যাপ চালু করতে ইন্টারনেট সংযোগ চালু করে আবার চেষ্টা করুন।'
-                    : 'অ্যাপের নতুন সংস্করণ ডাউনলোড করে ইনস্টল করুন।',
+                Text(
+                    versionCheckFailed
+                        ? 'অ্যাপ চালু করতে ইন্টারনেট সংযোগ চালু করে আবার চেষ্টা করুন।'
+                        : 'অ্যাপের নতুন সংস্করণ ডাউনলোড করে ইনস্টল করুন।',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.black54, height: 1.5)),
                 const SizedBox(height: 22),
                 if (versionCheckFailed && onRetry != null)
-                  OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('আবার চেষ্টা করুন')),
+                  OutlinedButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('আবার চেষ্টা করুন')),
                 const SizedBox(height: 10),
                 FilledButton.icon(
                     onPressed: () => _openDownload(context),
@@ -619,6 +635,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                     children: [
                       _ProfileHeader(
                           name: user['name']?.toString() ?? widget.fallbackName,
+                          email: user['email']?.toString() ?? '',
                           phone: '',
                           avatarUrl: user['avatarUrl']?.toString() ??
                               widget.fallbackAvatar,
@@ -1491,11 +1508,14 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           child: ListTile(
                               leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFE1F3EC),
-                                  backgroundImage: item.imageUrl == null || item.imageUrl!.isEmpty
+                                  backgroundImage: item.imageUrl == null ||
+                                          item.imageUrl!.isEmpty
                                       ? null
-                                      : NetworkImage(_avatarUrl(item.imageUrl!) ?? item.imageUrl!),
+                                      : NetworkImage(_avatarUrl(item.imageUrl!) ??
+                                          item.imageUrl!),
                                   child: item.imageUrl == null || item.imageUrl!.isEmpty
-                                      ? Icon(_serviceCategoryIcon(item.category), color: brand)
+                                      ? Icon(_serviceCategoryIcon(item.category),
+                                          color: brand)
                                       : null),
                               title: Text(item.name,
                                   style: const TextStyle(
@@ -1504,11 +1524,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                   Text('${item.category}  •  ${item.location}'),
                               trailing: item.phone.trim().isEmpty
                                   ? null
-                                  : IconButton(
-                                      tooltip: 'Call',
-                                      icon: const Icon(Icons.phone_rounded),
-                                      onPressed: () =>
-                                          dialPhone(context, item.phone))));
+                                  : IconButton(tooltip: 'Call', icon: const Icon(Icons.phone_rounded), onPressed: () => dialPhone(context, item.phone))));
                     });
               })));
 }
@@ -2811,8 +2827,10 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
                   const SizedBox(height: 14),
                   if (loading && data.isEmpty)
                     const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 18),
-                        child: Center(child: _SkeletonBox(height: 92, radius: 18)))
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 4, vertical: 18),
+                        child:
+                            Center(child: _SkeletonBox(height: 92, radius: 18)))
                   else if (error != null && data.isEmpty)
                     _NetworkErrorCard(onRetry: () => _load(refresh: true))
                   else if (data.isEmpty)
@@ -3755,6 +3773,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  final email = TextEditingController();
   final phone = TextEditingController();
   final password = TextEditingController();
   final name = TextEditingController();
@@ -3763,9 +3782,11 @@ class _AuthScreenState extends State<AuthScreen> {
   XFile? profileImage;
   bool register = false;
   bool busy = false;
+  String? googleAccessToken;
 
   @override
   void dispose() {
+    email.dispose();
     phone.dispose();
     password.dispose();
     name.dispose();
@@ -3774,16 +3795,18 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> submit() async {
+    if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(email.text.trim())) {
+      _show('সঠিক email address দিন');
+      return;
+    }
     if (!RegExp(r'^\d{11}$').hasMatch(phone.text.trim())) {
       _show('ফোন নম্বর অবশ্যই ১১ ডিজিটের হতে হবে');
       return;
     }
-    final incomplete = phone.text.trim().isEmpty ||
+    final incomplete = email.text.trim().isEmpty ||
+        phone.text.trim().isEmpty ||
         password.text.isEmpty ||
-        (register &&
-            (name.text.trim().isEmpty ||
-                address.text.trim().isEmpty ||
-                profileImage == null));
+        (register && (name.text.trim().isEmpty || address.text.trim().isEmpty));
     if (incomplete) {
       _show(register && profileImage == null
           ? 'Profile picture নির্বাচন করুন'
@@ -3793,15 +3816,26 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => busy = true);
     try {
       final result = register
-          ? await widget.api.registerWithImage(
-              phone: phone.text.trim(),
-              password: password.text,
-              name: name.text.trim(),
-              sex: sex,
-              address: address.text.trim(),
-              profileImage: profileImage!)
+          ? googleAccessToken != null
+              ? await widget.api.completeGoogleRegistration(
+                  accessToken: googleAccessToken!,
+                  email: email.text.trim(),
+                  phone: phone.text.trim(),
+                  password: password.text,
+                  name: name.text.trim(),
+                  sex: sex,
+                  address: address.text.trim(),
+                  profileImage: profileImage)
+              : await widget.api.registerWithImage(
+                  email: email.text.trim(),
+                  phone: phone.text.trim(),
+                  password: password.text,
+                  name: name.text.trim(),
+                  sex: sex,
+                  address: address.text.trim(),
+                  profileImage: profileImage!)
           : await widget.api
-              .login(phone: phone.text.trim(), password: password.text);
+              .login(email: email.text.trim(), password: password.text);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
       if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
@@ -3809,25 +3843,43 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) setState(() => busy = false);
     }
   }
+
   Future<void> _continueWithGoogle() async {
     if (busy) return;
     setState(() => busy = true);
     try {
       final google = await GoogleSignIn(
         scopes: const ['email', 'profile'],
-        serverClientId: '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com',
+        serverClientId:
+            '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com',
       ).signIn();
       if (google == null) return;
       final auth = await google.authentication;
       final idToken = auth.idToken;
-      if (idToken == null || idToken.isEmpty) throw Exception('Google token পাওয়া যায়নি');
+      if (idToken == null || idToken.isEmpty)
+        throw Exception('Google token পাওয়া যায়নি');
       final response = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: auth.accessToken,
       );
       final accessToken = response.session?.accessToken;
-      if (accessToken == null || accessToken.isEmpty) throw Exception('Supabase session পাওয়া যায়নি');
+      if (accessToken == null || accessToken.isEmpty)
+        throw Exception('Supabase session পাওয়া যায়নি');
+      final verifiedEmail = response.user?.email;
+      if (verifiedEmail == null ||
+          verifiedEmail.isEmpty ||
+          response.user?.emailConfirmedAt == null) {
+        throw Exception('Verified Google email পাওয়া যায়নি');
+      }
+      if (register) {
+        googleAccessToken = accessToken;
+        email.text = verifiedEmail;
+        if (mounted) {
+          _show('Email verified। এখন registration-এর বাকি তথ্য পূরণ করুন');
+        }
+        return;
+      }
       final result = await widget.api.loginWithGoogle(accessToken);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
@@ -3873,6 +3925,14 @@ class _AuthScreenState extends State<AuthScreen> {
                           fontWeight: FontWeight.w800,
                           color: ink))),
               const SizedBox(height: 22),
+              TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  readOnly: register && googleAccessToken != null,
+                  decoration: dec(register && googleAccessToken != null
+                      ? 'Verified email'
+                      : 'Email address')),
+              const SizedBox(height: 11),
               TextField(
                   controller: phone,
                   keyboardType: TextInputType.phone,
@@ -3928,7 +3988,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           ? Icons.add_a_photo_rounded
                           : Icons.check_circle_rounded),
                       label: Text(profileImage == null
-                          ? 'Profile picture দিন (required)'
+                          ? googleAccessToken != null
+                              ? 'Profile picture দিন (optional)'
+                              : 'Profile picture দিন (required)'
                           : 'Profile picture change করুন')),
                 ]),
               ],
@@ -3955,7 +4017,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: TextButton(
                       onPressed: busy
                           ? null
-                          : () => setState(() => register = !register),
+                          : () => setState(() {
+                                register = !register;
+                                googleAccessToken = null;
+                              }),
                       child: Text(register
                           ? 'আগে account আছে? Login করুন'
                           : 'নতুন account তৈরি করুন'))),
@@ -4238,6 +4303,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                       if (snapshot.hasError)
                         return const _ProfileHeader(
                             name: 'প্রোফাইল পাওয়া যায়নি',
+                            email: '',
                             phone: '',
                             address: 'আবার চেষ্টা করুন',
                             onEdit: null);
@@ -4248,6 +4314,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                           : <String, dynamic>{};
                       return _ProfileHeader(
                           name: user['name']?.toString() ?? 'আমার প্রোফাইল',
+                          email: user['email']?.toString() ?? '',
                           phone: user['phone']?.toString() ?? '',
                           avatarUrl: _avatarUrl(
                               user['avatarUrl'] ?? user['avatar_url']),
@@ -4348,11 +4415,12 @@ class _ProfilePanelState extends State<ProfilePanel> {
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader(
       {required this.name,
+      required this.email,
       required this.phone,
       required this.address,
       this.avatarUrl,
       required this.onEdit});
-  final String name, phone, address;
+  final String name, email, phone, address;
   final String? avatarUrl;
   final VoidCallback? onEdit;
   @override
@@ -4400,6 +4468,12 @@ class _ProfileHeader extends StatelessWidget {
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800)),
+                  if (email.isNotEmpty)
+                    Text(email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Color(0xD9FFFFFF), fontSize: 13)),
                   if (phone.isNotEmpty)
                     GestureDetector(
                         onTap: () => dialPhone(context, phone),
