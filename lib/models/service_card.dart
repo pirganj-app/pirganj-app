@@ -8,6 +8,7 @@ class ServiceCard {
     required this.phone,
     required this.open,
     required this.icon,
+    this.imageUrl,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class ServiceCard {
   final String phone;
   final String open;
   final String icon;
+  final String? imageUrl;
 
   factory ServiceCard.fromJson(Map<String, dynamic> json) => ServiceCard(
         id: json['id']?.toString() ?? '',
@@ -28,5 +30,6 @@ class ServiceCard {
         phone: json['phone']?.toString() ?? '',
         open: json['open']?.toString() ?? '',
         icon: json['icon']?.toString() ?? '•',
+        imageUrl: json['imageUrl']?.toString(),
       );
 }

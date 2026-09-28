@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:gal/gal.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -17,6 +21,8 @@ const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
 const maxImageBytes = 2 * 1024 * 1024;
+const appVersion = '1.0.0';
+const apkDownloadUrl = 'https://pirganj-app.netlify.app/apk';
 
 Future<void> dialPhone(BuildContext context, String? value) async {
   final phone = (value ?? '').replaceAll(RegExp(r'[^0-9+]'), '');
@@ -73,6 +79,14 @@ String? _mapImageUrl(Map<String, dynamic> item,
     if (url != null) return url;
   }
   return null;
+}
+
+IconData _serviceCategoryIcon(String category) {
+  if (category.contains('হাসপাতাল')) return Icons.local_hospital_rounded;
+  if (category.contains('ফার্মেসি')) return Icons.local_pharmacy_rounded;
+  if (category.contains('স্কুল') || category.contains('কলেজ')) return Icons.school_rounded;
+  if (category.contains('ডাক্তার')) return Icons.medical_services_rounded;
+  return Icons.storefront_rounded;
 }
 
 void openImageViewer(BuildContext context, String? value) {
@@ -227,6 +241,8 @@ class PirganjApp extends StatefulWidget {
 class _PirganjAppState extends State<PirganjApp> {
   final api = PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
   bool loading = true;
+  bool updateRequired = false;
+  bool versionCheckFailed = false;
   Map<String, dynamic>? appOpenMessage;
   @override
   void initState() {
@@ -236,10 +252,24 @@ class _PirganjAppState extends State<PirganjApp> {
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
+    var deviceId = prefs.getString('pirganj_device_id');
+    if (deviceId == null || deviceId.isEmpty) {
+      final random = Random();
+      deviceId = '${DateTime.now().microsecondsSinceEpoch}-${List.generate(16, (_) => random.nextInt(36).toRadixString(36)).join()}';
+      await prefs.setString('pirganj_device_id', deviceId);
+    }
+    api.deviceId = deviceId;
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
+    try {
+      final response = await api.getVersion();
+      final data = response['data'];
+      updateRequired = data is! Map || data['version']?.toString() != appVersion;
+    } catch (_) {
+      versionCheckFailed = true;
+    }
     if (mounted) setState(() => loading = false);
-    _loadRemoteStartupData();
+    if (!updateRequired && !versionCheckFailed) _loadRemoteStartupData();
   }
 
   Future<void> _loadRemoteStartupData() async {
@@ -313,6 +343,16 @@ class _PirganjAppState extends State<PirganjApp> {
         ),
         home: loading
             ? const _SplashScreen()
+            : updateRequired || versionCheckFailed
+                ? UpdateRequiredPage(
+                    versionCheckFailed: versionCheckFailed,
+                    onRetry: () {
+                      setState(() {
+                        loading = true;
+                        versionCheckFailed = false;
+                      });
+                      _restore();
+                    })
             : appOpenMessage != null
                 ? AppOpenMessagePage(
                     message: appOpenMessage!,
@@ -354,6 +394,52 @@ class _SplashScreenState extends State<_SplashScreen>
                       borderRadius: BorderRadius.circular(28),
                       child: Image.asset('assets/pirganj_logo.jpg',
                           width: 150, height: 150, fit: BoxFit.cover))))));
+}
+
+class UpdateRequiredPage extends StatelessWidget {
+  const UpdateRequiredPage({super.key, required this.versionCheckFailed, this.onRetry});
+  final bool versionCheckFailed;
+  final VoidCallback? onRetry;
+
+  Future<void> _openDownload(BuildContext context) async {
+    final opened = await launchUrl(Uri.parse(apkDownloadUrl), mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ডাউনলোড পেজ খোলা যায়নি')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: page,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.system_update_alt_rounded, size: 72, color: brand),
+                const SizedBox(height: 18),
+                Text(versionCheckFailed ? 'সংযোগ যাচাই করা যায়নি' : 'অ্যাপ আপডেট প্রয়োজন',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: ink)),
+                const SizedBox(height: 10),
+                Text(versionCheckFailed
+                    ? 'অ্যাপ চালু করতে ইন্টারনেট সংযোগ চালু করে আবার চেষ্টা করুন।'
+                    : 'অ্যাপের নতুন সংস্করণ ডাউনলোড করে ইনস্টল করুন।',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.black54, height: 1.5)),
+                const SizedBox(height: 22),
+                if (versionCheckFailed && onRetry != null)
+                  OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('আবার চেষ্টা করুন')),
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                    onPressed: () => _openDownload(context),
+                    icon: const Icon(Icons.download_rounded),
+                    label: const Text('নতুন অ্যাপ ডাউনলোড করুন')),
+              ]),
+            ),
+          ),
+        ),
+      );
 }
 
 class AboutPage extends StatefulWidget {
@@ -1249,8 +1335,8 @@ class _TopBar extends StatelessWidget {
           ClipRRect(
               borderRadius: BorderRadius.circular(15),
               child: Image.asset('assets/pirganj_logo.jpg',
-                  width: 55, height: 55, fit: BoxFit.cover)),
-          const SizedBox(width: 13),
+                  width: 46, height: 46, fit: BoxFit.cover)),
+          const SizedBox(width: 10),
           const Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1402,7 +1488,12 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           child: ListTile(
                               leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFE1F3EC),
-                                  child: Text(item.icon)),
+                                  backgroundImage: item.imageUrl == null || item.imageUrl!.isEmpty
+                                      ? null
+                                      : NetworkImage(_avatarUrl(item.imageUrl!) ?? item.imageUrl!),
+                                  child: item.imageUrl == null || item.imageUrl!.isEmpty
+                                      ? Icon(_serviceCategoryIcon(item.category), color: brand)
+                                      : null),
                               title: Text(item.name,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w700)),
@@ -1628,7 +1719,7 @@ class _PostCard extends StatelessWidget {
                                       horizontal: 4, vertical: 3),
                                   child: Text('${reactions.length} reactions',
                                       style: const TextStyle(
-                                          color: Colors.black54,
+                                          color: brand,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600))))
                         ],
@@ -2717,9 +2808,8 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
                   const SizedBox(height: 14),
                   if (loading && data.isEmpty)
                     const Padding(
-                        padding: EdgeInsets.all(30),
-                        child:
-                            Center(child: _SkeletonBox(height: 92, radius: 18)))
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 18),
+                        child: Center(child: _SkeletonBox(height: 92, radius: 18)))
                   else if (error != null && data.isEmpty)
                     _NetworkErrorCard(onRetry: () => _load(refresh: true))
                   else if (data.isEmpty)
@@ -3681,6 +3771,10 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> submit() async {
+    if (!RegExp(r'^\d{11}$').hasMatch(phone.text.trim())) {
+      _show('ফোন নম্বর অবশ্যই ১১ ডিজিটের হতে হবে');
+      return;
+    }
     final incomplete = phone.text.trim().isEmpty ||
         password.text.isEmpty ||
         (register &&
@@ -3705,6 +3799,27 @@ class _AuthScreenState extends State<AuthScreen> {
               profileImage: profileImage!)
           : await widget.api
               .login(phone: phone.text.trim(), password: password.text);
+      await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
+    } catch (error) {
+      if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+  Future<void> _continueWithGoogle() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await Firebase.initializeApp();
+      final google = await GoogleSignIn(scopes: const ['email', 'profile']).signIn();
+      if (google == null) return;
+      final auth = await google.authentication;
+      final credential = GoogleAuthProvider.credential(
+          accessToken: auth.accessToken, idToken: auth.idToken);
+      await FirebaseAuth.instance.signInWithCredential(credential);
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken == null || idToken.isEmpty) throw Exception('Google token পাওয়া যায়নি');
+      final result = await widget.api.loginWithGoogle(idToken);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
       if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
@@ -3819,6 +3934,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: busy
                           ? const CircularProgressIndicator(color: Colors.white)
                           : Text(register ? 'নিবন্ধন করুন' : 'Login'))),
+              const SizedBox(height: 8),
+              SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                      onPressed: busy ? null : _continueWithGoogle,
+                      icon: const Icon(Icons.account_circle_outlined),
+                      label: const Text('Continue with Google'))),
               const SizedBox(height: 8),
               Center(
                   child: TextButton(

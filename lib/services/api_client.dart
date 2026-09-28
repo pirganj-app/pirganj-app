@@ -12,6 +12,7 @@ class PirganjApiClient {
   final String baseUrl;
   final http.Client _client;
   String? token;
+  String? deviceId;
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
@@ -31,8 +32,16 @@ class PirganjApiClient {
 
   Map<String, String> get _headers => {
         'Accept': 'application/json',
+        if (deviceId != null && deviceId!.isNotEmpty) 'X-Device-Id': deviceId!,
         if (token != null) 'Authorization': 'Bearer $token'
       };
+
+  Future<Map<String, dynamic>> getVersion() async {
+    final response = await _client
+        .get(Uri.parse('$baseUrl/version'), headers: _headers)
+        .timeout(_requestTimeout);
+    return _decode(response);
+  }
 
   Future<Map<String, dynamic>?> getAppOpenMessage() async {
     final json = await _get(Uri.parse('$baseUrl/api/app-open-message'));
@@ -234,6 +243,8 @@ class PirganjApiClient {
   Future<Map<String, dynamic>> login(
           {required String phone, required String password}) =>
       _post('/auth/login', {'phone': phone, 'password': password});
+  Future<Map<String, dynamic>> loginWithGoogle(String idToken) =>
+      _post('/auth/google', {'idToken': idToken});
   Future<Map<String, dynamic>> me() => _get(Uri.parse('$baseUrl/api/auth/me'));
   Future<Map<String, dynamic>> updateProfile(
       {String? name,
