@@ -832,8 +832,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final shouldExit = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
               title: const Text('অ্যাপ থেকে বের হবেন?'),
-              content: const Text('আপনি কি Pirganj app বন্ধ করতে চান?'),
+              content: const SizedBox(
+                  width: 360,
+                  child: Text('আপনি কি Pirganj app বন্ধ করতে চান?')),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -4310,7 +4314,7 @@ class _OwnedItemCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 14, 8, 12),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             GestureDetector(
-                onTap: () => openImageViewer(context, imageUrl),
+                onTap: onTap ?? () => openImageViewer(context, imageUrl),
                 child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
                     child: (imageUrl ?? '').isNotEmpty
