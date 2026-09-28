@@ -3803,12 +3803,12 @@ class _AuthScreenState extends State<AuthScreen> {
       _show('সঠিক email address দিন');
       return;
     }
-    if (!RegExp(r'^\d{11}$').hasMatch(phone.text.trim())) {
+    if (register && !RegExp(r'^\d{11}$').hasMatch(phone.text.trim())) {
       _show('ফোন নম্বর অবশ্যই ১১ ডিজিটের হতে হবে');
       return;
     }
     final incomplete = email.text.trim().isEmpty ||
-        phone.text.trim().isEmpty ||
+        (register && phone.text.trim().isEmpty) ||
         password.text.isEmpty ||
         (register && (name.text.trim().isEmpty || address.text.trim().isEmpty));
     if (incomplete) {
@@ -3852,13 +3852,16 @@ class _AuthScreenState extends State<AuthScreen> {
     if (busy) return;
     setState(() => busy = true);
     try {
-      final google = await GoogleSignIn(
+      final google = GoogleSignIn(
         scopes: const ['email', 'profile'],
         serverClientId:
             '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com',
-      ).signIn();
-      if (google == null) return;
-      final auth = await google.authentication;
+      );
+      // Clear the previous Google account so every attempt can choose another account.
+      await google.signOut();
+      final selected = await google.signIn();
+      if (selected == null) return;
+      final auth = await selected.authentication;
       final idToken = auth.idToken;
       if (idToken == null || idToken.isEmpty)
         throw Exception('Google token পাওয়া যায়নি');
@@ -3936,15 +3939,17 @@ class _AuthScreenState extends State<AuthScreen> {
                   decoration:
                       dec(register ? 'Verified email' : 'Email address')),
               const SizedBox(height: 11),
-              TextField(
-                  controller: phone,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(11)
-                  ],
-                  decoration: dec('ফোন নম্বর')),
-              const SizedBox(height: 11),
+              if (register) ...[
+                TextField(
+                    controller: phone,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11)
+                    ],
+                    decoration: dec('ফোন নম্বর')),
+                const SizedBox(height: 11),
+              ],
               TextField(
                   controller: password,
                   obscureText: true,
