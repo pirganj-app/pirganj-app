@@ -229,10 +229,8 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
 
 const supabaseUrl = 'https://jhpgickyoauaxersolse.supabase.co';
 const supabasePublishableKey = 'sb_publishable_WvDaFoV1pw3Qn-siuxJNeQ_J0eXqXBk';
-const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID',
-    defaultValue:
-        '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com');
-const googleOAuthRedirect = 'io.supabase.flutter://login-callback/';
+const googleAndroidClientId =
+    '132218583054-nm76rb9gav71imtunnl15nsrct85cp73.apps.googleusercontent.com';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -277,23 +275,18 @@ class _PirganjAppState extends State<PirganjApp> {
     api.deviceId = deviceId;
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
-    if (mounted) setState(() => loading = false);
-    // Do not hold the splash screen on a cold Render request. Version and
-    // optional announcement checks run safely in the background.
-    unawaited(_checkVersion());
-    unawaited(_loadRemoteStartupData());
-  }
-
-  Future<void> _checkVersion() async {
     try {
       final response = await api.getVersion();
       final data = response['data'];
-      if (!mounted) return;
-      setState(() => updateRequired =
-          data is! Map || data['version']?.toString() != appVersion);
+      updateRequired =
+          data is! Map || data['version']?.toString() != appVersion;
     } catch (_) {
-      if (mounted) setState(() => versionCheckFailed = true);
+      // Without an exact server version match the app stays blocked.
+      updateRequired = true;
+      versionCheckFailed = true;
     }
+    if (mounted) setState(() => loading = false);
+    if (!updateRequired) await _loadRemoteStartupData();
   }
 
   Future<void> _loadRemoteStartupData() async {
@@ -3963,7 +3956,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final google = GoogleSignIn(
         scopes: const ['email', 'profile'],
-        serverClientId: googleServerClientId,
+        serverClientId: googleAndroidClientId,
       );
       // Clear the previous Google account so every attempt can choose another account.
       await google.signOut();
@@ -4001,53 +3994,10 @@ class _AuthScreenState extends State<AuthScreen> {
       final result = await widget.api.loginWithGoogle(accessToken);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
-      final message = error.toString();
-      if (message.contains('10') ||
-          message.toUpperCase().contains('DEVELOPER_ERROR')) {
-        try {
-          await _continueWithGoogleOAuthFallback();
-        } catch (fallbackError) {
-          if (mounted) {
-            _show(fallbackError.toString().replaceFirst('Exception: ', ''));
-          }
-        }
-      } else if (mounted) {
-        _show(message.replaceFirst('Exception: ', ''));
-      }
+      if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => busy = false);
     }
-  }
-
-  Future<void> _continueWithGoogleOAuthFallback() async {
-    await Supabase.instance.client.auth.signOut();
-    final sessionEvent = Supabase.instance.client.auth.onAuthStateChange
-        .where((event) => event.session != null)
-        .first;
-    final launched = await Supabase.instance.client.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: googleOAuthRedirect,
-      authScreenLaunchMode: LaunchMode.externalApplication,
-    );
-    if (!launched) throw Exception('Google sign-in শুরু করা যায়নি');
-    final event = await sessionEvent.timeout(const Duration(minutes: 2));
-    final session = event.session;
-    final emailAddress = session?.user.email;
-    if (session == null ||
-        session.accessToken.isEmpty ||
-        emailAddress == null) {
-      throw Exception('Google session পাওয়া যায়নি');
-    }
-    if (register) {
-      googleAccessToken = session.accessToken;
-      email.text = emailAddress;
-      if (mounted) {
-        _show('Email verified। এখন registration-এর বাকি তথ্য পূরণ করুন');
-      }
-      return;
-    }
-    final result = await widget.api.loginWithGoogle(session.accessToken);
-    await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
   }
 
   void _show(String text) =>
