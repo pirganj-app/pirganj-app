@@ -278,7 +278,8 @@ class _PirganjAppState extends State<PirganjApp> {
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
     final cachedVersion = prefs.getString('pirganj_server_version');
-    final cachedVersionMatches = cachedVersion == appVersion;
+    final cachedVersionMatches = cachedVersion == appVersion ||
+        (cachedVersion == null && token != null && token.isNotEmpty);
     if (cachedVersionMatches && mounted) {
       setState(() => loading = false);
       unawaited(_loadRemoteStartupData());
