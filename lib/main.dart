@@ -231,6 +231,8 @@ const supabaseUrl = 'https://jhpgickyoauaxersolse.supabase.co';
 const supabasePublishableKey = 'sb_publishable_WvDaFoV1pw3Qn-siuxJNeQ_J0eXqXBk';
 const googleAndroidClientId =
     '132218583054-nm76rb9gav71imtunnl15nsrct85cp73.apps.googleusercontent.com';
+const googleWebClientId =
+    '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -3956,7 +3958,9 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final google = GoogleSignIn(
         scopes: const ['email', 'profile'],
-        serverClientId: googleAndroidClientId,
+        // GoogleSignIn requires the Web OAuth client as serverClientId.
+        // The Android client is configured by package name + SHA-1 in Google Cloud.
+        serverClientId: googleWebClientId,
       );
       // Clear the previous Google account so every attempt can choose another account.
       await google.signOut();
