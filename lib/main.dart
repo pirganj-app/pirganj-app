@@ -563,11 +563,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       Navigator.pop(context);
       return;
     }
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => PostDetailsPage(
-                api: widget.api, post: Map<String, dynamic>.from(item))));
+    openPostDetails(context: context, api: widget.api, post: item);
   }
 
   Future<void> refresh() async {
@@ -1287,14 +1283,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               'ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
                         }
                       },
-                      onOpen: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => PostDetailsPage(
-                                  api: api,
-                                  post: item,
-                                  onLogout: widget.onLogout,
-                                  onOpenOwnProfile: () => _switchTab(3)))),
+                      onOpen: () => openPostDetails(
+                          context: context,
+                          api: api,
+                          post: item,
+                          onLogout: widget.onLogout,
+                          onOpenOwnProfile: () => _switchTab(3)),
                       onReact: (reaction) async {
                         try {
                           final list = await api.togglePostReaction(
@@ -1845,6 +1839,23 @@ class _ReactionPicker extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> openPostDetails({
+  required BuildContext context,
+  required PirganjApiClient api,
+  required Map<String, dynamic> post,
+  Future<void> Function()? onLogout,
+  VoidCallback? onOpenOwnProfile,
+}) {
+  return Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => PostDetailsPage(
+              api: api,
+              post: Map<String, dynamic>.from(post),
+              onLogout: onLogout,
+              onOpenOwnProfile: onOpenOwnProfile)));
 }
 
 class PostDetailsPage extends StatefulWidget {
@@ -2561,13 +2572,11 @@ class _NotificationPageState extends State<NotificationPage> {
             .where((post) => (post['id'] ?? '').toString() == id)
             .toList();
         if (match.isNotEmpty && mounted) {
-          await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => PostDetailsPage(
-                      api: widget.api,
-                      post: Map<String, dynamic>.from(match.first),
-                      onOpenOwnProfile: widget.onOpenOwnProfile)));
+          await openPostDetails(
+              context: context,
+              api: widget.api,
+              post: Map<String, dynamic>.from(match.first),
+              onOpenOwnProfile: widget.onOpenOwnProfile);
         }
       } catch (_) {}
       return;
@@ -4189,13 +4198,11 @@ class _ProfilePanelState extends State<ProfilePanel> {
   bool profileLocked = false;
 
   void _openPostFromProfile(Map<String, dynamic> item) {
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => PostDetailsPage(
-                api: widget.api,
-                post: Map<String, dynamic>.from(item),
-                onLogout: widget.onLogout)));
+    openPostDetails(
+        context: context,
+        api: widget.api,
+        post: item,
+        onLogout: widget.onLogout);
   }
 
   @override
