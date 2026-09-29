@@ -6,6 +6,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/service_card.dart';
 
 class PirganjApiClient {
@@ -19,6 +20,7 @@ class PirganjApiClient {
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
   static const _imageBucket = 'pirganj-images';
+  static bool _profilePersistenceAvailable = true;
 
   String? get userId {
     try {
@@ -317,13 +319,39 @@ class PirganjApiClient {
 
   Future<List<dynamic>> getMyItems(
       {int limit = 100, int offset = 0, String? resource}) async {
-    final json = await _get(
-        Uri.parse('$baseUrl/api/profile/items').replace(queryParameters: {
-      'limit': '$limit',
-      'offset': '$offset',
-      if (resource != null) 'resource': resource,
-    }));
-    return List<dynamic>.from(json['data'] as List);
+    final cacheKey = 'pirganj_profile_items_${resource ?? 'all'}';
+    try {
+      final json = await _get(
+          Uri.parse('$baseUrl/api/profile/items').replace(queryParameters: {
+        'limit': '$limit',
+        'offset': '$offset',
+        if (resource != null) 'resource': resource,
+      }));
+      final items = List<dynamic>.from(json['data'] as List);
+      final prefs = await _profilePrefs();
+      if (prefs != null) await prefs.setString(cacheKey, jsonEncode(items));
+      return items;
+    } catch (error) {
+      final prefs = await _profilePrefs();
+      final cached = prefs?.getString(cacheKey);
+      if (cached != null) {
+        try {
+          return List<dynamic>.from(jsonDecode(cached) as List);
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  Future<SharedPreferences?> _profilePrefs() async {
+    if (!_profilePersistenceAvailable) return null;
+    try {
+      return await SharedPreferences.getInstance()
+          .timeout(const Duration(milliseconds: 500));
+    } catch (_) {
+      _profilePersistenceAvailable = false;
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>> updateItem(

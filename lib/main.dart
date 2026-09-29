@@ -277,18 +277,33 @@ class _PirganjAppState extends State<PirganjApp> {
     api.deviceId = deviceId;
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
-    try {
-      final response = await api.getVersion();
-      final data = response['data'];
-      updateRequired =
-          data is! Map || data['version']?.toString() != appVersion;
-    } catch (_) {
-      // Without an exact server version match the app stays blocked.
-      updateRequired = true;
-      versionCheckFailed = true;
+    final cachedVersion = prefs.getString('pirganj_server_version');
+    final cachedVersionMatches = cachedVersion == appVersion;
+    if (cachedVersionMatches && mounted) {
+      setState(() => loading = false);
+      unawaited(_loadRemoteStartupData());
     }
-    if (mounted) setState(() => loading = false);
-    if (!updateRequired) await _loadRemoteStartupData();
+    try {
+      final response =
+          await api.getVersion().timeout(const Duration(seconds: 5));
+      final data = response['data'];
+      final serverVersion = data is Map ? data['version']?.toString() : null;
+      updateRequired = serverVersion != appVersion;
+      if (serverVersion != null) {
+        await prefs.setString('pirganj_server_version', serverVersion);
+      }
+    } catch (_) {
+      // An already verified compatible install can continue offline. A fresh
+      // install still requires one successful version verification.
+      updateRequired = !cachedVersionMatches;
+      versionCheckFailed = !cachedVersionMatches;
+    }
+    if (mounted) {
+      setState(() => loading = false);
+      if (!updateRequired && !cachedVersionMatches) {
+        unawaited(_loadRemoteStartupData());
+      }
+    }
   }
 
   Future<void> _loadRemoteStartupData() async {
