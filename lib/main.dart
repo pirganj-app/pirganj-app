@@ -4722,18 +4722,29 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
                   child: Column(children: [
                 TextField(
                     controller: name,
-                    decoration: const InputDecoration(labelText: 'নাম')),
+                    decoration: const InputDecoration(
+                        labelText: 'নাম',
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 13))),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                     initialValue: sex,
-                    decoration: const InputDecoration(labelText: 'লিঙ্গ'),
+                    decoration: const InputDecoration(
+                        labelText: 'লিঙ্গ',
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 14, vertical: 13)),
                     items: const ['পুরুষ', 'নারী', 'অন্যান্য']
                         .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                         .toList(),
                     onChanged: (v) => setState(() => sex = v ?? sex)),
+                const SizedBox(height: 12),
                 TextField(
                     controller: address,
                     maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'ঠিকানা')),
+                    decoration: const InputDecoration(
+                        labelText: 'ঠিকানা',
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 13))),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                     onPressed: () async {
