@@ -829,6 +829,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<int> tabHistory = <int>[];
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
+  Map<String, dynamic>? inlinePostDetails;
   StreamSubscription<void>? pushEventSubscription;
   String category = 'সব';
 
@@ -907,6 +908,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   bool _goBackToPreviousTab() {
+    if (inlinePostDetails != null) {
+      setState(() => inlinePostDetails = null);
+      return true;
+    }
     if (tabHistory.isEmpty) return false;
     final previous = tabHistory.removeLast();
     setState(() {
@@ -1087,12 +1092,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ));
 
-  Widget _page() => switch (tab) {
-        0 => _home(),
-        1 => _community(),
-        2 => _add(),
-        _ => _more(),
-      };
+  Widget _page() => inlinePostDetails != null
+      ? PostDetailsPage(
+          api: api,
+          post: inlinePostDetails!,
+          onLogout: widget.onLogout,
+          onClose: () => setState(() => inlinePostDetails = null))
+      : switch (tab) {
+          0 => _home(),
+          1 => _community(),
+          2 => _add(),
+          _ => _more(),
+        };
 
   Widget _home() => RefreshIndicator(
         color: brand,
@@ -1393,6 +1404,7 @@ class _HomeScreenState extends State<HomeScreen> {
       key: ValueKey(profileRefreshToken),
       api: api,
       onLogout: widget.onLogout,
+      onOpenPost: (post) => setState(() => inlinePostDetails = post),
       refreshToken: profileRefreshToken);
 }
 
@@ -1853,10 +1865,12 @@ class PostDetailsPage extends StatefulWidget {
       required this.api,
       required this.post,
       this.onLogout,
-      this.onOpenOwnProfile});
+      this.onOpenOwnProfile,
+      this.onClose});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
   final VoidCallback? onOpenOwnProfile;
+  final VoidCallback? onClose;
   final Map<String, dynamic> post;
   @override
   State<PostDetailsPage> createState() => _PostDetailsPageState();
@@ -1893,7 +1907,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   void _openProfile(String? userId, String name, String? avatarUrl) {
     if (userId == null || userId.isEmpty) return;
     if (userId == widget.api.userId) {
-      Navigator.pop(context);
+      if (widget.onClose != null) {
+        widget.onClose!();
+      } else {
+        Navigator.pop(context);
+      }
       widget.onOpenOwnProfile?.call();
       return;
     }
@@ -2257,6 +2275,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(
+          leading: widget.onClose == null
+              ? null
+              : IconButton(
+                  onPressed: widget.onClose,
+                  icon: const Icon(Icons.arrow_back_rounded)),
           title: const Text('Post details'),
           backgroundColor: brand,
           foregroundColor: Colors.white),
@@ -4174,9 +4197,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
 class ProfilePanel extends StatefulWidget {
   const ProfilePanel(
-      {super.key, required this.api, this.onLogout, this.refreshToken = 0});
+      {super.key,
+      required this.api,
+      this.onLogout,
+      this.onOpenPost,
+      this.refreshToken = 0});
   final PirganjApiClient api;
   final Future<void> Function()? onLogout;
+  final ValueChanged<Map<String, dynamic>>? onOpenPost;
   final int refreshToken;
   @override
   State<ProfilePanel> createState() => _ProfilePanelState();
@@ -4189,6 +4217,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
   bool profileLocked = false;
 
   void _openPostFromProfile(Map<String, dynamic> item) {
+    if (widget.onOpenPost != null) {
+      widget.onOpenPost!(item);
+      return;
+    }
     Navigator.push(
         context,
         MaterialPageRoute(
