@@ -190,9 +190,10 @@ class PirganjApiClient {
   Future<Map<String, dynamic>> getOverview() =>
       _get(Uri.parse('$baseUrl/api/overview'));
 
-  Future<List<dynamic>> getNotifications({int limit = 50}) async {
+  Future<List<dynamic>> getNotifications(
+      {int limit = 50, int offset = 0}) async {
     final json = await _get(Uri.parse('$baseUrl/api/notifications')
-        .replace(queryParameters: {'limit': '$limit'}));
+        .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'}));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -274,7 +275,8 @@ class PirganjApiClient {
           'profileImage', profileImage.path,
           filename: profileImage.name, contentType: _imageType(profileImage)));
     }
-    return _decode(await http.Response.fromStream(await request.send()));
+    return _decode(await http.Response.fromStream(
+        await request.send().timeout(_requestTimeout)));
   }
 
   Future<Map<String, dynamic>> me() => _get(Uri.parse('$baseUrl/api/auth/me'));
@@ -454,7 +456,8 @@ class PirganjApiClient {
     request.files.add(await http.MultipartFile.fromPath(
         'profileImage', profileImage.path,
         filename: profileImage.name, contentType: _imageType(profileImage)));
-    return _decode(await http.Response.fromStream(await request.send()));
+    return _decode(await http.Response.fromStream(
+        await request.send().timeout(_requestTimeout)));
   }
 
   Future<Map<String, dynamic>> uploadImage(XFile image,
@@ -496,10 +499,21 @@ class PirganjApiClient {
   }
 
   Map<String, dynamic> _decode(http.Response response) {
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode >= 400 || json['success'] != true)
+    Map<String, dynamic> json;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) {
+        throw const FormatException('Invalid API envelope');
+      }
+      json = Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      throw HttpException(
+          'Server returned an invalid response (${response.statusCode})');
+    }
+    if (response.statusCode >= 400 || json['success'] != true) {
       throw Exception(
           (json['data'] as Map?)?['message'] ?? 'Pirganj API request failed');
+    }
     return json;
   }
 }

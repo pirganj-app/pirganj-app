@@ -20,7 +20,7 @@ const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
 const maxImageBytes = 2 * 1024 * 1024;
-const appVersion = '1.0.0';
+const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
 const apkDownloadUrl = 'https://pirganj-app.netlify.app/apk';
 
 Future<void> dialPhone(BuildContext context, String? value) async {
@@ -83,8 +83,9 @@ String? _mapImageUrl(Map<String, dynamic> item,
 IconData _serviceCategoryIcon(String category) {
   if (category.contains('হাসপাতাল')) return Icons.local_hospital_rounded;
   if (category.contains('ফার্মেসি')) return Icons.local_pharmacy_rounded;
-  if (category.contains('স্কুল') || category.contains('কলেজ'))
+  if (category.contains('স্কুল') || category.contains('কলেজ')) {
     return Icons.school_rounded;
+  }
   if (category.contains('ডাক্তার')) return Icons.medical_services_rounded;
   return Icons.storefront_rounded;
 }
@@ -110,18 +111,21 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
     setState(() => saving = true);
     try {
       final response = await http.get(Uri.parse(widget.url));
-      if (response.statusCode < 200 || response.statusCode >= 300)
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('download failed');
+      }
       final granted = await Gal.requestAccess(toAlbum: true);
       if (!granted) throw Exception('gallery permission denied');
       await Gal.putImageBytes(response.bodyBytes, album: 'Pirganj');
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('ছবি Pirganj ফোল্ডারে সেভ হয়েছে')));
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('ছবি ডাউনলোড করা যায়নি')));
+      }
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -186,17 +190,19 @@ Future<XFile?> pickImageUnderLimit(BuildContext context) async {
           minWidth: settings.width,
           minHeight: settings.width,
           format: CompressFormat.jpeg);
-      if (compressed != null && await compressed.length() <= maxImageBytes)
+      if (compressed != null && await compressed.length() <= maxImageBytes) {
         break;
+      }
     } catch (_) {
       compressed = null;
     }
   }
   final selected = compressed ?? image;
   if (await selected.length() > maxImageBytes) {
-    if (context.mounted)
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ছবিটি প্রস্তুত করা যায়নি')));
+    }
     return null;
   }
   return selected;
@@ -277,7 +283,7 @@ class _PirganjAppState extends State<PirganjApp> {
       versionCheckFailed = true;
     }
     if (mounted) setState(() => loading = false);
-    if (!updateRequired && !versionCheckFailed) _loadRemoteStartupData();
+    if (!updateRequired) _loadRemoteStartupData();
   }
 
   Future<void> _loadRemoteStartupData() async {
@@ -351,7 +357,7 @@ class _PirganjAppState extends State<PirganjApp> {
         ),
         home: loading
             ? const _SplashScreen()
-            : updateRequired || versionCheckFailed
+            : updateRequired
                 ? UpdateRequiredPage(
                     versionCheckFailed: versionCheckFailed,
                     onRetry: () {
@@ -493,8 +499,9 @@ class _AboutPageState extends State<AboutPage> {
       body: FutureBuilder<String>(
           future: html,
           builder: (_, snap) {
-            if (snap.connectionState == ConnectionState.waiting)
+            if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: _SkeletonBox(height: 240, radius: 20));
+            }
             final content = snap.data ?? '';
             return WebViewWidget(
                 controller: WebViewController()
@@ -561,7 +568,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           child: FutureBuilder<Map<String, dynamic>>(
               future: future,
               builder: (_, snap) {
-                if (snap.hasError)
+                if (snap.hasError) {
                   return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(24),
@@ -576,7 +583,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                             icon: const Icon(Icons.refresh_rounded),
                             label: const Text('আবার চেষ্টা করুন'))
                       ]);
-                if (!snap.hasData)
+                }
+                if (!snap.hasData) {
                   return ListView(
                       padding: const EdgeInsets.all(16),
                       children: const [
@@ -586,6 +594,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                         SizedBox(height: 12),
                         _SkeletonBox(height: 120, radius: 20)
                       ]);
+                }
                 final user =
                     Map<String, dynamic>.from(snap.data!['user'] as Map? ?? {});
                 final items = List<dynamic>.from(
@@ -1211,7 +1220,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (postsLoading && posts.isEmpty)
                 const Padding(
                     padding: EdgeInsets.all(30),
-                    child: Column(children: const [
+                    child: Column(children: [
                       _SkeletonBox(height: 92, radius: 20),
                       SizedBox(height: 12),
                       _SkeletonBox(height: 150, radius: 20),
@@ -1901,9 +1910,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('React করা যায়নি: $e')));
+      }
     }
   }
 
@@ -1971,12 +1981,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       final added = Map<String, dynamic>.from(response['data'] as Map);
       comment.clear();
       replyingTo = null;
-      if (mounted)
-        setState(() => commentsFuture = Future.value([added, ...current]));
+      if (mounted) {
+        setState(() => commentsFuture =
+            Future.value(orderedComments([...current, added])));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Comment করা যায়নি: $e')));
+      }
     } finally {
       if (mounted) setState(() => sending = false);
     }
@@ -1987,9 +2000,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       await widget.api.toggleCommentReaction(commentId, reaction: reaction);
       if (mounted) setState(_reload);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Comment react করা যায়নি: $e')));
+      }
     }
   }
 
@@ -2016,9 +2030,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       await widget.api.updateComment(item['id'].toString(), result);
       if (mounted) setState(_reload);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Comment update হয়নি: $e')));
+      }
     }
   }
 
@@ -2027,9 +2042,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       await widget.api.deleteComment(item['id'].toString());
       if (mounted) setState(_reload);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Comment delete হয়নি: $e')));
+      }
     }
   }
 
@@ -2255,12 +2271,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                       FutureBuilder<List<dynamic>>(
                           future: commentsFuture,
                           builder: (_, snap) {
-                            if (snap.connectionState == ConnectionState.waiting)
+                            if (snap.connectionState ==
+                                ConnectionState.waiting) {
                               return const Center(
                                   child: _SkeletonBox(height: 92, radius: 18));
+                            }
                             final list = snap.data ?? [];
-                            if (list.isEmpty)
+                            if (list.isEmpty) {
                               return const Text('এখনো কোনো comment নেই');
+                            }
                             return Column(
                                 children: orderedComments(list)
                                     .map(commentTile)
@@ -2433,6 +2452,8 @@ class NotificationPage extends StatefulWidget {
 
 class _NotificationPageState extends State<NotificationPage> {
   late Future<List<dynamic>> notificationsFuture;
+  bool loadingMore = false;
+  bool hasMore = true;
 
   @override
   void initState() {
@@ -2441,7 +2462,27 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   void _reload() {
+    loadingMore = false;
+    hasMore = true;
     notificationsFuture = widget.api.getNotifications();
+  }
+
+  Future<void> _loadMore() async {
+    if (loadingMore || !hasMore) return;
+    setState(() => loadingMore = true);
+    try {
+      final current = await notificationsFuture;
+      final next =
+          await widget.api.getNotifications(limit: 50, offset: current.length);
+      if (!mounted) return;
+      setState(() {
+        notificationsFuture = Future.value([...current, ...next]);
+        hasMore = next.length == 50;
+        loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => loadingMore = false);
+    }
   }
 
   String _time(dynamic raw) {
@@ -2554,41 +2595,59 @@ class _NotificationPageState extends State<NotificationPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-      backgroundColor: page,
-      appBar: AppBar(
-          title: const Text('নোটিফিকেশন'),
-          backgroundColor: brand,
-          foregroundColor: Colors.white,
-          actions: [
-            TextButton(
-                onPressed: _markAll,
-                child: const Text('সব পড়া',
-                    style: TextStyle(color: Colors.white))),
-            IconButton(
-                onPressed: _deleteAll,
-                tooltip: 'সব মুছুন',
-                icon: const Icon(Icons.delete_sweep_rounded))
-          ]),
-      body: FutureBuilder<List<dynamic>>(
-          future: notificationsFuture,
-          builder: (_, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting)
-              return const Center(child: _SkeletonBox(height: 92, radius: 18));
-            if (snapshot.hasError)
-              return const Center(
-                  child: Text(
-                      'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'));
-            final items = snapshot.data ?? const <dynamic>[];
-            if (items.isEmpty)
-              return const Center(child: Text('এখনো কোনো নোটিফিকেশন নেই'));
-            return RefreshIndicator(
+        backgroundColor: page,
+        appBar: AppBar(
+            title: const Text('নোটিফিকেশন'),
+            backgroundColor: brand,
+            foregroundColor: Colors.white,
+            actions: [
+              TextButton(
+                  onPressed: _markAll,
+                  child: const Text('সব পড়া',
+                      style: TextStyle(color: Colors.white))),
+              IconButton(
+                  onPressed: _deleteAll,
+                  tooltip: 'সব মুছুন',
+                  icon: const Icon(Icons.delete_sweep_rounded))
+            ]),
+        body: FutureBuilder<List<dynamic>>(
+            future: notificationsFuture,
+            builder: (_, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                    child: _SkeletonBox(height: 92, radius: 18));
+              }
+              if (snapshot.hasError) {
+                return const Center(
+                    child: Text(
+                        'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'));
+              }
+              final items = snapshot.data ?? const <dynamic>[];
+              if (items.isEmpty) {
+                return const Center(child: Text('এখনো কোনো নোটিফিকেশন নেই'));
+              }
+              return RefreshIndicator(
                 color: brand,
                 onRefresh: () async => setState(_reload),
-                child: ListView.separated(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification.metrics.pixels >=
+                        notification.metrics.maxScrollExtent - 240) {
+                      _loadMore();
+                    }
+                    return false;
+                  },
+                  child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
-                    itemCount: items.length,
+                    itemCount: items.length + (loadingMore ? 1 : 0),
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, index) {
+                      if (index >= items.length) {
+                        return const Center(
+                            child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator()));
+                      }
                       final item = Map<String, dynamic>.from(items[index]);
                       final avatar = item['actorAvatarUrl']?.toString() ?? '';
                       return Material(
@@ -2649,8 +2708,12 @@ class _NotificationPageState extends State<NotificationPage> {
                                               child: Icon(Icons.circle,
                                                   color: brand, size: 9))
                                       ]))));
-                    }));
-          }));
+                    },
+                  ),
+                ),
+              );
+            }),
+      );
 }
 
 class NoticePage extends StatefulWidget {
@@ -2674,8 +2737,9 @@ class _NoticePageState extends State<NoticePage> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => EntrySheet(kind: 'notice', api: widget.api));
-    if (result == true && mounted)
+    if (result == true && mounted) {
       setState(() => future = widget.api.getNotices());
+    }
   }
 
   @override
@@ -2700,11 +2764,12 @@ class _NoticePageState extends State<NoticePage> {
           child: FutureBuilder<List<dynamic>>(
               future: future,
               builder: (_, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                       child: _SkeletonBox(height: 92, radius: 18));
+                }
                 final data = snapshot.data ?? [];
-                if (data.isEmpty)
+                if (data.isEmpty) {
                   return ListView(children: [
                     const Padding(
                         padding: EdgeInsets.all(20),
@@ -2715,6 +2780,7 @@ class _NoticePageState extends State<NoticePage> {
                             icon: Icons.add,
                             onTap: _add))
                   ]);
+                }
                 return ListView(
                     padding: const EdgeInsets.all(17),
                     children: data
@@ -2835,7 +2901,9 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
           child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
               if (notification.metrics.pixels >=
-                  notification.metrics.maxScrollExtent - 400) _load();
+                  notification.metrics.maxScrollExtent - 400) {
+                _load();
+              }
               return false;
             },
             child: ListView(
@@ -3180,15 +3248,17 @@ class HomeBloodSection extends StatelessWidget {
         FutureBuilder<List<List<dynamic>>>(
           future: future,
           builder: (_, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting)
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
                   child: Padding(
                       padding: EdgeInsets.all(20),
                       child: _SkeletonBox(height: 92, radius: 18)));
-            if (snapshot.hasError)
+            }
+            if (snapshot.hasError) {
               return const _EmptyCard(
                   text:
                       'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।');
+            }
             final donors = snapshot.data?[0] ?? <dynamic>[];
             final requests = snapshot.data?[1] ?? <dynamic>[];
             final cards = <Widget>[
@@ -3197,8 +3267,9 @@ class HomeBloodSection extends StatelessWidget {
               ...requests.map((item) =>
                   _TopicCard(topic: 1, data: Map<String, dynamic>.from(item))),
             ];
-            if (cards.isEmpty)
+            if (cards.isEmpty) {
               return const _EmptyCard(text: 'এখনো কোনো রক্তের তথ্য যোগ হয়নি');
+            }
             return Column(children: cards);
           },
         ),
@@ -3307,10 +3378,12 @@ class _EmergencyPageState extends State<EmergencyPage> {
                   child: FutureBuilder<List<dynamic>>(
                       future: future,
                       builder: (_, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting)
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const Center(
                               child: _SkeletonBox(height: 92, radius: 18));
-                        if (snapshot.hasError)
+                        }
+                        if (snapshot.hasError) {
                           return ListView(children: const [
                             Padding(
                                 padding: EdgeInsets.all(24),
@@ -3318,14 +3391,16 @@ class _EmergencyPageState extends State<EmergencyPage> {
                                     text:
                                         'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'))
                           ]);
+                        }
                         final data = snapshot.data ?? [];
-                        if (data.isEmpty)
+                        if (data.isEmpty) {
                           return ListView(children: const [
                             Padding(
                                 padding: EdgeInsets.all(24),
                                 child:
                                     _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি'))
                           ]);
+                        }
                         return ListView(
                             padding: const EdgeInsets.fromLTRB(10, 12, 10, 28),
                             children: data
@@ -3451,8 +3526,9 @@ class _EntrySheetState extends State<EntrySheet> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialCategory != null)
+    if (widget.initialCategory != null) {
       values['category'] = widget.initialCategory!;
+    }
     _loadAccountName();
   }
 
@@ -3461,8 +3537,9 @@ class _EntrySheetState extends State<EntrySheet> {
       final response = await widget.api.me();
       final data = response['data'];
       final user = data is Map ? data['user'] : null;
-      if (mounted && user is Map)
+      if (mounted && user is Map) {
         setState(() => accountName = user['name']?.toString() ?? accountName);
+      }
     } catch (_) {}
   }
 
@@ -3485,8 +3562,9 @@ class _EntrySheetState extends State<EntrySheet> {
                 ? null
                 : () async {
                     final selected = await pickImageUnderLimit(context);
-                    if (selected != null && mounted)
+                    if (selected != null && mounted) {
                       setState(() => postImage = selected);
+                    }
                   },
             icon: Icon(postImage == null
                 ? Icons.add_photo_alternate_rounded
@@ -3558,7 +3636,7 @@ class _EntrySheetState extends State<EntrySheet> {
       Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: DropdownButtonFormField<String>(
-              value: values[key],
+              initialValue: values[key],
               isExpanded: true,
               decoration: decoration(required ? '$label *' : label),
               items: options
@@ -3666,9 +3744,10 @@ class _EntrySheetState extends State<EntrySheet> {
       }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('যোগ করা যায়নি: $error')));
+      }
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -3883,16 +3962,18 @@ class _AuthScreenState extends State<AuthScreen> {
       if (selected == null) return;
       final auth = await selected.authentication;
       final idToken = auth.idToken;
-      if (idToken == null || idToken.isEmpty)
+      if (idToken == null || idToken.isEmpty) {
         throw Exception('Google token পাওয়া যায়নি');
+      }
       final response = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: auth.accessToken,
       );
       final accessToken = response.session?.accessToken;
-      if (accessToken == null || accessToken.isEmpty)
+      if (accessToken == null || accessToken.isEmpty) {
         throw Exception('Supabase session পাওয়া যায়নি');
+      }
       final verifiedEmail = response.user?.email;
       if (verifiedEmail == null ||
           verifiedEmail.isEmpty ||
@@ -4009,8 +4090,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           : () async {
                               final selected =
                                   await pickImageUnderLimit(context);
-                              if (selected != null && mounted)
+                              if (selected != null && mounted) {
                                 setState(() => profileImage = selected);
+                              }
                             },
                       icon: Icon(profileImage == null
                           ? Icons.add_a_photo_rounded
@@ -4099,7 +4181,9 @@ class _ProfilePanelState extends State<ProfilePanel> {
       final user = payload is Map ? payload['user'] : null;
       if (user is! Map ||
           (!user.containsKey('profileLocked') &&
-              !user.containsKey('profile_locked'))) return;
+              !user.containsKey('profile_locked'))) {
+        return;
+      }
       final locked =
           user['profileLocked'] == true || user['profile_locked'] == true;
       if (mounted && profileLocked != locked) {
@@ -4132,12 +4216,15 @@ class _ProfilePanelState extends State<ProfilePanel> {
       Icons.description_rounded;
   String itemTitle(Map<String, dynamic> item) {
     final r = item['resource']?.toString() ?? '';
-    if (r == 'donors')
+    if (r == 'donors') {
       return '${item['name'] ?? 'রক্তদাতা'} · ${item['group'] ?? ''}';
-    if (r == 'blood_requests')
+    }
+    if (r == 'blood_requests') {
       return '${item['patientName'] ?? 'রক্তের অনুরোধ'} · ${item['group'] ?? ''}';
-    if (r == 'jobs')
+    }
+    if (r == 'jobs') {
       return '${item['title'] ?? 'চাকরি'} · ${item['company'] ?? ''}';
+    }
     return item['title']?.toString() ?? item['name']?.toString() ?? 'আমার তথ্য';
   }
 
@@ -4146,8 +4233,9 @@ class _ProfilePanelState extends State<ProfilePanel> {
     if (r == 'donors') return item['area'] ?? 'এলাকা দেওয়া হয়নি';
     if (r == 'blood_requests') return item['hospital'] ?? '';
     if (r == 'jobs') return item['location'] ?? 'স্থান দেওয়া হয়নি';
-    if (r == 'services')
+    if (r == 'services') {
       return '${item['category'] ?? ''}  •  ${item['location'] ?? ''}';
+    }
     return resourceLabel(r);
   }
 
@@ -4167,6 +4255,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
 
   Future<void> editProfile() async {
     final current = await userFuture;
+    if (!mounted) return;
     final payload = current['data'];
     final user = payload is Map
         ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
@@ -4195,9 +4284,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
           clearAvatar: result['removeAvatar'] == true);
       if (mounted) setState(_reload);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Profile update হয়নি: $e')));
+      }
     }
   }
 
@@ -4222,9 +4312,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
           .deleteItem(item['resource'].toString(), item['id'].toString());
       if (mounted) setState(_reload);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('মুছতে পারিনি: $e')));
+      }
     }
   }
 
@@ -4248,9 +4339,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
           item['resource'].toString(), item['id'].toString(), result);
       if (mounted) setState(_reload);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('আপডেট করা যায়নি: $e')));
+      }
     }
   }
 
@@ -4276,9 +4368,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
       await widget.api.deleteAccount();
       if (mounted && widget.onLogout != null) await widget.onLogout!();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Account delete হয়নি: $e')));
+      }
     }
   }
 
@@ -4287,11 +4380,12 @@ class _ProfilePanelState extends State<ProfilePanel> {
         .map((raw) => Map<String, dynamic>.from(raw))
         .where((item) => (item['resource']?.toString() == 'posts') == posts)
         .toList();
-    if (items.isEmpty)
+    if (items.isEmpty) {
       return _EmptyCard(
           text: posts
               ? 'আপনি এখনো কোনো পোস্ট করেননি'
               : 'অন্য কোনো তথ্য যোগ করা হয়নি');
+    }
     return Column(
         children: items.map((item) {
       final r = item['resource']?.toString() ?? '';
@@ -4327,15 +4421,17 @@ class _ProfilePanelState extends State<ProfilePanel> {
                 FutureBuilder<Map<String, dynamic>>(
                     future: userFuture,
                     builder: (_, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting)
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _ProfileHeaderSkeleton();
-                      if (snapshot.hasError)
+                      }
+                      if (snapshot.hasError) {
                         return const _ProfileHeader(
                             name: 'প্রোফাইল পাওয়া যায়নি',
                             email: '',
                             phone: '',
                             address: 'আবার চেষ্টা করুন',
                             onEdit: null);
+                      }
                       final payload = snapshot.data?['data'];
                       final user = payload is Map
                           ? Map<String, dynamic>.from(
@@ -4369,12 +4465,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
                 FutureBuilder<List<dynamic>>(
                     future: itemsFuture,
                     builder: (_, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting)
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _ProfileListSkeleton();
-                      if (snapshot.hasError)
+                      }
+                      if (snapshot.hasError) {
                         return _EmptyCard(
                             text:
                                 'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।');
+                      }
                       final all = snapshot.data ?? [];
                       return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -4977,11 +5075,12 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
         OutlinedButton.icon(
             onPressed: () async {
               final selected = await pickImageUnderLimit(context);
-              if (selected != null)
+              if (selected != null) {
                 setState(() {
                   postImage = selected;
                   removePostImage = false;
                 });
+              }
             },
             icon: const Icon(Icons.image_rounded),
             label: Text(postImage == null
