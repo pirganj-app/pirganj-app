@@ -4197,12 +4197,23 @@ class _ProfilePanelState extends State<ProfilePanel> {
   late Future<List<dynamic>> itemsFuture;
   bool profileLocked = false;
 
-  void _openPostFromProfile(Map<String, dynamic> item) {
-    openPostDetails(
-        context: context,
-        api: widget.api,
-        post: item,
-        onLogout: widget.onLogout);
+  Future<void> _openPostFromProfile(Map<String, dynamic> item) async {
+    final postId = item['id']?.toString();
+    if (postId == null || postId.isEmpty) return;
+    try {
+      final post = await widget.api.getPost(postId);
+      if (!mounted) return;
+      await openPostDetails(
+          context: context,
+          api: widget.api,
+          post: post,
+          onLogout: widget.onLogout);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('পোস্টের বিস্তারিত আনা যায়নি: $error')));
+      }
+    }
   }
 
   @override

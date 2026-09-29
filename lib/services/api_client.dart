@@ -121,6 +121,11 @@ class PirganjApiClient {
     return List<dynamic>.from(json['data'] as List);
   }
 
+  Future<Map<String, dynamic>> getPost(String postId) async {
+    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId'));
+    return Map<String, dynamic>.from(json['data'] as Map);
+  }
+
   Future<List<dynamic>> getComments(String postId,
       {int limit = 50, int offset = 0}) async {
     final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/comments')
