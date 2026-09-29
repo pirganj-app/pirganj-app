@@ -229,6 +229,9 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
 
 const supabaseUrl = 'https://jhpgickyoauaxersolse.supabase.co';
 const supabasePublishableKey = 'sb_publishable_WvDaFoV1pw3Qn-siuxJNeQ_J0eXqXBk';
+const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID',
+    defaultValue:
+        '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -273,17 +276,23 @@ class _PirganjAppState extends State<PirganjApp> {
     api.deviceId = deviceId;
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
+    if (mounted) setState(() => loading = false);
+    // Do not hold the splash screen on a cold Render request. Version and
+    // optional announcement checks run safely in the background.
+    unawaited(_checkVersion());
+    unawaited(_loadRemoteStartupData());
+  }
+
+  Future<void> _checkVersion() async {
     try {
       final response = await api.getVersion();
       final data = response['data'];
-      updateRequired =
-          data is! Map || data['version']?.toString() != appVersion;
+      if (!mounted) return;
+      setState(() => updateRequired =
+          data is! Map || data['version']?.toString() != appVersion);
     } catch (_) {
-      // Network failure is a no-internet state, never a version mismatch.
-      versionCheckFailed = true;
+      if (mounted) setState(() => versionCheckFailed = true);
     }
-    if (mounted) setState(() => loading = false);
-    if (!updateRequired) _loadRemoteStartupData();
   }
 
   Future<void> _loadRemoteStartupData() async {
@@ -3953,8 +3962,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final google = GoogleSignIn(
         scopes: const ['email', 'profile'],
-        serverClientId:
-            '132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com',
+        serverClientId: googleServerClientId,
       );
       // Clear the previous Google account so every attempt can choose another account.
       await google.signOut();
@@ -3965,6 +3973,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (idToken == null || idToken.isEmpty) {
         throw Exception('Google token পাওয়া যায়নি');
       }
+      await Supabase.instance.client.auth.signOut();
       final response = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
