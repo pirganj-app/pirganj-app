@@ -1067,10 +1067,16 @@ class _HomeScreenState extends State<HomeScreen> {
             _HeroCard(onTap: () => _switchTab(2)),
             const SizedBox(height: 16),
             _SearchBox(controller: searchController, onSearch: _runSearch),
-            const SizedBox(height: 24),
-            const Text('জনপ্রিয় সেবা',
-                style: TextStyle(
-                    fontSize: 23, fontWeight: FontWeight.w800, color: ink)),
+            const SizedBox(height: 18),
+            const Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Text('জনপ্রিয় সেবা',
+                        style: TextStyle(
+                            fontSize: 23,
+                            fontWeight: FontWeight.w800,
+                            color: ink)))),
             const SizedBox(height: 12),
             GridView.count(
               shrinkWrap: true,
