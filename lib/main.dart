@@ -1972,7 +1972,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       comment.clear();
       replyingTo = null;
       if (mounted)
-        setState(() => commentsFuture = Future.value([...current, added]));
+        setState(() => commentsFuture = Future.value([added, ...current]));
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context)
@@ -4766,6 +4766,15 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
                     label: Text(avatarImage == null
                         ? 'Profile picture বদলান'
                         : 'New profile picture selected')),
+                if (avatarImage != null) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.file(File(avatarImage!.path),
+                          width: double.infinity,
+                          height: 150,
+                          fit: BoxFit.cover)),
+                ],
                 if (widget.hasAvatar)
                   TextButton.icon(
                       onPressed: () => setState(() {
@@ -4948,6 +4957,23 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
   }
 
   Widget postImageEditor() => Column(children: [
+        if (postImage != null) ...[
+          ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.file(File(postImage!.path),
+                  width: double.infinity, height: 150, fit: BoxFit.cover)),
+          const SizedBox(height: 10),
+        ] else if (!removePostImage &&
+            (widget.item['imageUrl']?.toString() ?? '').isNotEmpty) ...[
+          ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(widget.item['imageUrl'].toString(),
+                  width: double.infinity,
+                  height: 150,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink())),
+          const SizedBox(height: 10),
+        ],
         OutlinedButton.icon(
             onPressed: () async {
               final selected = await pickImageUnderLimit(context);
