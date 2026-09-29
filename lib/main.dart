@@ -807,6 +807,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool postsLoading = false;
   bool postsLoadingMore = false;
   bool postsHasMore = true;
+  String? postsBeforeCursor;
   Object? postsError;
   int tab = 0;
   final List<int> tabHistory = <int>[];
@@ -845,6 +846,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (refresh) {
       posts.clear();
       postsHasMore = true;
+      postsBeforeCursor = null;
       postsError = null;
       postsLoading = true;
     } else {
@@ -852,10 +854,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (mounted) setState(() {});
     try {
-      final batch = await api.getPosts(limit: 5, offset: posts.length);
+      final batch = await api.getPosts(
+          limit: 5, offset: posts.length, before: postsBeforeCursor);
       if (mounted) {
         posts.addAll(batch);
         postsHasMore = batch.length == 5;
+        if (batch.isNotEmpty) {
+          postsBeforeCursor = (batch.last as Map?)?['createdAt']?.toString();
+        }
         postsError = null;
       }
     } catch (error) {

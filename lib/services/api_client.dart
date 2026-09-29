@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/service_card.dart';
 
 class PirganjApiClient {
@@ -107,12 +108,13 @@ class PirganjApiClient {
   void clearServiceCache() => _serviceCache.clear();
 
   Future<List<dynamic>> getPosts(
-      {String? tag, int limit = 20, int offset = 0}) async {
+      {String? tag, int limit = 20, int offset = 0, String? before}) async {
     final json =
         await _get(Uri.parse('$baseUrl/api/posts').replace(queryParameters: {
       if (tag != null) 'tag': tag,
       'limit': '$limit',
       'offset': '$offset',
+      if (before != null && before.isNotEmpty) 'before': before,
     }));
     return List<dynamic>.from(json['data'] as List);
   }
@@ -472,12 +474,13 @@ class PirganjApiClient {
 
   Future<Map<String, dynamic>> uploadImage(XFile image,
       {required String kind}) async {
+    final optimized = await _optimizeImage(image);
     try {
-      final mimeType = image.mimeType ?? 'image/jpeg';
+      final mimeType = optimized.mimeType ?? 'image/webp';
       final signedResponse = await _post('/uploads/signed', {
         'kind': kind,
         'mimeType': mimeType,
-        'fileName': image.name,
+        'fileName': optimized.name,
       });
       final signed = Map<String, dynamic>.from(signedResponse['data'] as Map);
       await Supabase.instance.client.storage
@@ -485,7 +488,7 @@ class PirganjApiClient {
           .uploadToSignedUrl(
             signed['path'].toString(),
             signed['token'].toString(),
-            File(image.path),
+            File(optimized.path),
             FileOptions(
                 contentType: mimeType, upsert: false, cacheControl: '31536000'),
           );
@@ -494,7 +497,27 @@ class PirganjApiClient {
         'data': {'path': signed['path'], 'url': signed['url']}
       };
     } catch (_) {
-      return _uploadImageMultipart(image, kind: kind);
+      return _uploadImageMultipart(optimized, kind: kind);
+    }
+  }
+
+  Future<XFile> _optimizeImage(XFile image) async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final target =
+          '${directory.path}/pirganj_${DateTime.now().microsecondsSinceEpoch}.webp';
+      final compressed = await FlutterImageCompress.compressWithFile(
+        image.path,
+        minWidth: 1280,
+        minHeight: 1280,
+        quality: 82,
+        format: CompressFormat.webp,
+      );
+      if (compressed == null || compressed.isEmpty) return image;
+      final file = await File(target).writeAsBytes(compressed, flush: true);
+      return XFile(file.path, name: 'upload.webp', mimeType: 'image/webp');
+    } catch (_) {
+      return image;
     }
   }
 
