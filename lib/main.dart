@@ -553,7 +553,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
   late Future<Map<String, dynamic>> future =
       widget.api.getPublicProfile(widget.userId);
 
-  void _openExistingPost(Map<String, dynamic> item) {
+  Future<void> _openExistingPost(Map<String, dynamic> item) async {
     final originId = widget.originPost?['id']?.toString();
     final itemId = item['id']?.toString();
     // The profile was opened from this already-rendered post. Close only the
@@ -563,7 +563,17 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       Navigator.pop(context);
       return;
     }
-    openPostDetails(context: context, api: widget.api, post: item);
+    if (itemId == null || itemId.isEmpty) return;
+    try {
+      final post = await widget.api.getPost(itemId);
+      if (!mounted) return;
+      await openPostDetails(context: context, api: widget.api, post: post);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('পোস্টের বিস্তারিত আনা যায়নি। আবার চেষ্টা করুন।')));
+      }
+    }
   }
 
   Future<void> refresh() async {
