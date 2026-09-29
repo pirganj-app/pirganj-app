@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/service_card.dart';
 
 class PirganjApiClient {
@@ -16,6 +17,7 @@ class PirganjApiClient {
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
+  static const _imageBucket = 'pirganj-images';
 
   String? get userId {
     try {
@@ -115,8 +117,10 @@ class PirganjApiClient {
     return List<dynamic>.from(json['data'] as List);
   }
 
-  Future<List<dynamic>> getComments(String postId) async {
-    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/comments'));
+  Future<List<dynamic>> getComments(String postId,
+      {int limit = 50, int offset = 0}) async {
+    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/comments')
+        .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'}));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -309,8 +313,14 @@ class PirganjApiClient {
     await _delete('/auth/me');
   }
 
-  Future<List<dynamic>> getMyItems() async {
-    final json = await _get(Uri.parse('$baseUrl/api/profile/items'));
+  Future<List<dynamic>> getMyItems(
+      {int limit = 100, int offset = 0, String? resource}) async {
+    final json = await _get(
+        Uri.parse('$baseUrl/api/profile/items').replace(queryParameters: {
+      'limit': '$limit',
+      'offset': '$offset',
+      if (resource != null) 'resource': resource,
+    }));
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -461,6 +471,34 @@ class PirganjApiClient {
   }
 
   Future<Map<String, dynamic>> uploadImage(XFile image,
+      {required String kind}) async {
+    try {
+      final mimeType = image.mimeType ?? 'image/jpeg';
+      final signedResponse = await _post('/uploads/signed', {
+        'kind': kind,
+        'mimeType': mimeType,
+        'fileName': image.name,
+      });
+      final signed = Map<String, dynamic>.from(signedResponse['data'] as Map);
+      await Supabase.instance.client.storage
+          .from(_imageBucket)
+          .uploadToSignedUrl(
+            signed['path'].toString(),
+            signed['token'].toString(),
+            File(image.path),
+            FileOptions(
+                contentType: mimeType, upsert: false, cacheControl: '31536000'),
+          );
+      return {
+        'success': true,
+        'data': {'path': signed['path'], 'url': signed['url']}
+      };
+    } catch (_) {
+      return _uploadImageMultipart(image, kind: kind);
+    }
+  }
+
+  Future<Map<String, dynamic>> _uploadImageMultipart(XFile image,
       {required String kind}) async {
     final request =
         http.MultipartRequest('POST', Uri.parse('$baseUrl/api/uploads/image'));
