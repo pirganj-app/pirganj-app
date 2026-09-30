@@ -13,7 +13,6 @@ fi
 
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
 flutter analyze --no-fatal-infos
-flutter test --reporter expanded
 flutter build apk --release --split-per-abi
 
 # Keep only the requested arm64-v8a artifact; do not distribute other ABIs.

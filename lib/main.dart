@@ -363,13 +363,6 @@ class _PirganjAppState extends State<PirganjApp> {
     api.deviceId = deviceId;
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
-    final cachedVersion = prefs.getString('pirganj_server_version');
-    final cachedVersionMatches = cachedVersion == appVersion ||
-        (cachedVersion == null && token != null && token.isNotEmpty);
-    if (cachedVersionMatches && mounted) {
-      setState(() => loading = false);
-      unawaited(_loadRemoteStartupData());
-    }
     try {
       final response =
           await api.getVersion().timeout(const Duration(seconds: 5));
@@ -380,14 +373,13 @@ class _PirganjAppState extends State<PirganjApp> {
         await prefs.setString('pirganj_server_version', serverVersion);
       }
     } catch (_) {
-      // An already verified compatible install can continue offline. A fresh
-      // install still requires one successful version verification.
-      updateRequired = !cachedVersionMatches;
-      versionCheckFailed = !cachedVersionMatches;
+      // Production policy: the app must not open without a live connection.
+      updateRequired = true;
+      versionCheckFailed = true;
     }
     if (mounted) {
       setState(() => loading = false);
-      if (!updateRequired && !cachedVersionMatches) {
+      if (!updateRequired) {
         unawaited(_loadRemoteStartupData());
       }
     }
@@ -4769,13 +4761,15 @@ class _ProfileHeader extends StatelessWidget {
                 decoration: const BoxDecoration(
                     color: Color(0x33FFFFFF), shape: BoxShape.circle),
                 child: imageUrl == null
-                    ? Image.asset('assets/pirganj_logo.jpg', fit: BoxFit.cover)
+                    ? const Icon(Icons.person_rounded,
+                        size: 34, color: Colors.white)
                     : Image.network(imageUrl,
                         fit: BoxFit.cover,
                         cacheWidth: 256,
-                        errorBuilder: (_, __, ___) => Image.asset(
-                            'assets/pirganj_logo.jpg',
-                            fit: BoxFit.cover))),
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.person_rounded,
+                            size: 34,
+                            color: Colors.white))),
             const SizedBox(width: 14),
             Expanded(
                 child: Column(

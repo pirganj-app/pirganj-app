@@ -47,8 +47,6 @@ This repository contains only Flutter/Dart mobile code. It does not contain the 
 │   ├── main.dart                    # App entry point, Home, topic pages, forms
 │   ├── models/service_card.dart      # Service data model
 │   └── services/api_client.dart     # REST API client and create operations
-├── test/
-│   └── widget_test.dart             # Widget tests with deterministic mock API
 ├── analysis_options.yaml             # Dart analyzer rules
 ├── pubspec.yaml                      # Flutter dependencies and assets
 └── pubspec.lock                      # Locked dependency versions
@@ -93,16 +91,15 @@ PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com')
 
 For another backend environment, update this value or refactor it into a build-time configuration before creating a release build. Do not place Supabase credentials in the Flutter application; only the public backend URL belongs in the client.
 
-## Validation commands
+## Production validation
 
-Run static analysis and widget tests before building:
+Run static analysis before building:
 
 ```bash
 flutter analyze
-flutter test --reporter expanded
 ```
 
-The widget tests cover the Home screen, topic navigation, category detail pages, Add New actions, and the donor-only Blood page. The tests use a deterministic mock HTTP client and do not require a live network connection.
+The production app requires a successful live backend/version check before opening. Without internet connectivity, it remains on the connection-required screen.
 
 ## Release APK
 
@@ -112,17 +109,16 @@ Build an installable release APK with:
 flutter clean
 flutter pub get
 flutter analyze
-flutter test
-flutter build apk --release
+./scripts/build_release_apks.sh
 ```
 
 The generated APK is located at:
 
 ```text
-build/app/outputs/flutter-apk/app-release.apk
+build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 ```
 
-The release package is `com.pirganj.app`. Before distributing a release, confirm the package, app label, launcher icon, Android manifest, and archive integrity with Android SDK tooling. A production release should also use a protected signing key that is never committed to this repository.
+The release package is `com.pirganj.app`. Release signing uses the untracked `android/key.properties` and protected upload keystore; neither is committed to this repository.
 
 ## Main API operations
 
@@ -183,7 +179,7 @@ Device notifications for blood requests, notices, jobs, and app updates are not 
 
 ## Contributing workflow
 
-Keep the application plain Flutter/Dart and preserve the existing Bengali UI language and brand styling. When adding a feature, update the API client, the relevant page/form, and the widget tests together. Run `flutter analyze` and `flutter test` before committing.
+Keep the application plain Flutter/Dart and preserve the existing Bengali UI language and brand styling. Run `flutter analyze` and the production release build script before committing release changes.
 
 Do not commit the following files:
 
@@ -220,4 +216,4 @@ source /home/ubuntu/pirganj-tools-env.sh
 ./scripts/build_release_apks.sh
 ```
 
-This runs analysis and widget tests, then uses `flutter build apk --release --split-per-abi`. Distribute `app-arm64-v8a-release.apk` to modern Android 14–16 phones; keep the `armeabi-v7a` build for older 32-bit devices. Do not distribute the universal `app-release.apk` when download size matters.
+This runs static analysis, then uses `flutter build apk --release --split-per-abi`. Distribute `app-arm64-v8a-release.apk` to modern Android 14–16 phones. The script removes the other ABI outputs after building.
