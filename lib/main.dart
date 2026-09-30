@@ -23,6 +23,29 @@ const maxImageBytes = 2 * 1024 * 1024;
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
 const apkDownloadUrl = 'https://pirganj-app.netlify.app/apk';
 
+String friendlyMessage(Object error) {
+  final text = error.toString().replaceFirst('Exception: ', '');
+  if (error is SocketException ||
+      text.contains('Failed host lookup') ||
+      text.contains('Connection'))
+    return 'ইন্টারনেট সংযোগ নেই। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।';
+  if (text.contains('401') || text.contains('সঠিক নয়'))
+    return 'Email বা password সঠিক নয়।';
+  if (text.contains('blocked'))
+    return 'এই account admin দ্বারা সাময়িকভাবে বন্ধ করা হয়েছে।';
+  return text.isEmpty ? 'কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।' : text;
+}
+
+void showTopToast(BuildContext context, String message) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: const Color(0xFFE1F3EA),
+      content: Text(message,
+          style: const TextStyle(color: ink, fontWeight: FontWeight.w700))));
+}
+
 Future<void> dialPhone(BuildContext context, String? value) async {
   final phone = (value ?? '').replaceAll(RegExp(r'[^0-9+]'), '');
   if (phone.isEmpty) return;
@@ -78,6 +101,27 @@ String? _mapImageUrl(Map<String, dynamic> item,
     if (url != null) return url;
   }
   return null;
+}
+
+IconData _serviceIcon(String raw, String category) {
+  final value = raw.toLowerCase();
+  if (value.contains('hospital') || value.contains('হাসপাতাল'))
+    return Icons.local_hospital_rounded;
+  if (value.contains('pharmacy') || value.contains('ফার্মেসি'))
+    return Icons.local_pharmacy_rounded;
+  if (value.contains('school') || value.contains('স্কুল'))
+    return Icons.school_rounded;
+  if (value.contains('doctor') || value.contains('ডাক্তার'))
+    return Icons.medical_services_rounded;
+  if (value.contains('restaurant') || value.contains('রেস্টুরেন্ট'))
+    return Icons.restaurant_rounded;
+  if (value.contains('hotel') || value.contains('হোটেল'))
+    return Icons.hotel_rounded;
+  if (value.contains('office') || value.contains('অফিস'))
+    return Icons.account_balance_rounded;
+  if (value.contains('ambulance') || value.contains('অ্যাম্বুলেন্স'))
+    return Icons.emergency_rounded;
+  return _serviceCategoryIcon(category);
 }
 
 IconData _serviceCategoryIcon(String category) {
@@ -2437,7 +2481,9 @@ class _EmptyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
       elevation: 0,
-      child: Padding(padding: const EdgeInsets.all(18), child: Text(text)));
+      child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(child: Text(text, textAlign: TextAlign.center))));
 }
 
 class _NetworkErrorCard extends StatelessWidget {
@@ -2894,10 +2940,10 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
     if (mounted) setState(() {});
     try {
       final batch = await widget.api.getServices(
-          category: widget.category, limit: 10, offset: data.length);
+          category: widget.category, limit: 5, offset: data.length);
       if (mounted) {
         data.addAll(batch);
-        hasMore = batch.length == 10;
+        hasMore = batch.length == 5;
         error = null;
       }
     } catch (e) {
@@ -3011,8 +3057,17 @@ class _DetailedServiceCard extends StatelessWidget {
                   decoration: BoxDecoration(
                       color: const Color(0xFFFFE8E8),
                       borderRadius: BorderRadius.circular(18)),
-                  child: Icon(Icons.local_hospital_rounded,
-                      color: const Color(0xFFE45B5B), size: 33)),
+                  child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.network(_avatarUrl(item.imageUrl!)!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                  _serviceIcon(item.icon, item.category),
+                                  color: const Color(0xFFE45B5B),
+                                  size: 33)))
+                      : Icon(_serviceIcon(item.icon, item.category),
+                          color: const Color(0xFFE45B5B), size: 33)),
               const SizedBox(width: 15),
               Expanded(
                   child: Column(
@@ -3711,8 +3766,7 @@ class _EntrySheetState extends State<EntrySheet> {
       values[entry.key] = entry.value.text;
     }
     if (!valid()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('চিহ্নিত প্রয়োজনীয় ঘরগুলো পূরণ করুন')));
+      showTopToast(context, 'প্রয়োজনীয় তথ্য পূরণ করুন');
       return;
     }
     setState(() => saving = true);
@@ -3788,11 +3842,12 @@ class _EntrySheetState extends State<EntrySheet> {
               phone: values['phone'] ?? '',
               imageUrl: imageUrl);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('যোগ করা যায়নি: $error')));
+        showTopToast(context, friendlyMessage(error));
       }
     } finally {
       if (mounted) setState(() => saving = false);
@@ -4085,8 +4140,12 @@ class _AuthScreenState extends State<AuthScreen> {
                   controller: email,
                   keyboardType: TextInputType.emailAddress,
                   readOnly: register,
-                  decoration:
-                      dec(register ? 'Verified email' : 'Email address')),
+                  onTap: register && googleAccessToken == null
+                      ? _continueWithGoogle
+                      : null,
+                  decoration: dec(register
+                      ? 'Google email verify করতে এখানে tap করুন'
+                      : 'Email address')),
               const SizedBox(height: 11),
               if (register) ...[
                 TextField(
@@ -4633,15 +4692,13 @@ class _ProfileHeader extends StatelessWidget {
                 decoration: const BoxDecoration(
                     color: Color(0x33FFFFFF), shape: BoxShape.circle),
                 child: imageUrl == null
-                    ? const Icon(Icons.person_rounded,
-                        color: Colors.white, size: 35)
+                    ? Image.asset('assets/pirganj_logo.jpg', fit: BoxFit.cover)
                     : Image.network(imageUrl,
                         fit: BoxFit.cover,
                         cacheWidth: 256,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.person_rounded,
-                            color: Colors.white,
-                            size: 35))),
+                        errorBuilder: (_, __, ___) => Image.asset(
+                            'assets/pirganj_logo.jpg',
+                            fit: BoxFit.cover))),
             const SizedBox(width: 14),
             Expanded(
                 child: Column(

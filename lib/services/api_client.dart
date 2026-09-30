@@ -605,8 +605,10 @@ class PirganjApiClient {
           'Server returned an invalid response (${response.statusCode})');
     }
     if (response.statusCode >= 400 || json['success'] != true) {
-      throw Exception(
-          (json['data'] as Map?)?['message'] ?? 'Pirganj API request failed');
+      final message = (json['data'] as Map?)?['message']?.toString();
+      throw Exception(message == null || message.isEmpty
+          ? 'কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।'
+          : message);
     }
     return json;
   }
