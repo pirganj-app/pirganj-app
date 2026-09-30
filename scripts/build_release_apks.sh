@@ -18,7 +18,8 @@ flutter build apk --release --split-per-abi
 
 # Keep only the requested arm64-v8a artifact; do not distribute other ABIs.
 rm -f build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
-      build/app/outputs/flutter-apk/app-x86_64-release.apk
+      build/app/outputs/flutter-apk/app-x86_64-release.apk \
+      build/app/outputs/flutter-apk/app-*.sha1
 
 printf '\nGenerated Android 14–16 arm64 APK:\n'
 ls -lh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk

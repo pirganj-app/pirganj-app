@@ -1220,7 +1220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 23,
                             fontWeight: FontWeight.w800,
                             color: ink)))),
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -1353,7 +1353,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 14),
               if (postsLoading && posts.isEmpty)
                 const Padding(
-                    padding: EdgeInsets.all(30),
+                    padding: EdgeInsets.fromLTRB(8, 30, 8, 30),
                     child: Column(children: [
                       _SkeletonBox(height: 92, radius: 20),
                       SizedBox(height: 12),
