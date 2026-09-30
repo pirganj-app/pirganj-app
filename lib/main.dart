@@ -1080,6 +1080,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openTopic(int topic) {
+    const topicNames = [
+      'রক্তদাতা',
+      'রক্তের অনুরোধ',
+      'নোটিশ',
+      'চাকরির খবর',
+      'হারানো/পাওয়া'
+    ];
+    if (topic >= 0 && topic < topicNames.length) {
+      unawaited(api.logPageVisit(topicNames[topic]));
+    }
     Navigator.push(
         context,
         MaterialPageRoute(
