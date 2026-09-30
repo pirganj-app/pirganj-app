@@ -36,6 +36,20 @@ String friendlyMessage(Object error) {
   return text.isEmpty ? 'কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।' : text;
 }
 
+String authFriendlyMessage(Object error) {
+  final text = error.toString();
+  if (text.contains('sign_in_failed') ||
+      text.contains('DEVELOPER_ERROR') ||
+      text.contains('w1: 10') ||
+      text.contains('w1:10')) {
+    return 'Google login configuration মেলেনি। App update করে আবার চেষ্টা করুন।';
+  }
+  if (text.contains('network_error')) {
+    return 'ইন্টারনেট সংযোগ নেই। Google login-এর জন্য সংযোগ পরীক্ষা করুন।';
+  }
+  return friendlyMessage(error);
+}
+
 void showTopToast(BuildContext context, String message) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
@@ -780,6 +794,11 @@ class _PublicItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = _mapImageUrl(item);
+    final resource = item['resource']?.toString().toLowerCase() ?? '';
+    final itemIcon = resource == 'services'
+        ? _serviceIcon(
+            item['icon']?.toString() ?? '', item['category']?.toString() ?? '')
+        : Icons.description_outlined;
     return Card(
         margin: const EdgeInsets.only(bottom: 10),
         elevation: 0,
@@ -804,15 +823,12 @@ class _PublicItemCard extends StatelessWidget {
                                       width: 64,
                                       height: 64,
                                       color: const Color(0xFFE3F4EE),
-                                      child: const Icon(
-                                          Icons.broken_image_outlined,
-                                          color: brand)))
+                                      child: Icon(itemIcon, color: brand)))
                               : Container(
                                   width: 64,
                                   height: 64,
                                   color: const Color(0xFFE3F4EE),
-                                  child: const Icon(Icons.description_outlined,
-                                      color: brand)))),
+                                  child: Icon(itemIcon, color: brand)))),
                   const SizedBox(width: 12),
                   Expanded(
                       child: Column(
@@ -4070,7 +4086,7 @@ class _AuthScreenState extends State<AuthScreen> {
               .login(email: email.text.trim(), password: password.text);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
-      if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
+      if (mounted) _show(authFriendlyMessage(error));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -4121,7 +4137,7 @@ class _AuthScreenState extends State<AuthScreen> {
       final result = await widget.api.loginWithGoogle(accessToken);
       await widget.onLoggedIn(Map<String, dynamic>.from(result['data'] as Map));
     } catch (error) {
-      if (mounted) _show(error.toString().replaceFirst('Exception: ', ''));
+      if (mounted) _show(authFriendlyMessage(error));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -4534,11 +4550,15 @@ class _ProfilePanelState extends State<ProfilePanel> {
     return Column(
         children: items.map((item) {
       final r = item['resource']?.toString() ?? '';
+      final icon = r == 'services'
+          ? _serviceIcon(item['icon']?.toString() ?? '',
+              item['category']?.toString() ?? '')
+          : resourceIcon(r);
       return _OwnedItemCard(
           title: itemTitle(item),
           subtitle: itemSubtitle(item),
           label: resourceLabel(r),
-          icon: resourceIcon(r),
+          icon: icon,
           imageUrl: item['imageUrl']?.toString(),
           phone: item['phone']?.toString() ?? item['contactPhone']?.toString(),
           onTap: r == 'posts' ? () => _openPostFromProfile(item) : null,

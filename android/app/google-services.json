@@ -12,7 +12,20 @@
           "package_name": "com.pirganj.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "132218583054-nm76rb9gav71imtunnl15nsrct85cp73.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pirganj.app",
+            "certificate_hash": "7DD839437291626A4BDD930985A9EC0F49E54F27"
+          }
+        },
+        {
+          "client_id": "132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDUaaquOwKmeNNTXdkg04i-WkBbZec2PJ4"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "132218583054-16hjjohipsjpofh781j0hbdkdnkedehf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
