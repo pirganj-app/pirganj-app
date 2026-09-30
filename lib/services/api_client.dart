@@ -57,6 +57,15 @@ class PirganjApiClient {
     }
   }
 
+  Future<void> logPageVisit(String pageName) async {
+    if (token == null || pageName.trim().isEmpty) return;
+    try {
+      await _post('/activity/page', {'pageName': pageName.trim()});
+    } catch (_) {
+      // Page auditing is detached from normal app navigation.
+    }
+  }
+
   Future<Map<String, dynamic>?> getAppOpenMessage() async {
     final json = await _get(Uri.parse('$baseUrl/api/app-open-message'));
     final data = json['data'];

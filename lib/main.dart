@@ -932,6 +932,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+    unawaited(api.logPageVisit('হোম'));
     _loadUnreadNotifications();
   }
 
@@ -994,6 +995,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _switchTab(int value) {
     if (value == tab) return;
+    const pageNames = <int, String>{
+      0: 'হোম',
+      1: 'কমিউনিটি',
+      2: 'যোগ করুন',
+      3: 'প্রোফাইল'
+    };
+    final pageName = pageNames[value];
+    if (pageName != null) unawaited(api.logPageVisit(pageName));
     tabHistory.add(tab);
     setState(() {
       tab = value;
@@ -1043,9 +1052,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     if (userId == api.userId) {
+      unawaited(api.logPageVisit('প্রোফাইল'));
       _switchTab(3);
       return;
     }
+    unawaited(api.logPageVisit('প্রোফাইল'));
     Navigator.push(
         context,
         MaterialPageRoute(
@@ -1060,6 +1071,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openCategory(String categoryName, String title, IconData icon) {
+    unawaited(api.logPageVisit(title));
     Navigator.push(
         context,
         MaterialPageRoute(
