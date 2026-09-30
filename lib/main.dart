@@ -420,6 +420,7 @@ class _PirganjAppState extends State<PirganjApp> {
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await PushNotificationService.instance.stop(api);
+    await api.logout();
     await prefs.remove('pirganj_token');
     api.token = null;
     if (mounted) setState(() {});
@@ -2414,7 +2415,14 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                             }
                             final list = snap.data ?? [];
                             if (list.isEmpty) {
-                              return const Text('এখনো কোনো comment নেই');
+                              return const SizedBox(
+                                  width: double.infinity,
+                                  child: Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 28),
+                                      child: Center(
+                                          child:
+                                              Text('এখনো কোনো comment নেই'))));
                             }
                             return Column(
                                 children: orderedComments(list)

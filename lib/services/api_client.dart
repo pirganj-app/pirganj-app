@@ -48,6 +48,15 @@ class PirganjApiClient {
     return _decode(response);
   }
 
+  Future<void> logout() async {
+    if (token == null) return;
+    try {
+      await _post('/auth/logout', const {});
+    } catch (_) {
+      // Local logout must still complete if the network is unavailable.
+    }
+  }
+
   Future<Map<String, dynamic>?> getAppOpenMessage() async {
     final json = await _get(Uri.parse('$baseUrl/api/app-open-message'));
     final data = json['data'];
