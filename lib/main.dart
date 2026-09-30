@@ -125,12 +125,40 @@ IconData _serviceIcon(String raw, String category) {
 }
 
 IconData _serviceCategoryIcon(String category) {
-  if (category.contains('হাসপাতাল')) return Icons.local_hospital_rounded;
-  if (category.contains('ফার্মেসি')) return Icons.local_pharmacy_rounded;
-  if (category.contains('স্কুল') || category.contains('কলেজ')) {
+  final value = category.trim().toLowerCase();
+  if (value.contains('হাসপাতাল') || value.contains('hospital')) {
+    return Icons.local_hospital_rounded;
+  }
+  if (value.contains('ফার্মেসি') || value.contains('pharmacy')) {
+    return Icons.local_pharmacy_rounded;
+  }
+  if (value.contains('স্কুল') ||
+      value.contains('কলেজ') ||
+      value.contains('school')) {
     return Icons.school_rounded;
   }
-  if (category.contains('ডাক্তার')) return Icons.medical_services_rounded;
+  if (value.contains('ডাক্তার') || value.contains('doctor')) {
+    return Icons.medical_services_rounded;
+  }
+  if (value.contains('রেস্টুরেন্ট') || value.contains('restaurant')) {
+    return Icons.restaurant_rounded;
+  }
+  if (value.contains('হোটেল') || value.contains('hotel')) {
+    return Icons.hotel_rounded;
+  }
+  if (value.contains('সরকারি অফিস') ||
+      value.contains('অফিস') ||
+      value.contains('office')) {
+    return Icons.account_balance_rounded;
+  }
+  if (value.contains('অ্যাম্বুলেন্স') || value.contains('ambulance')) {
+    return Icons.emergency_rounded;
+  }
+  if (value.contains('গাড়ি') ||
+      value.contains('car') ||
+      value.contains('transport')) {
+    return Icons.directions_car_rounded;
+  }
   return Icons.storefront_rounded;
 }
 
@@ -1618,7 +1646,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                       : NetworkImage(_avatarUrl(item.imageUrl!) ??
                                           item.imageUrl!),
                                   child: item.imageUrl == null || item.imageUrl!.isEmpty
-                                      ? Icon(_serviceCategoryIcon(item.category),
+                                      ? Icon(_serviceIcon(item.icon, item.category),
                                           color: brand)
                                       : null),
                               title: Text(item.name,
@@ -4054,8 +4082,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final google = GoogleSignIn(
         scopes: const ['email', 'profile'],
-        // GoogleSignIn requires the Web OAuth client as serverClientId.
-        // The Android client is configured by package name + SHA-1 in Google Cloud.
+        clientId: googleAndroidClientId,
         serverClientId: googleWebClientId,
       );
       // Clear the previous Google account so every attempt can choose another account.
