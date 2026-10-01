@@ -363,19 +363,28 @@ class _PirganjAppState extends State<PirganjApp> {
     api.deviceId = deviceId;
     final token = prefs.getString('pirganj_token');
     if (token != null) api.token = token;
-    try {
-      final response =
-          await api.getVersion().timeout(const Duration(seconds: 5));
-      final data = response['data'];
-      final serverVersion = data is Map ? data['version']?.toString() : null;
-      updateRequired = serverVersion != appVersion;
-      if (serverVersion != null) {
-        await prefs.setString('pirganj_server_version', serverVersion);
+    versionCheckFailed = false;
+    updateRequired = false;
+    while (mounted) {
+      try {
+        final response = await api.getVersion();
+        final data = response['data'];
+        final serverVersion = data is Map ? data['version']?.toString() : null;
+        updateRequired = serverVersion != appVersion;
+        if (serverVersion != null) {
+          await prefs.setString('pirganj_server_version', serverVersion);
+        }
+        break;
+      } catch (_) {
+        // A reachable internet connection with an unresponsive backend is a
+        // normal hosting cold start, not an offline state. Keep the splash
+        // animation visible and retry until the backend responds.
+        if (!await api.hasInternetConnection()) {
+          versionCheckFailed = true;
+          break;
+        }
+        await Future<void>.delayed(const Duration(seconds: 3));
       }
-    } catch (_) {
-      // Production policy: the app must not open without a live connection.
-      updateRequired = true;
-      versionCheckFailed = true;
     }
     if (mounted) {
       setState(() => loading = false);

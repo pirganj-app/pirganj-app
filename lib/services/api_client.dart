@@ -48,6 +48,20 @@ class PirganjApiClient {
     return _decode(response);
   }
 
+  Future<bool> hasInternetConnection() async {
+    try {
+      final addresses = await InternetAddress.lookup('example.com')
+          .timeout(const Duration(seconds: 3));
+      return addresses.isNotEmpty && addresses.first.rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     if (token == null) return;
     try {
