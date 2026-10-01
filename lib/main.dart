@@ -108,6 +108,59 @@ Widget _verifiedBadge([bool verified = false]) => verified
         child: Icon(Icons.verified_rounded, color: Color(0xFF1877F2), size: 16))
     : const SizedBox.shrink();
 
+String _publicResourceLabel(String resource) =>
+    {
+      'donors': 'রক্তদাতা',
+      'jobs': 'চাকরির খবর',
+      'blood_requests': 'রক্তের অনুরোধ',
+      'notices': 'নোটিশ',
+      'lost_found': 'হারানো/পাওয়া',
+      'services': 'স্থানীয় সেবা',
+      'posts': 'কমিউনিটি পোস্ট',
+      'post': 'কমিউনিটি পোস্ট'
+    }[resource] ??
+    'তথ্য';
+
+IconData _publicResourceIcon(String resource, String category,
+        [String raw = '']) =>
+    resource == 'services'
+        ? _serviceIcon(raw, category)
+        : {
+              'donors': Icons.bloodtype_rounded,
+              'jobs': Icons.work_rounded,
+              'blood_requests': Icons.emergency_rounded,
+              'notices': Icons.campaign_rounded,
+              'lost_found': Icons.search_rounded,
+              'posts': Icons.forum_rounded,
+              'post': Icons.forum_rounded
+            }[resource] ??
+            Icons.description_rounded;
+
+String _publicItemTitle(Map<String, dynamic> item, String resource) {
+  if (resource == 'donors') {
+    return '${item['name'] ?? 'রক্তদাতা'} · ${item['group'] ?? ''}';
+  }
+  if (resource == 'blood_requests') {
+    return '${item['patientName'] ?? 'রক্তের অনুরোধ'} · ${item['group'] ?? ''}';
+  }
+  if (resource == 'jobs') {
+    return '${item['title'] ?? 'চাকরি'} · ${item['company'] ?? ''}';
+  }
+  return item['title']?.toString() ?? item['name']?.toString() ?? 'তথ্য';
+}
+
+String _publicItemSubtitle(Map<String, dynamic> item, String resource) {
+  if (resource == 'donors')
+    return item['area']?.toString() ?? 'এলাকা দেওয়া হয়নি';
+  if (resource == 'blood_requests') return item['hospital']?.toString() ?? '';
+  if (resource == 'jobs')
+    return item['location']?.toString() ?? 'স্থান দেওয়া হয়নি';
+  if (resource == 'services') {
+    return '${item['category'] ?? ''}  •  ${item['location'] ?? ''}';
+  }
+  return _publicResourceLabel(resource);
+}
+
 ImageProvider<Object>? _avatarProvider(dynamic value) {
   final url = _avatarUrl(value);
   return url == null ? null : NetworkImage(url);
@@ -749,16 +802,15 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                               item['resource']?.toString().toLowerCase() ?? '';
                           final isPost =
                               resource == 'posts' || resource == 'post';
-                          final label = isPost
-                              ? 'পোস্ট'
-                              : resource == 'lost_found'
-                                  ? 'হারানো/পাওয়া'
-                                  : resource == 'services'
-                                      ? 'সেবা'
-                                      : 'তথ্য';
+                          final label =
+                              _publicResourceLabel(isPost ? 'posts' : resource);
                           return _PublicItemCard(
                               item: item,
                               label: label,
+                              icon: _publicResourceIcon(
+                                  resource,
+                                  item['category']?.toString() ?? '',
+                                  item['icon']?.toString() ?? ''),
                               onOpen: isPost
                                   ? () => _openExistingPost(item)
                                   : null);
@@ -797,71 +849,102 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
 }
 
 class _PublicItemCard extends StatelessWidget {
-  const _PublicItemCard({required this.item, required this.label, this.onOpen});
+  const _PublicItemCard(
+      {required this.item,
+      required this.label,
+      required this.icon,
+      this.onOpen});
   final Map<String, dynamic> item;
   final String label;
+  final IconData icon;
   final VoidCallback? onOpen;
   @override
   Widget build(BuildContext context) {
     final imageUrl = _mapImageUrl(item);
     final resource = item['resource']?.toString().toLowerCase() ?? '';
-    final itemIcon = resource == 'services'
-        ? _serviceIcon(
-            item['icon']?.toString() ?? '', item['category']?.toString() ?? '')
-        : _serviceCategoryIcon(item['category']?.toString() ?? label);
     return Card(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 11),
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(21),
+            side: const BorderSide(color: Color(0xFFE4ECE8))),
         child: InkWell(
             onTap: onOpen,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(21),
             child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(children: [
-                  GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: onOpen ?? () => openImageViewer(context, imageUrl),
-                      child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: imageUrl != null
-                              ? Image.network(imageUrl,
-                                  width: 64,
-                                  height: 64,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                      width: 64,
-                                      height: 64,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                          onTap: onOpen ??
+                              () => openImageViewer(context, imageUrl),
+                          child: ClipRRect(
+                              borderRadius: BorderRadius.circular(15),
+                              child: imageUrl != null
+                                  ? Image.network(imageUrl,
+                                      width: 44,
+                                      height: 44,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                          width: 44,
+                                          height: 44,
+                                          color: const Color(0xFFE3F4EE),
+                                          child: Icon(icon, color: brand)))
+                                  : Container(
+                                      width: 44,
+                                      height: 44,
                                       color: const Color(0xFFE3F4EE),
-                                      child: Icon(itemIcon, color: brand)))
-                              : Container(
-                                  width: 64,
-                                  height: 64,
-                                  color: const Color(0xFFE3F4EE),
-                                  child: Icon(itemIcon, color: brand)))),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Row(children: [
-                          Expanded(
-                              child: Text(
-                                  item['title']?.toString() ??
-                                      item['name']?.toString() ??
-                                      label,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: ink))),
-                          _verifiedBadge(item['ownerVerified'] == true)
-                        ]),
-                        const SizedBox(height: 4),
-                        Text(label,
-                            style: const TextStyle(color: Colors.black54))
-                      ])),
-                ]))));
+                                      child: Icon(icon, color: brand)))),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                    color: const Color(0xFFEAF6F1),
+                                    borderRadius: BorderRadius.circular(20)),
+                                child: Text(label,
+                                    style: const TextStyle(
+                                        color: brand,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700))),
+                            const SizedBox(height: 7),
+                            Text(_publicItemTitle(item, resource),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: ink,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            Text(_publicItemSubtitle(item, resource),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.black54, height: 1.3)),
+                            if ((item['phone']?.toString() ??
+                                    item['contactPhone']?.toString() ??
+                                    '')
+                                .isNotEmpty)
+                              GestureDetector(
+                                  onTap: () => dialPhone(
+                                      context,
+                                      item['phone']?.toString() ??
+                                          item['contactPhone']?.toString()),
+                                  child: Text(
+                                      item['phone']?.toString() ??
+                                          item['contactPhone']?.toString() ??
+                                          '',
+                                      style: const TextStyle(
+                                          color: brand,
+                                          decoration: TextDecoration.none)))
+                          ]))
+                    ]))));
   }
 }
 
@@ -4820,14 +4903,17 @@ class _ProfileHeader extends StatelessWidget {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text(name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800)),
-                  _verifiedBadge(isVerified),
+                  Row(children: [
+                    Flexible(
+                        child: Text(name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800))),
+                    _verifiedBadge(isVerified)
+                  ]),
                   if (email.isNotEmpty)
                     Text(email,
                         maxLines: 1,
