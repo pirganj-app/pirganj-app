@@ -2451,8 +2451,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 value: 'delete', child: Text('Delete'))
                           ])
               ]),
-              Text(item['body']?.toString() ?? '',
-                  style: const TextStyle(fontSize: 15, height: 1.28)),
+              Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 8, 4, 5),
+                  child: Text(item['body']?.toString() ?? '',
+                      style: const TextStyle(fontSize: 15, height: 1.4))),
               Row(children: [
                 GestureDetector(
                     onLongPress: () => showModalBottomSheet(
