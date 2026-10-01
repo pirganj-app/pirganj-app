@@ -2268,6 +2268,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   }
 
   Future<void> commentReaction(String commentId, String reaction) async {
+    final savedScrollOffset = _commentsScrollController.hasClients
+        ? _commentsScrollController.offset
+        : 0.0;
     try {
       final updatedReactions =
           await widget.api.toggleCommentReaction(commentId, reaction: reaction);
@@ -2281,6 +2284,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       }).toList();
       if (mounted) {
         setState(() => commentsFuture = Future.value(updatedComments));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_commentsScrollController.hasClients) return;
+          final restoredOffset = min(savedScrollOffset,
+              _commentsScrollController.position.maxScrollExtent);
+          _commentsScrollController.jumpTo(restoredOffset);
+        });
       }
     } catch (e) {
       if (mounted) {
