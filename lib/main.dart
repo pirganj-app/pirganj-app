@@ -2267,8 +2267,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
   Future<void> commentReaction(String commentId, String reaction) async {
     try {
-      await widget.api.toggleCommentReaction(commentId, reaction: reaction);
-      if (mounted) setState(_reload);
+      final updatedReactions =
+          await widget.api.toggleCommentReaction(commentId, reaction: reaction);
+      final current = await commentsFuture;
+      final updatedComments = current.map((raw) {
+        final item = Map<String, dynamic>.from(raw as Map);
+        if (item['id']?.toString() == commentId) {
+          item['reactions'] = updatedReactions;
+        }
+        return item;
+      }).toList();
+      if (mounted) {
+        setState(() => commentsFuture = Future.value(updatedComments));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2362,9 +2373,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             borderRadius: BorderRadius.circular(14),
             border: item['parentId'] != null
                 ? const Border(
-                    left: BorderSide(color: Colors.black87, width: 2),
+                    right: BorderSide(color: Colors.black87, width: 2),
                     top: BorderSide(color: Color(0xFFE5E8E7)),
-                    right: BorderSide(color: Color(0xFFE5E8E7)),
                     bottom: BorderSide(color: Color(0xFFE5E8E7)))
                 : Border.all(color: const Color(0xFFE5E8E7))),
         child: Padding(
@@ -2397,46 +2407,57 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                       Row(children: [
-                        GestureDetector(
-                            onTap: () => _openProfile(
-                                item['ownerId']?.toString(),
-                                item['author']?.toString() ?? 'User',
-                                item['authorAvatarUrl']?.toString()),
-                            child: Row(children: [
-                              Text(item['author']?.toString() ?? 'User',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13)),
-                              _verifiedBadge(item['authorVerified'] == true ||
-                                  item['author_verified'] == true)
-                            ])),
-                        if (isAuthor)
-                          Container(
-                              margin: const EdgeInsets.only(left: 6),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: const Color(0xFFE6F4EE),
-                                  borderRadius: BorderRadius.circular(8)),
-                              child: const Text('Author',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      color: brand,
-                                      fontWeight: FontWeight.w800)))
+                        Expanded(
+                            child: GestureDetector(
+                                onTap: () => _openProfile(
+                                    item['ownerId']?.toString(),
+                                    item['author']?.toString() ?? 'User',
+                                    item['authorAvatarUrl']?.toString()),
+                                child: Row(children: [
+                                  Flexible(
+                                      child: Text(
+                                          item['author']?.toString() ?? 'User',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13))),
+                                  _verifiedBadge(
+                                      item['authorVerified'] == true ||
+                                          item['author_verified'] == true),
+                                  if (isAuthor)
+                                    Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                            color: const Color(0xFFE6F4EE),
+                                            borderRadius:
+                                                BorderRadius.circular(8)),
+                                        child: const Text('Author',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: brand,
+                                                fontWeight: FontWeight.w800)))
+                                ]))),
+                        if (item['parentId'] != null)
+                          Flexible(
+                              child: Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Text(
+                                      'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.right,
+                                      style: const TextStyle(
+                                          color: brand,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700))))
                       ]),
                       Row(children: [
                         Text(time(item['createdAt']),
                             style: const TextStyle(
-                                fontSize: 10, color: Colors.black45)),
-                        if (item['parentId'] != null) ...[
-                          const Spacer(),
-                          Text(
-                              'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
-                              style: const TextStyle(
-                                  color: brand,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700))
-                        ]
+                                fontSize: 10, color: Colors.black45))
                       ])
                     ])),
                 if (item['ownerId']?.toString() == widget.api.userId)
