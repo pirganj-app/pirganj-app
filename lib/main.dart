@@ -102,6 +102,12 @@ String? _avatarUrl(dynamic value) {
   return raw;
 }
 
+Widget _verifiedBadge([bool verified = false]) => verified
+    ? const Padding(
+        padding: EdgeInsets.only(left: 4),
+        child: Icon(Icons.verified_rounded, color: Color(0xFF1877F2), size: 16))
+    : const SizedBox.shrink();
+
 ImageProvider<Object>? _avatarProvider(dynamic value) {
   final url = _avatarUrl(value);
   return url == null ? null : NetworkImage(url);
@@ -771,6 +777,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                               widget.fallbackAvatar,
                           address:
                               '${user['sex']?.toString() ?? ''}  •  ${user['address']?.toString() ?? ''}',
+                          isVerified: user['isVerified'] == true ||
+                              user['is_verified'] == true,
                           onEdit: null),
                       if (locked)
                         const Padding(
@@ -800,7 +808,7 @@ class _PublicItemCard extends StatelessWidget {
     final itemIcon = resource == 'services'
         ? _serviceIcon(
             item['icon']?.toString() ?? '', item['category']?.toString() ?? '')
-        : Icons.description_outlined;
+        : _serviceCategoryIcon(item['category']?.toString() ?? label);
     return Card(
         margin: const EdgeInsets.only(bottom: 10),
         elevation: 0,
@@ -836,14 +844,19 @@ class _PublicItemCard extends StatelessWidget {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                        Text(
-                            item['title']?.toString() ??
-                                item['name']?.toString() ??
-                                label,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w800, color: ink)),
+                        Row(children: [
+                          Expanded(
+                              child: Text(
+                                  item['title']?.toString() ??
+                                      item['name']?.toString() ??
+                                      label,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: ink))),
+                          _verifiedBadge(item['ownerVerified'] == true)
+                        ]),
                         const SizedBox(height: 4),
                         Text(label,
                             style: const TextStyle(color: Colors.black54))
@@ -1836,6 +1849,8 @@ class _PostCard extends StatelessWidget {
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w800,
                                           color: ink))),
+                              _verifiedBadge(post['authorVerified'] == true ||
+                                  post['author_verified'] == true),
                               if (date().isNotEmpty)
                                 Text(date(),
                                     style: const TextStyle(
@@ -2124,9 +2139,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 _reactionEmoji(e['reaction']?.toString()),
                                 style: const TextStyle(fontSize: 14))))
                   ]),
-                  title: Text(e['userName']?.toString() ??
-                      e['userId']?.toString() ??
-                      'User'),
+                  title: Row(children: [
+                    Expanded(
+                        child: Text(e['userName']?.toString() ??
+                            e['userId']?.toString() ??
+                            'User')),
+                    _verifiedBadge(e['userVerified'] == true)
+                  ]),
                   subtitle: Text(_reactionLabel(e['reaction']?.toString()))))
             ]));
   }
@@ -2292,10 +2311,14 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 item['ownerId']?.toString(),
                                 item['author']?.toString() ?? 'User',
                                 item['authorAvatarUrl']?.toString()),
-                            child: Text(item['author']?.toString() ?? 'User',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13))),
+                            child: Row(children: [
+                              Text(item['author']?.toString() ?? 'User',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13)),
+                              _verifiedBadge(item['authorVerified'] == true ||
+                                  item['author_verified'] == true)
+                            ])),
                         if (isAuthor)
                           Container(
                               margin: const EdgeInsets.only(left: 6),
@@ -4626,6 +4649,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                             email: '',
                             phone: '',
                             address: 'আবার চেষ্টা করুন',
+                            isVerified: false,
                             onEdit: null);
                       }
                       final payload = snapshot.data?['data'];
@@ -4641,6 +4665,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
                               user['avatarUrl'] ?? user['avatar_url']),
                           address:
                               '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+                          isVerified: user['isVerified'] == true ||
+                              user['is_verified'] == true,
                           onEdit: editProfile);
                     }),
                 const SizedBox(height: 10),
@@ -4742,10 +4768,12 @@ class _ProfileHeader extends StatelessWidget {
       required this.phone,
       required this.address,
       this.avatarUrl,
-      required this.onEdit});
+      required this.onEdit,
+      required this.isVerified});
   final String name, email, phone, address;
   final String? avatarUrl;
   final VoidCallback? onEdit;
+  final bool isVerified;
   @override
   Widget build(BuildContext context) {
     final imageUrl = _avatarUrl(avatarUrl);
@@ -4791,6 +4819,7 @@ class _ProfileHeader extends StatelessWidget {
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800)),
+                  _verifiedBadge(isVerified),
                   if (email.isNotEmpty)
                     Text(email,
                         maxLines: 1,
