@@ -2101,6 +2101,7 @@ class PostDetailsPage extends StatefulWidget {
 class _PostDetailsPageState extends State<PostDetailsPage> {
   late Future<List<dynamic>> commentsFuture;
   late Future<List<dynamic>> reactionsFuture;
+  List<dynamic>? _commentItems;
   final comment = TextEditingController();
   final ScrollController _commentsScrollController = ScrollController();
   String? replyingTo;
@@ -2112,6 +2113,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   }
 
   void _reload() {
+    _commentItems = null;
     commentsFuture = widget.api.getComments(widget.post['id'].toString());
     reactionsFuture = widget.api.getPostReactions(widget.post['id'].toString());
   }
@@ -2122,7 +2124,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     final results = await Future.wait([comments, reactions]);
     if (!mounted) return;
     setState(() {
-      commentsFuture = Future.value(results[0]);
+      _commentItems = List<dynamic>.from(results[0]);
+      commentsFuture = Future.value(_commentItems);
       reactionsFuture = Future.value(results[1]);
     });
   }
@@ -2249,13 +2252,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     try {
       final response = await widget.api.addComment(widget.post['id'].toString(),
           body: comment.text.trim(), parentId: replyingTo);
-      final current = await commentsFuture;
+      final current = _commentItems ?? await commentsFuture;
       final added = Map<String, dynamic>.from(response['data'] as Map);
       comment.clear();
       replyingTo = null;
       if (mounted) {
-        setState(() => commentsFuture =
-            Future.value(orderedComments([...current, added])));
+        setState(() => _commentItems = orderedComments([...current, added]));
       }
     } catch (e) {
       if (mounted) {
@@ -2274,7 +2276,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     try {
       final updatedReactions =
           await widget.api.toggleCommentReaction(commentId, reaction: reaction);
-      final current = await commentsFuture;
+      final current = _commentItems ?? await commentsFuture;
       final updatedComments = current.map((raw) {
         final item = Map<String, dynamic>.from(raw as Map);
         if (item['id']?.toString() == commentId) {
@@ -2283,7 +2285,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         return item;
       }).toList();
       if (mounted) {
-        setState(() => commentsFuture = Future.value(updatedComments));
+        setState(() => _commentItems = updatedComments);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_commentsScrollController.hasClients) return;
           final restoredOffset = min(savedScrollOffset,
@@ -2581,12 +2583,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                       FutureBuilder<List<dynamic>>(
                           future: commentsFuture,
                           builder: (_, snap) {
-                            if (snap.connectionState ==
-                                ConnectionState.waiting) {
+                            if (_commentItems == null &&
+                                snap.connectionState ==
+                                    ConnectionState.waiting) {
                               return const Center(
                                   child: _SkeletonBox(height: 92, radius: 18));
                             }
-                            final list = snap.data ?? [];
+                            final list = _commentItems ?? snap.data ?? [];
                             if (list.isEmpty) {
                               return const SizedBox(
                                   width: double.infinity,
