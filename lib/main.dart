@@ -2102,6 +2102,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   late Future<List<dynamic>> commentsFuture;
   late Future<List<dynamic>> reactionsFuture;
   final comment = TextEditingController();
+  final ScrollController _commentsScrollController = ScrollController();
   String? replyingTo;
   bool sending = false;
   @override
@@ -2149,6 +2150,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   @override
   void dispose() {
     comment.dispose();
+    _commentsScrollController.dispose();
     super.dispose();
   }
 
@@ -2373,7 +2375,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             borderRadius: BorderRadius.circular(14),
             border: item['parentId'] != null
                 ? const Border(
-                    right: BorderSide(color: Colors.black87, width: 2),
+                    left: BorderSide(color: Colors.black87, width: 2),
                     top: BorderSide(color: Color(0xFFE5E8E7)),
                     bottom: BorderSide(color: Color(0xFFE5E8E7)))
                 : Border.all(color: const Color(0xFFE5E8E7))),
@@ -2473,7 +2475,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                           ])
               ]),
               Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 8, 4, 5),
+                  padding: EdgeInsets.fromLTRB(
+                      2, item['parentId'] != null ? 0 : 8, 4, 5),
                   child: Text(item['body']?.toString() ?? '',
                       style: const TextStyle(fontSize: 15, height: 1.4))),
               Row(children: [
@@ -2536,6 +2539,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 color: brand,
                 onRefresh: _refresh,
                 child: ListView(
+                    controller: _commentsScrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
                     children: [
