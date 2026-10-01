@@ -1841,16 +1841,21 @@ class _PostCard extends StatelessWidget {
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              GestureDetector(
-                                  onTap: onProfile,
-                                  child: Text(
-                                      post['author']?.toString() ??
-                                          'পীরগঞ্জবাসী',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: ink))),
-                              _verifiedBadge(post['authorVerified'] == true ||
-                                  post['author_verified'] == true),
+                              Row(children: [
+                                Flexible(
+                                    child: GestureDetector(
+                                        onTap: onProfile,
+                                        child: Text(
+                                            post['author']?.toString() ??
+                                                'পীরগঞ্জবাসী',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: ink)))),
+                                _verifiedBadge(post['authorVerified'] == true ||
+                                    post['author_verified'] == true)
+                              ]),
                               if (date().isNotEmpty)
                                 Text(date(),
                                     style: const TextStyle(
@@ -2140,10 +2145,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                 style: const TextStyle(fontSize: 14))))
                   ]),
                   title: Row(children: [
-                    Expanded(
-                        child: Text(e['userName']?.toString() ??
-                            e['userId']?.toString() ??
-                            'User')),
+                    Flexible(
+                        child: Text(
+                            e['userName']?.toString() ??
+                                e['userId']?.toString() ??
+                                'User',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis)),
                     _verifiedBadge(e['userVerified'] == true)
                   ]),
                   subtitle: Text(_reactionLabel(e['reaction']?.toString()))))
