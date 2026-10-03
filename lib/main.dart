@@ -2557,7 +2557,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                           ])
               ]),
               Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 0, 4, 5),
+                  padding: EdgeInsets.fromLTRB(2, isAuthor ? 0 : 8, 4, 5),
                   child: Text(item['body']?.toString() ?? '',
                       style: const TextStyle(fontSize: 15, height: 1.4))),
               Row(children: [
