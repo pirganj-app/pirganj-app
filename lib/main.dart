@@ -740,6 +740,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           foregroundColor: Colors.white),
       body: RefreshIndicator(
           color: brand,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          notificationPredicate: (notification) => notification.depth == 0,
           onRefresh: refresh,
           child: FutureBuilder<Map<String, dynamic>>(
               future: future,
@@ -2847,6 +2849,7 @@ class _NotificationPageState extends State<NotificationPage> {
   late Future<List<dynamic>> notificationsFuture;
   bool loadingMore = false;
   bool hasMore = true;
+  List<dynamic>? _cachedNotifications;
 
   @override
   void initState() {
@@ -2857,7 +2860,12 @@ class _NotificationPageState extends State<NotificationPage> {
   void _reload() {
     loadingMore = false;
     hasMore = true;
-    notificationsFuture = widget.api.getNotifications();
+    final request = widget.api.getNotifications();
+    notificationsFuture = request;
+    request.then((items) {
+      _cachedNotifications = List<dynamic>.from(items);
+      if (mounted) setState(() {});
+    }, onError: (_) {});
   }
 
   Future<void> _refreshNotifications() async {
@@ -2866,6 +2874,7 @@ class _NotificationPageState extends State<NotificationPage> {
       final latest = await widget.api.getNotifications();
       if (!mounted) return;
       setState(() {
+        _cachedNotifications = List<dynamic>.from(latest);
         loadingMore = false;
         hasMore = true;
         notificationsFuture = Future.value(latest);
@@ -2884,7 +2893,8 @@ class _NotificationPageState extends State<NotificationPage> {
           await widget.api.getNotifications(limit: 50, offset: current.length);
       if (!mounted) return;
       setState(() {
-        notificationsFuture = Future.value([...current, ...next]);
+        _cachedNotifications = [...current, ...next];
+        notificationsFuture = Future.value(_cachedNotifications);
         hasMore = next.length == 50;
         loadingMore = false;
       });
@@ -2925,6 +2935,15 @@ class _NotificationPageState extends State<NotificationPage> {
     if (item['isRead'] != true) {
       await widget.api.markNotificationRead(item['id'].toString());
       item['isRead'] = true;
+      final cached = _cachedNotifications;
+      if (cached != null) {
+        for (final raw in cached) {
+          if (raw is Map && raw['id']?.toString() == item['id']?.toString()) {
+            raw['isRead'] = true;
+            break;
+          }
+        }
+      }
       if (mounted) setState(() {});
     }
     await _openTopic(item);
@@ -3019,21 +3038,26 @@ class _NotificationPageState extends State<NotificationPage> {
         body: FutureBuilder<List<dynamic>>(
             future: notificationsFuture,
             builder: (_, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  _cachedNotifications == null) {
                 return const Center(
                     child: _SkeletonBox(height: 92, radius: 18));
               }
-              if (snapshot.hasError) {
+              if (snapshot.hasError && _cachedNotifications == null) {
                 return const Center(
                     child: Text(
                         'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।'));
               }
-              final items = snapshot.data ?? const <dynamic>[];
+              final items =
+                  _cachedNotifications ?? snapshot.data ?? const <dynamic>[];
               if (items.isEmpty) {
                 return const Center(child: Text('এখনো কোনো নোটিফিকেশন নেই'));
               }
               return RefreshIndicator(
                 color: brand,
+                triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                notificationPredicate: (notification) =>
+                    notification.depth == 0,
                 onRefresh: _refreshNotifications,
                 child: NotificationListener<ScrollNotification>(
                   onNotification: (notification) {
@@ -4892,6 +4916,36 @@ class _ProfilePanelState extends State<ProfilePanel> {
     }).toList());
   }
 
+  Widget _profileHeaderFromResponse(Map<String, dynamic> response) {
+    final payload = response['data'];
+    final user = payload is Map
+        ? Map<String, dynamic>.from(payload['user'] as Map? ?? {})
+        : <String, dynamic>{};
+    return _ProfileHeader(
+        name: user['name']?.toString() ?? 'আমার প্রোফাইল',
+        email: user['email']?.toString() ?? '',
+        phone: user['phone']?.toString() ?? '',
+        avatarUrl: _avatarUrl(user['avatarUrl'] ?? user['avatar_url']),
+        address: '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+        isVerified: user['isVerified'] == true || user['is_verified'] == true,
+        onEdit: editProfile);
+  }
+
+  Widget _profileItemsFromList(List<dynamic> all) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('আমার পোস্ট',
+            style: TextStyle(
+                fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
+        const SizedBox(height: 8),
+        _managedItemsSection(all, posts: true),
+        const SizedBox(height: 18),
+        const Text('আমার তথ্য',
+            style: TextStyle(
+                fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
+        const SizedBox(height: 8),
+        _managedItemsSection(all, posts: false),
+      ]);
+
   @override
   void dispose() {
     _profileScrollController.dispose();
@@ -4901,6 +4955,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
   @override
   Widget build(BuildContext context) => RefreshIndicator(
       color: brand,
+      triggerMode: RefreshIndicatorTriggerMode.onEdge,
+      notificationPredicate: (notification) => notification.depth == 0,
       onRefresh: _refreshProfile,
       child: Scrollbar(
           controller: _profileScrollController,
@@ -4917,6 +4973,9 @@ class _ProfilePanelState extends State<ProfilePanel> {
                 FutureBuilder<Map<String, dynamic>>(
                     future: userFuture,
                     builder: (_, snapshot) {
+                      if (_cachedUser != null) {
+                        return _profileHeaderFromResponse(_cachedUser!);
+                      }
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _ProfileHeaderSkeleton();
                       }
@@ -4964,6 +5023,9 @@ class _ProfilePanelState extends State<ProfilePanel> {
                 FutureBuilder<List<dynamic>>(
                     future: itemsFuture,
                     builder: (_, snapshot) {
+                      if (_cachedItems != null) {
+                        return _profileItemsFromList(_cachedItems!);
+                      }
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _ProfileListSkeleton();
                       }
@@ -5098,7 +5160,7 @@ class _ProfileHeader extends StatelessWidget {
                                 color: Colors.white,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800))),
-                    _verifiedBadge(isVerified, Colors.black87)
+                    _verifiedBadge(isVerified, Colors.white)
                   ]),
                   if (email.isNotEmpty)
                     Text(email,
