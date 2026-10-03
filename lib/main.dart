@@ -102,11 +102,13 @@ String? _avatarUrl(dynamic value) {
   return raw;
 }
 
-Widget _verifiedBadge([bool verified = false]) => verified
-    ? const Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Icon(Icons.verified_rounded, color: Color(0xFF1877F2), size: 16))
-    : const SizedBox.shrink();
+Widget _verifiedBadge(
+        [bool verified = false, Color color = const Color(0xFF1877F2)]) =>
+    verified
+        ? Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Icon(Icons.verified_rounded, color: color, size: 16))
+        : const SizedBox.shrink();
 
 String _publicResourceLabel(String resource) =>
     {
@@ -525,7 +527,7 @@ class _PirganjAppState extends State<PirganjApp> {
         ),
         home: loading
             ? const _SplashScreen()
-            : updateRequired
+            : (updateRequired || versionCheckFailed)
                 ? UpdateRequiredPage(
                     versionCheckFailed: versionCheckFailed,
                     onRetry: () {
@@ -2084,9 +2086,6 @@ class _PostCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text('💬 ${post['comments'] ?? 0}',
                             style: const TextStyle(color: Colors.black54)),
-                        const Spacer(),
-                        const Icon(Icons.chevron_right_rounded,
-                            color: Colors.black38)
                       ])
                     ]))));
   }
@@ -2861,6 +2860,21 @@ class _NotificationPageState extends State<NotificationPage> {
     notificationsFuture = widget.api.getNotifications();
   }
 
+  Future<void> _refreshNotifications() async {
+    if (loadingMore) return;
+    try {
+      final latest = await widget.api.getNotifications();
+      if (!mounted) return;
+      setState(() {
+        loadingMore = false;
+        hasMore = true;
+        notificationsFuture = Future.value(latest);
+      });
+    } catch (_) {
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _loadMore() async {
     if (loadingMore || !hasMore) return;
     setState(() => loadingMore = true);
@@ -2885,7 +2899,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
   Future<void> _markAll() async {
     await widget.api.markAllNotificationsRead();
-    if (mounted) setState(_reload);
+    if (mounted) await _refreshNotifications();
   }
 
   Future<void> _deleteAll() async {
@@ -2904,7 +2918,7 @@ class _NotificationPageState extends State<NotificationPage> {
                 ]));
     if (confirmed != true) return;
     await widget.api.deleteAllNotifications();
-    if (mounted) setState(_reload);
+    if (mounted) await _refreshNotifications();
   }
 
   Future<void> _open(Map<String, dynamic> item) async {
@@ -3020,7 +3034,7 @@ class _NotificationPageState extends State<NotificationPage> {
               }
               return RefreshIndicator(
                 color: brand,
-                onRefresh: () async => setState(_reload),
+                onRefresh: _refreshNotifications,
                 child: NotificationListener<ScrollNotification>(
                   onNotification: (notification) {
                     if (notification.metrics.pixels >=
@@ -4576,6 +4590,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
   Map<String, dynamic>? _cachedUser;
   List<dynamic>? _cachedItems;
   bool profileLocked = false;
+  bool _profileRefreshing = false;
 
   Future<void> _openPostFromProfile(Map<String, dynamic> item) async {
     final postId = item['id']?.toString();
@@ -4639,6 +4654,28 @@ class _ProfilePanelState extends State<ProfilePanel> {
         setState(() => itemsFuture = Future<List<dynamic>>.value(items));
       }
     }, onError: (_) {});
+  }
+
+  Future<void> _refreshProfile() async {
+    if (_profileRefreshing) return;
+    _profileRefreshing = true;
+    try {
+      final results = await Future.wait<dynamic>([
+        widget.api.me(),
+        widget.api.getMyItems(),
+      ]);
+      if (!mounted) return;
+      final user = Map<String, dynamic>.from(results[0] as Map);
+      final items = List<dynamic>.from(results[1] as List);
+      setState(() {
+        _cachedUser = user;
+        _cachedItems = items;
+        userFuture = Future<Map<String, dynamic>>.value(user);
+        itemsFuture = Future<List<dynamic>>.value(items);
+      });
+    } finally {
+      _profileRefreshing = false;
+    }
   }
 
   String resourceLabel(String r) =>
@@ -4864,7 +4901,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
   @override
   Widget build(BuildContext context) => RefreshIndicator(
       color: brand,
-      onRefresh: () async => setState(_reload),
+      onRefresh: _refreshProfile,
       child: Scrollbar(
           controller: _profileScrollController,
           thumbVisibility: true,
@@ -5061,7 +5098,7 @@ class _ProfileHeader extends StatelessWidget {
                                 color: Colors.white,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800))),
-                    _verifiedBadge(isVerified)
+                    _verifiedBadge(isVerified, Colors.black87)
                   ]),
                   if (email.isNotEmpty)
                     Text(email,
