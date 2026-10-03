@@ -1174,7 +1174,6 @@ class _HomeScreenState extends State<HomeScreen> {
     tabHistory.add(tab);
     setState(() {
       tab = value;
-      if (value == 3) profileRefreshToken++;
     });
   }
 
@@ -1183,7 +1182,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final previous = tabHistory.removeLast();
     setState(() {
       tab = previous;
-      if (previous == 3) profileRefreshToken++;
     });
     return true;
   }
@@ -1372,12 +1370,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ));
 
-  Widget _page() => switch (tab) {
-        0 => _home(),
-        1 => _community(),
-        2 => _add(),
-        _ => _more(),
-      };
+  Widget _page() => IndexedStack(
+        index: tab,
+        children: [_home(), _community(), _add(), _more()],
+      );
 
   Widget _home() => RefreshIndicator(
         color: brand,
@@ -1673,10 +1669,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _more() => ProfilePanel(
-      key: ValueKey(profileRefreshToken),
-      api: api,
-      onLogout: widget.onLogout,
-      refreshToken: profileRefreshToken);
+      api: api, onLogout: widget.onLogout, refreshToken: profileRefreshToken);
 }
 
 class _TopBar extends StatelessWidget {
@@ -4580,6 +4573,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
   final ScrollController _profileScrollController = ScrollController();
   late Future<Map<String, dynamic>> userFuture;
   late Future<List<dynamic>> itemsFuture;
+  Map<String, dynamic>? _cachedUser;
+  List<dynamic>? _cachedItems;
   bool profileLocked = false;
 
   Future<void> _openPostFromProfile(Map<String, dynamic> item) async {
@@ -4607,10 +4602,26 @@ class _ProfilePanelState extends State<ProfilePanel> {
     _reload();
   }
 
+  @override
+  void didUpdateWidget(covariant ProfilePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) _reload();
+  }
+
   void _reload() {
-    userFuture = widget.api.me();
-    itemsFuture = widget.api.getMyItems();
-    userFuture.then((response) {
+    final userRequest = widget.api.me();
+    final itemsRequest = widget.api.getMyItems();
+    userFuture = _cachedUser == null
+        ? userRequest
+        : Future<Map<String, dynamic>>.value(_cachedUser);
+    itemsFuture = _cachedItems == null
+        ? itemsRequest
+        : Future<List<dynamic>>.value(_cachedItems);
+
+    userRequest.then((response) {
+      _cachedUser = response;
+      if (!mounted) return;
+      setState(() => userFuture = Future<Map<String, dynamic>>.value(response));
       final payload = response['data'];
       final user = payload is Map ? payload['user'] : null;
       if (user is! Map ||
@@ -4620,8 +4631,12 @@ class _ProfilePanelState extends State<ProfilePanel> {
       }
       final locked =
           user['profileLocked'] == true || user['profile_locked'] == true;
-      if (mounted && profileLocked != locked) {
-        setState(() => profileLocked = locked);
+      if (profileLocked != locked) setState(() => profileLocked = locked);
+    }, onError: (_) {});
+    itemsRequest.then((items) {
+      _cachedItems = items;
+      if (mounted) {
+        setState(() => itemsFuture = Future<List<dynamic>>.value(items));
       }
     }, onError: (_) {});
   }
