@@ -2422,6 +2422,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       final parent = item['parentId']?.toString() ?? '';
       byParent.putIfAbsent(parent, () => []).add(item);
     }
+    for (final branch in byParent.values) {
+      branch.sort((a, b) {
+        final aTime = DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+    }
     final ordered = <Map<String, dynamic>>[];
     void addBranch(Map<String, dynamic> item) {
       ordered.add(item);
@@ -4832,6 +4841,12 @@ class _ProfilePanelState extends State<ProfilePanel> {
   }
 
   @override
+  void dispose() {
+    _profileScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => RefreshIndicator(
       color: brand,
       onRefresh: () async => setState(_reload),
@@ -4843,7 +4858,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
               primary: false,
               shrinkWrap: false,
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              physics: const BouncingScrollPhysics(
+              physics: const ClampingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics()),
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
               children: [
