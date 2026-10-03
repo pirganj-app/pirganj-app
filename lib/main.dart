@@ -4682,7 +4682,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
 
   Future<void> _refreshProfile() async {
     if (_profileRefreshing) return;
-    _profileRefreshing = true;
+    if (mounted) setState(() => _profileRefreshing = true);
     try {
       final results = await Future.wait<dynamic>([
         widget.api.me(),
@@ -4697,8 +4697,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
         userFuture = Future<Map<String, dynamic>>.value(user);
         itemsFuture = Future<List<dynamic>>.value(items);
       });
+    } catch (_) {
+      // Keep the cached profile visible if a manual refresh fails.
     } finally {
-      _profileRefreshing = false;
+      if (mounted) setState(() => _profileRefreshing = false);
     }
   }
 
@@ -4958,146 +4960,156 @@ class _ProfilePanelState extends State<ProfilePanel> {
       triggerMode: RefreshIndicatorTriggerMode.onEdge,
       notificationPredicate: (notification) => notification.depth == 0,
       onRefresh: _refreshProfile,
-      child: Scrollbar(
-          controller: _profileScrollController,
-          thumbVisibility: true,
-          child: ListView(
-              controller: _profileScrollController,
-              primary: false,
-              shrinkWrap: false,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              physics: const ClampingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics()),
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
-              children: [
-                FutureBuilder<Map<String, dynamic>>(
-                    future: userFuture,
-                    builder: (_, snapshot) {
-                      if (_cachedUser != null) {
-                        return _profileHeaderFromResponse(_cachedUser!);
-                      }
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const _ProfileHeaderSkeleton();
-                      }
-                      if (snapshot.hasError) {
-                        return const _ProfileHeader(
-                            name: 'প্রোফাইল পাওয়া যায়নি',
-                            email: '',
-                            phone: '',
-                            address: 'আবার চেষ্টা করুন',
-                            isVerified: false,
-                            onEdit: null);
-                      }
-                      final payload = snapshot.data?['data'];
-                      final user = payload is Map
-                          ? Map<String, dynamic>.from(
-                              payload['user'] as Map? ?? {})
-                          : <String, dynamic>{};
-                      return _ProfileHeader(
-                          name: user['name']?.toString() ?? 'আমার প্রোফাইল',
-                          email: user['email']?.toString() ?? '',
-                          phone: user['phone']?.toString() ?? '',
-                          avatarUrl: _avatarUrl(
-                              user['avatarUrl'] ?? user['avatar_url']),
-                          address:
-                              '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
-                          isVerified: user['isVerified'] == true ||
-                              user['is_verified'] == true,
-                          onEdit: editProfile);
-                    }),
-                const SizedBox(height: 10),
-                Card(
-                    elevation: 0,
-                    child: SwitchListTile.adaptive(
-                        value: profileLocked,
-                        onChanged: _setProfileLocked,
-                        title: const Text('প্রোফাইল লক করুন',
-                            style: TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: Text(profileLocked
-                            ? 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে না'
-                            : 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে'),
-                        secondary: Icon(profileLocked
-                            ? Icons.lock_rounded
-                            : Icons.lock_open_rounded))),
-                const SizedBox(height: 12),
-                FutureBuilder<List<dynamic>>(
-                    future: itemsFuture,
-                    builder: (_, snapshot) {
-                      if (_cachedItems != null) {
-                        return _profileItemsFromList(_cachedItems!);
-                      }
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const _ProfileListSkeleton();
-                      }
-                      if (snapshot.hasError) {
-                        return _EmptyCard(
-                            text:
-                                'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।');
-                      }
-                      final all = snapshot.data ?? [];
-                      return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('আমার পোস্ট',
-                                style: TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w800,
-                                    color: ink)),
-                            const SizedBox(height: 8),
-                            _managedItemsSection(all, posts: true),
-                            const SizedBox(height: 18),
-                            const Text('আমার তথ্য',
-                                style: TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w800,
-                                    color: ink)),
-                            const SizedBox(height: 8),
-                            _managedItemsSection(all, posts: false),
-                          ]);
-                    }),
-                const SizedBox(height: 22),
-                const Divider(height: 1),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(
-                      child: FilledButton.icon(
-                          onPressed: _deleteAccount,
-                          style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFD63D4F),
-                              foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14)),
-                          icon: const Icon(Icons.delete_forever_rounded),
-                          label: const Text('Delete'))),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: FilledButton.icon(
-                          onPressed: widget.onLogout == null
-                              ? null
-                              : () => widget.onLogout!(),
-                          style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF2D987E),
-                              foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14)),
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('Logout')))
-                ]),
-                const SizedBox(height: 12),
-                SizedBox(
-                    width: double.infinity,
+      child: Stack(children: [
+        ListView(
+            controller: _profileScrollController,
+            primary: false,
+            shrinkWrap: false,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            physics: const ClampingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics()),
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+            children: [
+              FutureBuilder<Map<String, dynamic>>(
+                  future: userFuture,
+                  builder: (_, snapshot) {
+                    if (_cachedUser != null) {
+                      return _profileHeaderFromResponse(_cachedUser!);
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const _ProfileHeaderSkeleton();
+                    }
+                    if (snapshot.hasError) {
+                      return const _ProfileHeader(
+                          name: 'প্রোফাইল পাওয়া যায়নি',
+                          email: '',
+                          phone: '',
+                          address: 'আবার চেষ্টা করুন',
+                          isVerified: false,
+                          onEdit: null);
+                    }
+                    final payload = snapshot.data?['data'];
+                    final user = payload is Map
+                        ? Map<String, dynamic>.from(
+                            payload['user'] as Map? ?? {})
+                        : <String, dynamic>{};
+                    return _ProfileHeader(
+                        name: user['name']?.toString() ?? 'আমার প্রোফাইল',
+                        email: user['email']?.toString() ?? '',
+                        phone: user['phone']?.toString() ?? '',
+                        avatarUrl:
+                            _avatarUrl(user['avatarUrl'] ?? user['avatar_url']),
+                        address:
+                            '${user['sex'] ?? ''}  •  ${user['address'] ?? ''}',
+                        isVerified: user['isVerified'] == true ||
+                            user['is_verified'] == true,
+                        onEdit: editProfile);
+                  }),
+              const SizedBox(height: 10),
+              Card(
+                  elevation: 0,
+                  child: SwitchListTile.adaptive(
+                      value: profileLocked,
+                      onChanged: _setProfileLocked,
+                      title: const Text('প্রোফাইল লক করুন',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(profileLocked
+                          ? 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে না'
+                          : 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে'),
+                      secondary: Icon(profileLocked
+                          ? Icons.lock_rounded
+                          : Icons.lock_open_rounded))),
+              const SizedBox(height: 12),
+              FutureBuilder<List<dynamic>>(
+                  future: itemsFuture,
+                  builder: (_, snapshot) {
+                    if (_cachedItems != null) {
+                      return _profileItemsFromList(_cachedItems!);
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const _ProfileListSkeleton();
+                    }
+                    if (snapshot.hasError) {
+                      return _EmptyCard(
+                          text:
+                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। রিফ্রেশ করে আবার চেষ্টা করুন।');
+                    }
+                    final all = snapshot.data ?? [];
+                    return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('আমার পোস্ট',
+                              style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  color: ink)),
+                          const SizedBox(height: 8),
+                          _managedItemsSection(all, posts: true),
+                          const SizedBox(height: 18),
+                          const Text('আমার তথ্য',
+                              style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  color: ink)),
+                          const SizedBox(height: 8),
+                          _managedItemsSection(all, posts: false),
+                        ]);
+                  }),
+              const SizedBox(height: 22),
+              const Divider(height: 1),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(
                     child: FilledButton.icon(
-                        onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => AboutPage(api: widget.api))),
+                        onPressed: _deleteAccount,
                         style: FilledButton.styleFrom(
-                            backgroundColor: brand,
+                            backgroundColor: const Color(0xFFD63D4F),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14)),
-                        icon: const Icon(Icons.info_outline_rounded),
-                        label: const Text('About'))),
-              ])));
+                        icon: const Icon(Icons.delete_forever_rounded),
+                        label: const Text('Delete'))),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: FilledButton.icon(
+                        onPressed: widget.onLogout == null
+                            ? null
+                            : () => widget.onLogout!(),
+                        style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF2D987E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14)),
+                        icon: const Icon(Icons.logout_rounded),
+                        label: const Text('Logout')))
+              ]),
+              const SizedBox(height: 12),
+              SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => AboutPage(api: widget.api))),
+                      style: FilledButton.styleFrom(
+                          backgroundColor: brand,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14)),
+                      icon: const Icon(Icons.info_outline_rounded),
+                      label: const Text('About'))),
+            ]),
+        if (_profileRefreshing)
+          Positioned.fill(
+              child: ColoredBox(
+                  color: Color(0xF2F7FAF8),
+                  child: Center(
+                      child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 28),
+                          child:
+                              Column(mainAxisSize: MainAxisSize.min, children: [
+                            _ProfileHeaderSkeleton(),
+                            SizedBox(height: 14),
+                            _ProfileListSkeleton(),
+                          ]))))),
+      ]));
 }
 
 class _ProfileHeader extends StatelessWidget {
