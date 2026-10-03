@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -26,6 +27,40 @@ class PushNotificationService {
   PushNotificationService._();
   static final instance = PushNotificationService._();
   final events = StreamController<void>.broadcast();
+  final tapEvents = StreamController<Map<String, String>>.broadcast();
+  Map<String, String>? _pendingTap;
+
+  Map<String, String>? takePendingTap() {
+    final value = _pendingTap;
+    _pendingTap = null;
+    return value;
+  }
+
+  void _emitTap(Map<String, dynamic> data) {
+    final normalized = <String, String>{};
+    for (final entry in data.entries) {
+      if (entry.value != null && entry.value.toString().isNotEmpty) {
+        normalized[entry.key] = entry.value.toString();
+      }
+    }
+    if (normalized.isEmpty) return;
+    if (tapEvents.hasListener) {
+      tapEvents.add(normalized);
+    } else {
+      _pendingTap = normalized;
+    }
+  }
+
+  void _emitLocalTap(String? payload) {
+    if (payload == null || payload.isEmpty) return;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        _emitTap(Map<String, dynamic>.from(decoded));
+      }
+    } catch (_) {}
+  }
+
   StreamSubscription<String>? tokenSubscription;
   StreamSubscription<RemoteMessage>? messageSubscription;
   StreamSubscription<RemoteMessage>? openedSubscription;
@@ -41,6 +76,9 @@ class PushNotificationService {
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('ic_stat_pirganj'),
       ),
+      onDidReceiveNotificationResponse: (response) {
+        _emitLocalTap(response.payload);
+      },
     );
     final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission(alert: true, badge: true, sound: true);
@@ -73,12 +111,15 @@ class PushNotificationService {
             icon: 'ic_stat_pirganj',
           ),
         ),
-        payload: message.data['entityId']?.toString(),
+        payload: jsonEncode(message.data),
       );
     });
-    openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((_) {
+    openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _emitTap(message.data);
       events.add(null);
     });
+    final initialMessage = await messaging.getInitialMessage();
+    if (initialMessage != null) _emitTap(initialMessage.data);
   }
 
   Future<void> stop(PirganjApiClient api) async {

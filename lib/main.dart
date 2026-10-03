@@ -1022,6 +1022,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
   StreamSubscription<void>? pushEventSubscription;
+  StreamSubscription<Map<String, String>>? pushTapSubscription;
   String category = 'সব';
 
   @override
@@ -1031,13 +1032,83 @@ class _HomeScreenState extends State<HomeScreen> {
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
     unawaited(api.logPageVisit('হোম'));
     _loadUnreadNotifications();
+    final push = PushNotificationService.instance;
+    pushTapSubscription = push.tapEvents.stream.listen(_handlePushTap);
+    final pendingTap = push.takePendingTap();
+    if (pendingTap != null) unawaited(_handlePushTap(pendingTap));
   }
 
   @override
   void dispose() {
     searchController.dispose();
     pushEventSubscription?.cancel();
+    pushTapSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _handlePushTap(Map<String, String> payload) async {
+    if (!mounted) return;
+    final type = payload['entityType'] ?? payload['entity_type'] ?? '';
+    final id = payload['entityId'] ?? payload['entity_id'];
+    if (type == 'post' && id != null && id.isNotEmpty) {
+      try {
+        final post = await api.getPost(id);
+        if (mounted) {
+          await openPostDetails(
+              context: context,
+              api: api,
+              post: post,
+              onLogout: widget.onLogout,
+              onOpenOwnProfile: () => _switchTab(3));
+        }
+      } catch (_) {
+        if (mounted) _message('পোস্টটি খোলা যায়নি। আবার চেষ্টা করুন।');
+      }
+      return;
+    }
+    if (!mounted) return;
+    switch (type) {
+      case 'service':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => ServiceCategoryPage(
+                    api: api,
+                    category: 'সব',
+                    title: 'স্থানীয় সেবা',
+                    icon: Icons.storefront_rounded)));
+        break;
+      case 'donor':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: api, topic: 0)));
+        break;
+      case 'blood-request':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: api, topic: 1)));
+        break;
+      case 'notice':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: api, topic: 2)));
+        break;
+      case 'job':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: api, topic: 3)));
+        break;
+      case 'lost-found':
+        await Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => TopicDataPage(api: api, topic: 4)));
+        break;
+    }
   }
 
   Future<void> _loadUnreadNotifications() async {
