@@ -2850,6 +2850,7 @@ class _NotificationPageState extends State<NotificationPage> {
   bool loadingMore = false;
   bool hasMore = true;
   List<dynamic>? _cachedNotifications;
+  bool _notificationRefreshing = false;
 
   @override
   void initState() {
@@ -2869,7 +2870,8 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Future<void> _refreshNotifications() async {
-    if (loadingMore) return;
+    if (loadingMore || _notificationRefreshing) return;
+    if (mounted) setState(() => _notificationRefreshing = true);
     try {
       final latest = await widget.api.getNotifications();
       if (!mounted) return;
@@ -2880,7 +2882,9 @@ class _NotificationPageState extends State<NotificationPage> {
         notificationsFuture = Future.value(latest);
       });
     } catch (_) {
-      if (mounted) setState(() {});
+      // Keep the cached notifications visible if a manual refresh fails.
+    } finally {
+      if (mounted) setState(() => _notificationRefreshing = false);
     }
   }
 
@@ -3059,88 +3063,109 @@ class _NotificationPageState extends State<NotificationPage> {
                 notificationPredicate: (notification) =>
                     notification.depth == 0,
                 onRefresh: _refreshNotifications,
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    if (notification.metrics.pixels >=
-                        notification.metrics.maxScrollExtent - 240) {
-                      _loadMore();
-                    }
-                    return false;
-                  },
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
-                    itemCount: items.length + (loadingMore ? 1 : 0),
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, index) {
-                      if (index >= items.length) {
-                        return const Center(
-                            child: Padding(
-                                padding: EdgeInsets.all(12),
-                                child: CircularProgressIndicator()));
+                child: Stack(children: [
+                  NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification.metrics.pixels >=
+                          notification.metrics.maxScrollExtent - 240) {
+                        _loadMore();
                       }
-                      final item = Map<String, dynamic>.from(items[index]);
-                      final avatar = item['actorAvatarUrl']?.toString() ?? '';
-                      return Material(
-                          color: item['isRead'] == true
-                              ? Colors.white
-                              : const Color(0xFFE8F6F0),
-                          borderRadius: BorderRadius.circular(18),
-                          child: InkWell(
-                              onTap: () => _open(item),
-                              borderRadius: BorderRadius.circular(18),
-                              child: Padding(
-                                  padding: const EdgeInsets.all(13),
-                                  child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        CircleAvatar(
-                                            radius: 24,
-                                            backgroundColor:
-                                                const Color(0xFFDDF2E9),
-                                            backgroundImage: avatar.isNotEmpty
-                                                ? _avatarProvider(avatar)
-                                                : null,
-                                            child: avatar.isEmpty
-                                                ? const Icon(
-                                                    Icons.notifications_rounded,
-                                                    color: brand)
-                                                : null),
-                                        const SizedBox(width: 11),
-                                        Expanded(
-                                            child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                              Text(
-                                                  item['title']?.toString() ??
-                                                      'নোটিফিকেশন',
-                                                  style: const TextStyle(
-                                                      color: ink,
-                                                      fontWeight:
-                                                          FontWeight.w800)),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                  item['body']?.toString() ??
-                                                      '',
-                                                  style: const TextStyle(
-                                                      color: Colors.black54,
-                                                      height: 1.35)),
-                                              const SizedBox(height: 5),
-                                              Text(_time(item['createdAt']),
-                                                  style: const TextStyle(
-                                                      color: Colors.black45,
-                                                      fontSize: 11))
-                                            ])),
-                                        if (item['isRead'] != true)
-                                          const Padding(
-                                              padding: EdgeInsets.only(top: 5),
-                                              child: Icon(Icons.circle,
-                                                  color: brand, size: 9))
-                                      ]))));
+                      return false;
                     },
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+                      itemCount: items.length + (loadingMore ? 1 : 0),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, index) {
+                        if (index >= items.length) {
+                          return const Center(
+                              child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator()));
+                        }
+                        final item = Map<String, dynamic>.from(items[index]);
+                        final avatar = item['actorAvatarUrl']?.toString() ?? '';
+                        return Material(
+                            color: item['isRead'] == true
+                                ? Colors.white
+                                : const Color(0xFFE8F6F0),
+                            borderRadius: BorderRadius.circular(18),
+                            child: InkWell(
+                                onTap: () => _open(item),
+                                borderRadius: BorderRadius.circular(18),
+                                child: Padding(
+                                    padding: const EdgeInsets.all(13),
+                                    child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          CircleAvatar(
+                                              radius: 24,
+                                              backgroundColor:
+                                                  const Color(0xFFDDF2E9),
+                                              backgroundImage: avatar.isNotEmpty
+                                                  ? _avatarProvider(avatar)
+                                                  : null,
+                                              child: avatar.isEmpty
+                                                  ? const Icon(
+                                                      Icons
+                                                          .notifications_rounded,
+                                                      color: brand)
+                                                  : null),
+                                          const SizedBox(width: 11),
+                                          Expanded(
+                                              child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                Text(
+                                                    item['title']?.toString() ??
+                                                        'নোটিফিকেশন',
+                                                    style: const TextStyle(
+                                                        color: ink,
+                                                        fontWeight:
+                                                            FontWeight.w800)),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                    item['body']?.toString() ??
+                                                        '',
+                                                    style: const TextStyle(
+                                                        color: Colors.black54,
+                                                        height: 1.35)),
+                                                const SizedBox(height: 5),
+                                                Text(_time(item['createdAt']),
+                                                    style: const TextStyle(
+                                                        color: Colors.black45,
+                                                        fontSize: 11))
+                                              ])),
+                                          if (item['isRead'] != true)
+                                            const Padding(
+                                                padding:
+                                                    EdgeInsets.only(top: 5),
+                                                child: Icon(Icons.circle,
+                                                    color: brand, size: 9))
+                                        ]))));
+                      },
+                    ),
                   ),
-                ),
+                  if (_notificationRefreshing)
+                    Positioned.fill(
+                        child: ColoredBox(
+                            color: Color(0xF2F7FAF8),
+                            child: Center(
+                                child: Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 20),
+                                    child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _SkeletonBox(height: 92, radius: 18),
+                                          SizedBox(height: 10),
+                                          _SkeletonBox(height: 92, radius: 18),
+                                          SizedBox(height: 10),
+                                          _SkeletonBox(height: 92, radius: 18),
+                                        ]))))),
+                ]),
               );
             }),
       );
