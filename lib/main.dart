@@ -1429,7 +1429,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     () => _openCategory(
                         'ডাক্তার', 'ডাক্তার', Icons.medical_services_rounded)),
                 _ActionCard(
-                    'রক্ত',
+                    'রক্তদাতা',
                     Icons.bloodtype_rounded,
                     const Color(0xFFFFEFE0),
                     const Color(0xFFE07C28),
@@ -3584,6 +3584,14 @@ class _TopicDataPageState extends State<TopicDataPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(10, 16, 10, 28),
               children: [
+                if (widget.topic == 0)
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text('(${data.length}) টি তথ্য',
+                          style: const TextStyle(
+                              color: ink,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700))),
                 if (widget.topic < 2)
                   Padding(
                       padding: const EdgeInsets.only(bottom: 14),
@@ -3640,7 +3648,7 @@ class HomeBloodSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('রক্ত',
+        const Text('রক্তদাতা',
             style: TextStyle(
                 fontSize: 21, fontWeight: FontWeight.w800, color: ink)),
         const SizedBox(height: 10),
