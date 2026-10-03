@@ -3584,17 +3584,9 @@ class _TopicDataPageState extends State<TopicDataPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(10, 16, 10, 28),
               children: [
-                if (widget.topic == 0)
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text('(${data.length}) টি তথ্য',
-                          style: const TextStyle(
-                              color: ink,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700))),
                 if (widget.topic < 2)
                   Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: DropdownButtonFormField<String>(
                           initialValue: bloodGroup,
                           decoration: const InputDecoration(
@@ -3611,6 +3603,16 @@ class _TopicDataPageState extends State<TopicDataPage> {
                             bloodGroup = value ?? 'সব';
                             _load(refresh: true);
                           })),
+                if (widget.topic == 0)
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('${data.length} টি তথ্য',
+                              style: const TextStyle(
+                                  color: ink,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700)))),
                 if (loading && data.isEmpty)
                   const Padding(
                       padding: EdgeInsets.all(30),
