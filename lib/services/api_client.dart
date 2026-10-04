@@ -17,6 +17,8 @@ class PirganjApiClient {
   String? token;
   String? deviceId;
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
+  final Map<String, Future<Map<String, dynamic>>> _publicProfileCache = {};
+  final Map<String, List<dynamic>> _myItemsCache = {};
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
   static const _imageBucket = 'pirganj-images';
@@ -92,9 +94,22 @@ class PirganjApiClient {
     return (json['data'] as Map?)?['html']?.toString() ?? '';
   }
 
-  Future<Map<String, dynamic>> getPublicProfile(String userId) async {
-    final json = await _get(Uri.parse('$baseUrl/api/users/$userId/public'));
-    return Map<String, dynamic>.from(json['data'] as Map);
+  Future<Map<String, dynamic>> getPublicProfile(String userId,
+      {bool forceRefresh = false}) {
+    if (!forceRefresh && _publicProfileCache.containsKey(userId)) {
+      return _publicProfileCache[userId]!;
+    }
+    final request = () async {
+      try {
+        final json = await _get(Uri.parse('$baseUrl/api/users/$userId/public'));
+        return Map<String, dynamic>.from(json['data'] as Map);
+      } catch (_) {
+        _publicProfileCache.remove(userId);
+        rethrow;
+      }
+    }();
+    _publicProfileCache[userId] = request;
+    return request;
   }
 
   MediaType _imageType(XFile image) {
@@ -355,8 +370,15 @@ class PirganjApiClient {
   }
 
   Future<List<dynamic>> getMyItems(
-      {int limit = 100, int offset = 0, String? resource}) async {
+      {int limit = 100,
+      int offset = 0,
+      String? resource,
+      bool forceRefresh = false}) async {
     final cacheKey = 'pirganj_profile_items_${resource ?? 'all'}';
+    if (!forceRefresh && offset == 0 && resource == null) {
+      final memory = _myItemsCache[cacheKey];
+      if (memory != null) return List<dynamic>.from(memory);
+    }
     try {
       final json = await _get(
           Uri.parse('$baseUrl/api/profile/items').replace(queryParameters: {
@@ -365,6 +387,9 @@ class PirganjApiClient {
         if (resource != null) 'resource': resource,
       }));
       final items = List<dynamic>.from(json['data'] as List);
+      if (offset == 0 && resource == null) {
+        _myItemsCache[cacheKey] = List<dynamic>.from(items);
+      }
       final prefs = await _profilePrefs();
       if (prefs != null) await prefs.setString(cacheKey, jsonEncode(items));
       return items;
@@ -373,7 +398,11 @@ class PirganjApiClient {
       final cached = prefs?.getString(cacheKey);
       if (cached != null) {
         try {
-          return List<dynamic>.from(jsonDecode(cached) as List);
+          final items = List<dynamic>.from(jsonDecode(cached) as List);
+          if (offset == 0 && resource == null) {
+            _myItemsCache[cacheKey] = List<dynamic>.from(items);
+          }
+          return items;
         } catch (_) {}
       }
       rethrow;

@@ -778,7 +778,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
 
   Future<void> refresh() async {
     setState(() {
-      future = widget.api.getPublicProfile(widget.userId);
+      future = widget.api.getPublicProfile(widget.userId, forceRefresh: true);
     });
     await future;
   }
@@ -3993,6 +3993,7 @@ class _TopicCard extends StatelessWidget {
                     child: Image.network(imageUrl,
                         width: 52,
                         height: 52,
+                        cacheWidth: 160,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => CircleAvatar(
                             backgroundColor: const Color(0xFFE0F3EB),
@@ -4718,12 +4719,17 @@ class _ProfilePanelState extends State<ProfilePanel> {
   @override
   void didUpdateWidget(covariant ProfilePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshToken != widget.refreshToken) _reload();
+    if (oldWidget.refreshToken != widget.refreshToken)
+      _reload(forceRefresh: true);
   }
 
-  void _reload() {
-    final userRequest = widget.api.me();
-    final itemsRequest = widget.api.getMyItems();
+  void _reload({bool forceRefresh = false}) {
+    final userRequest = _cachedUser == null || forceRefresh
+        ? widget.api.me()
+        : Future<Map<String, dynamic>>.value(_cachedUser);
+    final itemsRequest = _cachedItems == null || forceRefresh
+        ? widget.api.getMyItems(forceRefresh: forceRefresh)
+        : Future<List<dynamic>>.value(_cachedItems);
     userFuture = _cachedUser == null
         ? userRequest
         : Future<Map<String, dynamic>>.value(_cachedUser);
@@ -4760,7 +4766,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
     try {
       final results = await Future.wait<dynamic>([
         widget.api.me(),
-        widget.api.getMyItems(),
+        widget.api.getMyItems(forceRefresh: true),
       ]);
       if (!mounted) return;
       final user = Map<String, dynamic>.from(results[0] as Map);
@@ -4867,7 +4873,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
           address: result['address'],
           avatarUrl: avatarUrl,
           clearAvatar: result['removeAvatar'] == true);
-      if (mounted) setState(_reload);
+      if (mounted) setState(() => _reload(forceRefresh: true));
     } catch (e) {
       if (mounted) {
         showTopToast(context, 'Profile update হয়নি। ${friendlyMessage(e)}');
@@ -4894,7 +4900,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
     try {
       await widget.api
           .deleteItem(item['resource'].toString(), item['id'].toString());
-      if (mounted) setState(_reload);
+      if (mounted) setState(() => _reload(forceRefresh: true));
     } catch (e) {
       if (mounted) {
         showTopToast(context, 'মুছে ফেলা যায়নি। ${friendlyMessage(e)}');
@@ -4920,7 +4926,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
       }
       await widget.api.updateItem(
           item['resource'].toString(), item['id'].toString(), result);
-      if (mounted) setState(_reload);
+      if (mounted) setState(() => _reload(forceRefresh: true));
     } catch (e) {
       if (mounted) {
         showTopToast(context, 'আপডেট করা যায়নি। ${friendlyMessage(e)}');
@@ -5313,6 +5319,7 @@ class _OwnedItemCard extends StatelessWidget {
                         ? Image.network(_avatarUrl(imageUrl) ?? imageUrl!,
                             width: 44,
                             height: 44,
+                            cacheWidth: 128,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
                                 width: 44,
