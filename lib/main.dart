@@ -941,6 +941,7 @@ class _PublicItemCard extends StatelessWidget {
                                   ? Image.network(imageUrl,
                                       width: 44,
                                       height: 44,
+                                      cacheWidth: 128,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
                                           width: 44,
@@ -1079,12 +1080,18 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<void>? pushEventSubscription;
   StreamSubscription<Map<String, String>>? pushTapSubscription;
   String category = 'সব';
+  late final Widget _homePage;
+  late final Widget _addPage;
 
   @override
   void initState() {
     super.initState();
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+    // These pages are static tab content; retain their widget subtrees so
+    // unread counts, reactions, and tab changes do not rebuild their grids.
+    _homePage = _home();
+    _addPage = _add();
     unawaited(api.logPageVisit('হোম'));
     _loadUnreadNotifications();
     final push = PushNotificationService.instance;
@@ -1421,7 +1428,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _page() => IndexedStack(
         index: tab,
-        children: [_home(), _community(), _add(), _more()],
+        children: [_homePage, _community(), _addPage, _more()],
       );
 
   Widget _home() => RefreshIndicator(
@@ -2085,6 +2092,7 @@ class _PostCard extends StatelessWidget {
                                         post['imageUrl'].toString(),
                                     height: 180,
                                     width: double.infinity,
+                                    cacheWidth: 720,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
                                         const SizedBox())))
@@ -3465,6 +3473,7 @@ class _DetailedServiceCard extends StatelessWidget {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(18),
                           child: Image.network(_avatarUrl(item.imageUrl!)!,
+                              cacheWidth: 160,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Icon(
                                   _serviceIcon(item.icon, item.category),
