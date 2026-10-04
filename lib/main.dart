@@ -33,7 +33,7 @@ String friendlyMessage(Object error) {
     return 'Email বা password সঠিক নয়।';
   if (text.contains('blocked'))
     return 'এই account admin দ্বারা সাময়িকভাবে বন্ধ করা হয়েছে।';
-  return text.isEmpty ? 'কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।' : text;
+  return 'কাজটি সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
 }
 
 String authFriendlyMessage(Object error) {
@@ -50,14 +50,48 @@ String authFriendlyMessage(Object error) {
   return friendlyMessage(error);
 }
 
+OverlayEntry? _activeTopToast;
+Timer? _topToastTimer;
+
 void showTopToast(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.of(context);
-  messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: const Color(0xFFE1F3EA),
-      content: Text(message,
-          style: const TextStyle(color: ink, fontWeight: FontWeight.w700))));
+  _topToastTimer?.cancel();
+  _activeTopToast?.remove();
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) return;
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+      builder: (_) => Positioned(
+          top: MediaQuery.paddingOf(context).top + 12,
+          left: 16,
+          right: 16,
+          child: Material(
+              color: Colors.transparent,
+              child: SafeArea(
+                  bottom: false,
+                  child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 13),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFE1F3EA),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Color(0x33000000),
+                                blurRadius: 14,
+                                offset: Offset(0, 5))
+                          ]),
+                      child: Text(message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: ink, fontWeight: FontWeight.w700)))))));
+  _activeTopToast = entry;
+  overlay.insert(entry);
+  _topToastTimer = Timer(const Duration(seconds: 3), () {
+    if (identical(_activeTopToast, entry)) {
+      entry.remove();
+      _activeTopToast = null;
+    }
+  });
 }
 
 Future<void> dialPhone(BuildContext context, String? value) async {
@@ -66,8 +100,7 @@ Future<void> dialPhone(BuildContext context, String? value) async {
   final ok = await launchUrl(Uri(scheme: 'tel', path: phone),
       mode: LaunchMode.externalApplication);
   if (!ok && context.mounted) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Phone dialer খোলা যায়নি')));
+    showTopToast(context, 'Phone dialer খোলা যায়নি');
   }
 }
 
@@ -265,13 +298,11 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
       if (!granted) throw Exception('gallery permission denied');
       await Gal.putImageBytes(response.bodyBytes, album: 'Pirganj');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ছবি Pirganj ফোল্ডারে সেভ হয়েছে')));
+        showTopToast(context, 'ছবি Pirganj ফোল্ডারে সেভ হয়েছে');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ছবি ডাউনলোড করা যায়নি')));
+        showTopToast(context, 'ছবি ডাউনলোড করা যায়নি');
       }
     } finally {
       if (mounted) setState(() => saving = false);
@@ -347,8 +378,7 @@ Future<XFile?> pickImageUnderLimit(BuildContext context) async {
   final selected = compressed ?? image;
   if (await selected.length() > maxImageBytes) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ছবিটি প্রস্তুত করা যায়নি')));
+      showTopToast(context, 'ছবিটি প্রস্তুত করা যায়নি');
     }
     return null;
   }
@@ -590,8 +620,7 @@ class UpdateRequiredPage extends StatelessWidget {
     final opened = await launchUrl(Uri.parse(apkDownloadUrl),
         mode: LaunchMode.externalApplication);
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ডাউনলোড পেজ খোলা যায়নি')));
+      showTopToast(context, 'ডাউনলোড পেজ খোলা যায়নি');
     }
   }
 
@@ -719,8 +748,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
       await openPostDetails(context: context, api: widget.api, post: post);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('পোস্টের বিস্তারিত আনা যায়নি। আবার চেষ্টা করুন।')));
+        showTopToast(context, 'পোস্টের বিস্তারিত আনা যায়নি। আবার চেষ্টা করুন।');
       }
     }
   }
@@ -1207,13 +1235,7 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (_) => SearchResultsPage(api: api, query: query)));
   }
 
-  void _message(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(text),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    ));
-  }
+  void _message(String text) => showTopToast(context, text);
 
   void _openProfile(String? userId, String name, String? avatarUrl,
       {Map<String, dynamic>? originPost}) {
@@ -2244,8 +2266,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('React করা যায়নি: $e')));
+        showTopToast(context, 'রিঅ্যাকশন দেওয়া যায়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -2326,8 +2347,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Comment করা যায়নি: $e')));
+        showTopToast(context, 'কমেন্ট করা যায়নি। ${friendlyMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => sending = false);
@@ -2360,8 +2380,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Comment react করা যায়নি: $e')));
+        showTopToast(
+            context, 'কমেন্টে রিঅ্যাকশন দেওয়া যায়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -2390,8 +2410,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       if (mounted) setState(_reload);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Comment update হয়নি: $e')));
+        showTopToast(context, 'কমেন্ট আপডেট হয়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -2402,8 +2421,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       if (mounted) setState(_reload);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Comment delete হয়নি: $e')));
+        showTopToast(context, 'কমেন্ট মুছে ফেলা যায়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -3151,7 +3169,7 @@ class _NotificationPageState extends State<NotificationPage> {
                   if (_notificationRefreshing)
                     Positioned.fill(
                         child: ColoredBox(
-                            color: Color(0xF2F7FAF8),
+                            color: page,
                             child: Center(
                                 child: Padding(
                                     padding:
@@ -4472,8 +4490,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  void _show(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void _show(String text) => showTopToast(context, text);
   InputDecoration dec(String label) => InputDecoration(
       labelText: label,
       filled: true,
@@ -4654,8 +4671,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
           onLogout: widget.onLogout);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('পোস্টের বিস্তারিত আনা যায়নি: $error')));
+        showTopToast(
+            context, 'পোস্টের বিস্তারিত আনা যায়নি। ${friendlyMessage(error)}');
       }
     }
   }
@@ -4784,8 +4801,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
     } catch (e) {
       if (mounted) {
         setState(() => profileLocked = previous);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Profile lock update হয়নি: $e')));
+        showTopToast(context, 'Profile lock আপডেট হয়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -4822,8 +4838,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
       if (mounted) setState(_reload);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Profile update হয়নি: $e')));
+        showTopToast(context, 'Profile update হয়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -4850,8 +4865,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
       if (mounted) setState(_reload);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('মুছতে পারিনি: $e')));
+        showTopToast(context, 'মুছে ফেলা যায়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -4877,8 +4891,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
       if (mounted) setState(_reload);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('আপডেট করা যায়নি: $e')));
+        showTopToast(context, 'আপডেট করা যায়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -4906,8 +4919,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
       if (mounted && widget.onLogout != null) await widget.onLogout!();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Account delete হয়নি: $e')));
+        showTopToast(context, 'Account delete হয়নি। ${friendlyMessage(e)}');
       }
     }
   }
@@ -5124,7 +5136,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
         if (_profileRefreshing)
           Positioned.fill(
               child: ColoredBox(
-                  color: Color(0xF2F7FAF8),
+                  color: page,
                   child: Center(
                       child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 28),
