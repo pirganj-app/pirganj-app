@@ -29,7 +29,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/pirganj_logo.jpg
-    - assets/about.html
 
 dev_dependencies:
   flutter_lints: ^6.0.0

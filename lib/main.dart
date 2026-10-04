@@ -64,26 +64,35 @@ void showTopToast(BuildContext context, String message) {
           top: MediaQuery.paddingOf(context).top + 12,
           left: 16,
           right: 16,
-          child: Material(
-              color: Colors.transparent,
-              child: SafeArea(
-                  bottom: false,
-                  child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 13),
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFE1F3EA),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(
-                                color: Color(0x33000000),
-                                blurRadius: 14,
-                                offset: Offset(0, 5))
-                          ]),
-                      child: Text(message,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              color: ink, fontWeight: FontWeight.w700)))))));
+          child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 360),
+              curve: Curves.easeOutBack,
+              builder: (_, value, child) => Opacity(
+                  opacity: value.clamp(0.0, 1.0),
+                  child: Transform.translate(
+                      offset: Offset(0, -18 * (1 - value)), child: child)),
+              child: Material(
+                  color: Colors.transparent,
+                  child: SafeArea(
+                      bottom: false,
+                      child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 13),
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE1F3EA),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 14,
+                                    offset: Offset(0, 5))
+                              ]),
+                          child: Text(message,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: ink,
+                                  fontWeight: FontWeight.w700))))))));
   _activeTopToast = entry;
   overlay.insert(entry);
   _topToastTimer = Timer(const Duration(seconds: 3), () {
@@ -680,13 +689,15 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
-  late final Future<String> html = _loadAbout();
-  Future<String> _loadAbout() async {
+  late final Future<String?> html = _loadAbout();
+
+  Future<String?> _loadAbout() async {
     try {
       final remote = await widget.api.getAboutHtml();
-      if (remote.trim().isNotEmpty) return remote;
-    } catch (_) {}
-    return rootBundle.loadString('assets/about.html');
+      return remote.trim().isEmpty ? null : remote;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -695,13 +706,25 @@ class _AboutPageState extends State<AboutPage> {
           title: const Text('About'),
           backgroundColor: brand,
           foregroundColor: Colors.white),
-      body: FutureBuilder<String>(
+      body: FutureBuilder<String?>(
           future: html,
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: _SkeletonBox(height: 240, radius: 20));
             }
-            final content = snap.data ?? '';
+            final content = snap.data;
+            if (content == null || content.trim().isEmpty) {
+              return const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                          'About তথ্য এখন পাওয়া যাচ্ছে না। পরে আবার চেষ্টা করুন।',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: ink,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700))));
+            }
             return WebViewWidget(
                 controller: WebViewController()
                   ..setJavaScriptMode(JavaScriptMode.disabled)
