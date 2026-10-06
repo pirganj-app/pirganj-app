@@ -61,7 +61,7 @@ void showTopToast(BuildContext context, String message) {
   late final OverlayEntry entry;
   entry = OverlayEntry(
       builder: (_) => Positioned(
-          top: MediaQuery.paddingOf(context).top + 12,
+          top: MediaQuery.paddingOf(overlay.context).top + 8,
           left: 16,
           right: 16,
           child: TweenAnimationBuilder<double>(
@@ -74,25 +74,22 @@ void showTopToast(BuildContext context, String message) {
                       offset: Offset(0, -18 * (1 - value)), child: child)),
               child: Material(
                   color: Colors.transparent,
-                  child: SafeArea(
-                      bottom: false,
-                      child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 13),
-                          decoration: BoxDecoration(
-                              color: const Color(0xFFE1F3EA),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: const [
-                                BoxShadow(
-                                    color: Color(0x33000000),
-                                    blurRadius: 14,
-                                    offset: Offset(0, 5))
-                              ]),
-                          child: Text(message,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  color: ink,
-                                  fontWeight: FontWeight.w700))))))));
+                  child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 13),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFE1F3EA),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Color(0x33000000),
+                                blurRadius: 14,
+                                offset: Offset(0, 5))
+                          ]),
+                      child: Text(message,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: ink, fontWeight: FontWeight.w700)))))));
   _activeTopToast = entry;
   overlay.insert(entry);
   _topToastTimer = Timer(const Duration(seconds: 3), () {
@@ -1072,6 +1069,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool postsLoadingMore = false;
   bool postsHasMore = true;
   String? postsBeforeCursor;
+  String? _postsRequestKey;
   Object? postsError;
   int tab = 0;
   final List<int> tabHistory = <int>[];
@@ -1182,6 +1180,15 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
+  String _postIdentity(dynamic item) {
+    if (item is Map) {
+      final id = item['id']?.toString();
+      if (id != null && id.isNotEmpty) return id;
+      return '${item['createdAt'] ?? item['created_at'] ?? ''}|${item['title'] ?? ''}|${item['body'] ?? ''}';
+    }
+    return item.toString();
+  }
+
   Future<void> _loadPostsPage({bool refresh = false}) async {
     if (postsLoading || postsLoadingMore) return;
     if (!refresh && !postsHasMore) return;
@@ -1189,9 +1196,13 @@ class _HomeScreenState extends State<HomeScreen> {
       posts.clear();
       postsHasMore = true;
       postsBeforeCursor = null;
+      _postsRequestKey = null;
       postsError = null;
       postsLoading = true;
     } else {
+      final requestKey = '${posts.length}|${postsBeforeCursor ?? ''}';
+      if (_postsRequestKey == requestKey) return;
+      _postsRequestKey = requestKey;
       postsLoadingMore = true;
     }
     if (mounted) setState(() {});
@@ -1199,15 +1210,32 @@ class _HomeScreenState extends State<HomeScreen> {
       final batch = await api.getPosts(
           limit: 5, offset: posts.length, before: postsBeforeCursor);
       if (mounted) {
-        posts.addAll(batch);
-        postsHasMore = batch.length == 5;
+        final existing = posts.map(_postIdentity).toSet();
+        final fresh =
+            batch.where((item) => existing.add(_postIdentity(item))).toList();
+        if (fresh.isEmpty && batch.isNotEmpty) {
+          // The server returned a page already displayed, commonly caused by
+          // a dropped connection or an unavailable cursor. Stop pagination so
+          // the same cards are never appended repeatedly.
+          postsHasMore = false;
+        } else {
+          posts.addAll(fresh);
+          postsHasMore = batch.length == 5;
+        }
         if (batch.isNotEmpty) {
-          postsBeforeCursor = (batch.last as Map?)?['createdAt']?.toString();
+          final cursor = (batch.last as Map?)?['createdAt']?.toString() ??
+              (batch.last as Map?)?['created_at']?.toString();
+          if (cursor != null && cursor.isNotEmpty) postsBeforeCursor = cursor;
         }
         postsError = null;
       }
     } catch (error) {
-      if (mounted) postsError = error;
+      if (mounted) {
+        postsError = error;
+        // Do not keep requesting/duplicating pages while offline. A manual
+        // refresh starts a clean pagination session when connectivity returns.
+        postsHasMore = false;
+      }
     } finally {
       if (mounted) {
         postsLoading = false;
@@ -4552,7 +4580,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Text(
                       register
                           ? 'নতুন account তৈরি করুন'
-                          : 'Pirganj-এ login করুন',
+                          : 'Pirganj App-এ login করুন',
                       style: const TextStyle(
                           fontSize: 25,
                           fontWeight: FontWeight.w800,

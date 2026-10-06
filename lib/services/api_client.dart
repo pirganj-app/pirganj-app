@@ -65,11 +65,27 @@ class PirganjApiClient {
   }
 
   Future<void> logout() async {
-    if (token == null) return;
-    try {
-      await _post('/auth/logout', const {});
-    } catch (_) {
-      // Local logout must still complete if the network is unavailable.
+    if (token != null) {
+      try {
+        await _post('/auth/logout', const {});
+      } catch (_) {
+        // Local logout must still complete if the network is unavailable.
+      }
+    }
+    await clearSessionCaches();
+  }
+
+  Future<void> clearSessionCaches() async {
+    _serviceCache.clear();
+    _publicProfileCache.clear();
+    _myItemsCache.clear();
+    final prefs = await _profilePrefs();
+    if (prefs == null) return;
+    for (final key in prefs
+        .getKeys()
+        .where((key) => key.startsWith('pirganj_profile_items_'))
+        .toList()) {
+      await prefs.remove(key);
     }
   }
 
