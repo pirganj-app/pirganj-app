@@ -439,13 +439,28 @@ class PirganjApp extends StatefulWidget {
 class _PirganjAppState extends State<PirganjApp> {
   final api = PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
   bool loading = true;
+  bool _handlingUnauthorized = false;
   bool updateRequired = false;
   bool versionCheckFailed = false;
   Map<String, dynamic>? appOpenMessage;
   @override
   void initState() {
     super.initState();
+    api.onUnauthorized = _handleUnauthorized;
     _restore();
+  }
+
+  Future<void> _handleUnauthorized() async {
+    if (_handlingUnauthorized) return;
+    _handlingUnauthorized = true;
+    api.token = null;
+    try {
+      await PushNotificationService.instance.stop(api);
+    } catch (_) {}
+    await api.clearSessionCaches();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pirganj_token');
+    if (mounted) setState(() {});
   }
 
   Future<void> _restore() async {
@@ -508,6 +523,7 @@ class _PirganjAppState extends State<PirganjApp> {
   Future<void> _loggedIn(Map<String, dynamic> result) async {
     final prefs = await SharedPreferences.getInstance();
     api.token = result['token']?.toString();
+    _handlingUnauthorized = false;
     await prefs.setString('pirganj_token', api.token!);
     try {
       await PushNotificationService.instance.start(api);

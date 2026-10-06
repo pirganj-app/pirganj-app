@@ -16,6 +16,7 @@ class PirganjApiClient {
   final http.Client _client;
   String? token;
   String? deviceId;
+  Future<void> Function()? onUnauthorized;
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
   final Map<String, Future<Map<String, dynamic>>> _publicProfileCache = {};
   final Map<String, List<dynamic>> _myItemsCache = {};
@@ -680,6 +681,10 @@ class PirganjApiClient {
     } catch (_) {
       throw HttpException(
           'Server returned an invalid response (${response.statusCode})');
+    }
+    if (response.statusCode == 401 && token != null) {
+      final handler = onUnauthorized;
+      if (handler != null) unawaited(handler());
     }
     if (response.statusCode >= 400 || json['success'] != true) {
       final message = (json['data'] as Map?)?['message']?.toString();
