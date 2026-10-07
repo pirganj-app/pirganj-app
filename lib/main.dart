@@ -1601,111 +1601,106 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  Widget _community() => RefreshIndicator(
+  Widget _community() {
+    final hasPosts = posts.isNotEmpty;
+    final initialState = postsLoading && !hasPosts
+        ? const Padding(
+            padding: EdgeInsets.fromLTRB(8, 30, 8, 30),
+            child: Column(children: [
+              _SkeletonBox(height: 92, radius: 20),
+              SizedBox(height: 12),
+              _SkeletonBox(height: 150, radius: 20),
+              SizedBox(height: 12),
+              _SkeletonBox(height: 150, radius: 20),
+            ]))
+        : postsError != null && !hasPosts
+            ? _NetworkErrorCard(onRetry: () => _loadPostsPage(refresh: true))
+            : const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই');
+    final footerCount =
+        hasPosts ? (postsLoadingMore ? 1 : 0) + (!postsHasMore ? 1 : 0) : 1;
+
+    Widget postCard(int index) {
+      final item = posts[index] as Map<String, dynamic>;
+      Future<void> react(String reaction) async {
+        try {
+          final list = await api.togglePostReaction(item['id'].toString(),
+              reaction: reaction);
+          item['likes'] = list.length;
+          item['myReaction'] = list.any((e) =>
+                  (e['userId'] ?? e['user_id'])?.toString() == api.userId)
+              ? reaction
+              : null;
+          if (mounted) setState(() {});
+        } catch (_) {
+          _message('ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+        }
+      }
+
+      return _PostCard(
+          post: item,
+          onProfile: () => _openProfile(
+              item['ownerId']?.toString(),
+              item['author']?.toString() ?? 'User',
+              item['authorAvatarUrl']?.toString(),
+              originPost: item),
+          onLike: () => react(item['myReaction']?.toString() ?? 'love'),
+          onOpen: () => openPostDetails(
+              context: context,
+              api: api,
+              post: item,
+              onLogout: widget.onLogout,
+              onOpenOwnProfile: () => _switchTab(3)),
+          onReact: react);
+    }
+
+    return RefreshIndicator(
         color: brand,
         onRefresh: () => _loadPostsPage(refresh: true),
         child: NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            if (notification.metrics.pixels >=
-                notification.metrics.maxScrollExtent - 500) {
-              _loadPostsPage();
-            }
-            return false;
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
-            children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('কমিউনিটি',
-                    style: TextStyle(
-                        fontSize: 26, fontWeight: FontWeight.w800, color: ink)),
-                _PillButton(
-                    label: 'পোস্ট লিখুন',
-                    icon: Icons.edit_rounded,
-                    onTap: () => _openEntry('post')),
-              ]),
-              const SizedBox(height: 14),
-              if (postsLoading && posts.isEmpty)
-                const Padding(
-                    padding: EdgeInsets.fromLTRB(8, 30, 8, 30),
-                    child: Column(children: [
-                      _SkeletonBox(height: 92, radius: 20),
-                      SizedBox(height: 12),
-                      _SkeletonBox(height: 150, radius: 20),
-                      SizedBox(height: 12),
-                      _SkeletonBox(height: 150, radius: 20),
-                    ]))
-              else if (postsError != null && posts.isEmpty)
-                _NetworkErrorCard(onRetry: () => _loadPostsPage(refresh: true))
-              else if (posts.isEmpty)
-                const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই')
-              else
-                ...posts.map((post) {
-                  final item = post as Map<String, dynamic>;
-                  return _PostCard(
-                      post: item,
-                      onProfile: () => _openProfile(
-                          item['ownerId']?.toString(),
-                          item['author']?.toString() ?? 'User',
-                          item['authorAvatarUrl']?.toString(),
-                          originPost: item),
-                      onLike: () async {
-                        try {
-                          final reaction =
-                              item['myReaction']?.toString() ?? 'love';
-                          final list = await api.togglePostReaction(
-                              item['id'].toString(),
-                              reaction: reaction);
-                          item['likes'] = list.length;
-                          item['myReaction'] = list.any((e) =>
-                                  (e['userId'] ?? e['user_id'])?.toString() ==
-                                  api.userId)
-                              ? reaction
-                              : null;
-                          if (mounted) setState(() {});
-                        } catch (_) {
-                          _message(
-                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
-                        }
-                      },
-                      onOpen: () => openPostDetails(
-                          context: context,
-                          api: api,
-                          post: item,
-                          onLogout: widget.onLogout,
-                          onOpenOwnProfile: () => _switchTab(3)),
-                      onReact: (reaction) async {
-                        try {
-                          final list = await api.togglePostReaction(
-                              item['id'].toString(),
-                              reaction: reaction);
-                          item['likes'] = list.length;
-                          item['myReaction'] = list.any((e) =>
-                                  (e['userId'] ?? e['user_id'])?.toString() ==
-                                  api.userId)
-                              ? reaction
-                              : null;
-                          if (mounted) setState(() {});
-                        } catch (_) {
-                          _message(
-                              'ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
-                        }
-                      });
-                }),
-              if (postsLoadingMore)
-                const Padding(
-                    padding: EdgeInsets.all(18),
-                    child: Center(child: _SkeletonBox(height: 92, radius: 18))),
-              if (!postsHasMore && posts.isNotEmpty)
-                const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(
-                        child: Text('সব পোস্ট দেখানো হয়েছে',
-                            style: TextStyle(color: Colors.black45)))),
-            ],
-          ),
-        ),
-      );
+            onNotification: (notification) {
+              if (notification.metrics.pixels >=
+                  notification.metrics.maxScrollExtent - 500) {
+                _loadPostsPage();
+              }
+              return false;
+            },
+            child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
+                itemCount: 2 + (hasPosts ? posts.length : 0) + footerCount,
+                itemBuilder: (_, index) {
+                  if (index == 0) {
+                    return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('কমিউনিটি',
+                              style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: ink)),
+                          _PillButton(
+                              label: 'পোস্ট লিখুন',
+                              icon: Icons.edit_rounded,
+                              onTap: () => _openEntry('post')),
+                        ]);
+                  }
+                  if (index == 1) return const SizedBox(height: 14);
+                  if (!hasPosts) return initialState;
+                  final postIndex = index - 2;
+                  if (postIndex < posts.length) return postCard(postIndex);
+                  final footerIndex = postIndex - posts.length;
+                  if (postsLoadingMore && footerIndex == 0) {
+                    return const Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Center(
+                            child: _SkeletonBox(height: 92, radius: 18)));
+                  }
+                  return const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(
+                          child: Text('সব পোস্ট দেখানো হয়েছে',
+                              style: TextStyle(color: Colors.black45))));
+                })));
+  }
 
   Widget _add() => ListView(
         padding: const EdgeInsets.fromLTRB(17, 20, 17, 30),

@@ -20,10 +20,18 @@ class PirganjApiClient {
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
   final Map<String, Future<Map<String, dynamic>>> _publicProfileCache = {};
   final Map<String, List<dynamic>> _myItemsCache = {};
+  static const _maxServiceCacheEntries = 64;
+  static const _maxPublicProfileCacheEntries = 64;
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
   static const _imageBucket = 'pirganj-images';
   static bool _profilePersistenceAvailable = true;
+
+  void _trimCache<K, V>(Map<K, V> cache, int maximum) {
+    while (cache.length > maximum) {
+      cache.remove(cache.keys.first);
+    }
+  }
 
   String? get userId {
     try {
@@ -113,8 +121,12 @@ class PirganjApiClient {
 
   Future<Map<String, dynamic>> getPublicProfile(String userId,
       {bool forceRefresh = false}) {
-    if (!forceRefresh && _publicProfileCache.containsKey(userId)) {
-      return _publicProfileCache[userId]!;
+    final cached = _publicProfileCache[userId];
+    if (!forceRefresh && cached != null) {
+      _publicProfileCache
+        ..remove(userId)
+        ..[userId] = cached;
+      return cached;
     }
     final request = () async {
       try {
@@ -126,6 +138,7 @@ class PirganjApiClient {
       }
     }();
     _publicProfileCache[userId] = request;
+    _trimCache(_publicProfileCache, _maxPublicProfileCacheEntries);
     return request;
   }
 
@@ -145,8 +158,12 @@ class PirganjApiClient {
       int offset = 0,
       bool forceRefresh = false}) {
     final key = '${category ?? ''}|${search ?? ''}|$limit|$offset';
-    if (!forceRefresh && _serviceCache.containsKey(key)) {
-      return _serviceCache[key]!;
+    final cached = _serviceCache[key];
+    if (!forceRefresh && cached != null) {
+      _serviceCache
+        ..remove(key)
+        ..[key] = cached;
+      return cached;
     }
     final request = () async {
       try {
@@ -168,6 +185,7 @@ class PirganjApiClient {
       }
     }();
     _serviceCache[key] = request;
+    _trimCache(_serviceCache, _maxServiceCacheEntries);
     return request;
   }
 
