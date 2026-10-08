@@ -406,7 +406,10 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic);
     final fade = Tween<double>(begin: 0, end: 1).animate(curved);
-    return FadeTransition(opacity: fade, child: child);
+    final slide = Tween<Offset>(begin: const Offset(0.035, 0), end: Offset.zero)
+        .animate(curved);
+    return FadeTransition(
+        opacity: fade, child: SlideTransition(position: slide, child: child));
   }
 }
 
@@ -1091,6 +1094,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<int> tabHistory = <int>[];
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
+  late final PageController _pageController;
   StreamSubscription<void>? pushEventSubscription;
   StreamSubscription<Map<String, String>>? pushTapSubscription;
   String category = 'সব';
@@ -1100,6 +1104,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: tab);
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
     // These pages are static tab content; retain their widget subtrees so
@@ -1117,6 +1122,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     searchController.dispose();
+    _pageController.dispose();
     pushEventSubscription?.cancel();
     pushTapSubscription?.cancel();
     super.dispose();
@@ -1281,6 +1287,11 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       tab = value;
     });
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(value,
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic);
+    }
   }
 
   bool _goBackToPreviousTab() {
@@ -1289,6 +1300,11 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       tab = previous;
     });
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(previous,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic);
+    }
     return true;
   }
 
@@ -1470,8 +1486,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ));
 
-  Widget _page() => IndexedStack(
-        index: tab,
+  Widget _page() => PageView(
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
         children: [_homePage, _community(), _addPage, _more()],
       );
 
