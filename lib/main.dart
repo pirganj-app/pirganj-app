@@ -19,23 +19,9 @@ import 'services/push_notification_service.dart';
 const brand = Color(0xFF167765);
 const ink = Color(0xFF173C36);
 const page = Color(0xFFF4F7F6);
-const _whiteCardGradient = LinearGradient(
-    begin: Alignment(-0.7, -1),
-    end: Alignment(0.7, 1),
-    colors: [Colors.white, Color(0xFFE8F1F0)],
-    stops: [0.05, 1]);
 const maxImageBytes = 2 * 1024 * 1024;
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
 const apkDownloadUrl = 'https://pirganj-app.netlify.app/apk';
-
-class _WhiteGradientCardSurface extends StatelessWidget {
-  const _WhiteGradientCardSurface({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Ink(
-      decoration: const BoxDecoration(gradient: _whiteCardGradient), child: child);
-}
 
 String friendlyMessage(Object error) {
   final text = error.toString().replaceFirst('Exception: ', '');
@@ -1010,13 +996,11 @@ class _PublicItemCard extends StatelessWidget {
     return Card(
         margin: const EdgeInsets.only(bottom: 11),
         elevation: 0,
-        color: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
+        color: Colors.white,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(21),
             side: const BorderSide(color: Color(0xFFE4ECE8))),
-        child: _WhiteGradientCardSurface(
-            child: InkWell(
+        child: InkWell(
             onTap: onOpen,
             borderRadius: BorderRadius.circular(21),
             child: Padding(
@@ -1092,7 +1076,7 @@ class _PublicItemCard extends StatelessWidget {
                                           color: brand,
                                           decoration: TextDecoration.none)))
                           ]))
-                    ])))));
+                    ]))));
   }
 }
 
@@ -2157,10 +2141,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                     itemBuilder: (_, index) {
                       final item = results[index];
                       return Card(
-                          color: Colors.transparent,
-                          clipBehavior: Clip.antiAlias,
-                          child: _WhiteGradientCardSurface(
-                              child: ListTile(
+                          child: ListTile(
                               leading: CircleAvatar(
                                   backgroundColor: const Color(0xFFE1F3EC),
                                   backgroundImage: item.imageUrl == null ||
@@ -2182,7 +2163,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                   : IconButton(
                                       tooltip: 'Call',
                                       icon: const Icon(Icons.phone_rounded),
-                                      onPressed: () => dialPhone(context, item.phone)))));
+                                      onPressed: () => dialPhone(context, item.phone))));
                     });
               })));
 }
@@ -2228,7 +2209,7 @@ class _ActionCard extends StatelessWidget {
       child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-              gradient: _whiteCardGradient,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0xFFE4EAE7))),
           child: Column(
@@ -2287,13 +2268,10 @@ class _PostCard extends StatelessWidget {
     return Card(
         margin: const EdgeInsets.only(bottom: 12),
         elevation: 0,
-        color: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(21),
             side: const BorderSide(color: Color(0xFFE3E9E6))),
-        child: _WhiteGradientCardSurface(
-            child: InkWell(
+        child: InkWell(
             onTap: onOpen,
             borderRadius: BorderRadius.circular(21),
             child: Padding(
@@ -2416,7 +2394,7 @@ class _PostCard extends StatelessWidget {
                         Text('💬 ${post['comments'] ?? 0}',
                             style: const TextStyle(color: Colors.black54)),
                       ])
-                    ])))));
+                    ]))));
   }
 }
 
@@ -2779,7 +2757,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             EdgeInsets.only(left: item['parentId'] != null ? 22 : 0, bottom: 4),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-            gradient: _whiteCardGradient,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: item['parentId'] != null
                 ? const Border(
@@ -3105,12 +3083,9 @@ class _EmptyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
       elevation: 0,
-      color: Colors.transparent,
-      clipBehavior: Clip.antiAlias,
-      child: _WhiteGradientCardSurface(
-          child: Padding(
+      child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Center(child: Text(text, textAlign: TextAlign.center)))));
+          child: Center(child: Text(text, textAlign: TextAlign.center))));
 }
 
 class _NetworkErrorCard extends StatelessWidget {
@@ -3120,10 +3095,7 @@ class _NetworkErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Card(
         elevation: 0,
-        color: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
-        child: _WhiteGradientCardSurface(
-            child: Padding(
+        child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
@@ -3144,7 +3116,6 @@ class _NetworkErrorCard extends StatelessWidget {
                   label: const Text('রিফ্রেশ করুন')),
             ],
           ),
-        ),
         ),
       );
 }
@@ -3570,16 +3541,13 @@ class _NoticePageState extends State<NoticePage> {
                     padding: const EdgeInsets.all(17),
                     children: data
                         .map((item) => Card(
-                            color: Colors.transparent,
-                            clipBehavior: Clip.antiAlias,
                             elevation: 0,
                             margin: const EdgeInsets.only(bottom: 11),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 side:
                                     const BorderSide(color: Color(0xFFE0E7E3))),
-                            child: _WhiteGradientCardSurface(
-                                child: ListTile(
+                            child: ListTile(
                                 leading: const CircleAvatar(
                                     backgroundColor: Color(0xFFEDE7FF),
                                     child: Icon(Icons.campaign, color: brand)),
@@ -3588,7 +3556,7 @@ class _NoticePageState extends State<NoticePage> {
                                         fontWeight: FontWeight.w800,
                                         color: ink)),
                                 subtitle:
-                                    Text(item['body']?.toString() ?? '')))))
+                                    Text(item['body']?.toString() ?? ''))))
                         .toList());
               }),
         ),
@@ -3737,15 +3705,12 @@ class _DetailedServiceCard extends StatelessWidget {
   final ServiceCard item;
   @override
   Widget build(BuildContext context) => Card(
-        color: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
         elevation: 0,
         margin: const EdgeInsets.only(bottom: 16),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
             side: const BorderSide(color: Color(0xFFE0E7E3))),
-        child: _WhiteGradientCardSurface(
-          child: Padding(
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 17),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3814,7 +3779,6 @@ class _DetailedServiceCard extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(17))))),
           ]),
-          ),
         ),
       );
 }
@@ -4263,15 +4227,12 @@ class _TopicCard extends StatelessWidget {
                 : Icons.volunteer_activism;
     final imageUrl = _mapImageUrl(data);
     return Card(
-      color: Colors.transparent,
-      clipBehavior: Clip.antiAlias,
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 11),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Color(0xFFE0E9E4))),
-      child: _WhiteGradientCardSurface(
-          child: ListTile(
+      child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: imageUrl == null
             ? CircleAvatar(
@@ -4303,7 +4264,7 @@ class _TopicCard extends StatelessWidget {
                         color: brand,
                         decoration: TextDecoration.none)))
         ]),
-          )),
+      ),
     );
   }
 }
@@ -5374,10 +5335,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
               const SizedBox(height: 10),
               Card(
                   elevation: 0,
-                  color: Colors.transparent,
-                  clipBehavior: Clip.antiAlias,
-                  child: _WhiteGradientCardSurface(
-                      child: SwitchListTile.adaptive(
+                  child: SwitchListTile.adaptive(
                       value: profileLocked,
                       onChanged: _setProfileLocked,
                       title: const Text('প্রোফাইল লক করুন',
@@ -5387,7 +5345,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                           : 'অন্যরা আপনার পোস্ট ও যোগ করা তথ্য দেখতে পারবে'),
                       secondary: Icon(profileLocked
                           ? Icons.lock_rounded
-                          : Icons.lock_open_rounded)))),
+                          : Icons.lock_open_rounded))),
               const SizedBox(height: 12),
               FutureBuilder<List<dynamic>>(
                   future: itemsFuture,
@@ -5595,13 +5553,11 @@ class _OwnedItemCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 11),
       elevation: 0,
-      color: Colors.transparent,
-      clipBehavior: Clip.antiAlias,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(21),
           side: const BorderSide(color: Color(0xFFE4ECE8))),
-      child: _WhiteGradientCardSurface(
-          child: InkWell(
+      child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(21),
         child: Padding(
@@ -5673,10 +5629,9 @@ class _OwnedItemCard extends StatelessWidget {
                 itemBuilder: (_) => const [
                       PopupMenuItem(value: 'edit', child: Text('Edit')),
                       PopupMenuItem(value: 'delete', child: Text('Delete'))
-                ]),
+                    ]),
           ]),
         ),
-      ),
       ),
     );
   }
