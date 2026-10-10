@@ -280,7 +280,7 @@ void openImageViewer(BuildContext context, String? value) {
   final url = _avatarUrl(value);
   if (url == null || url.isEmpty) return;
   Navigator.push(
-      context, MaterialPageRoute(builder: (_) => ImageViewerPage(url: url)));
+      context, _SmoothPageRoute(builder: (_) => ImageViewerPage(url: url)));
 }
 
 class ImageViewerPage extends StatefulWidget {
@@ -391,8 +391,8 @@ Future<XFile?> pickImageUnderLimit(BuildContext context) async {
   return selected;
 }
 
-class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
-  const _PremiumPageTransitionsBuilder();
+class _SmoothPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _SmoothPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
@@ -401,16 +401,76 @@ class _PremiumPageTransitionsBuilder extends PageTransitionsBuilder {
       Animation<double> animation,
       Animation<double> secondaryAnimation,
       Widget child) {
-    final curved = CurvedAnimation(
+    final transition = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic);
-    final fade = Tween<double>(begin: 0, end: 1).animate(curved);
-    final slide = Tween<Offset>(begin: const Offset(0.035, 0), end: Offset.zero)
-        .animate(curved);
-    return FadeTransition(
-        opacity: fade, child: SlideTransition(position: slide, child: child));
+        reverseCurve: Curves.linear);
+    final slide = Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero)
+        .animate(transition);
+    return SlideTransition(position: slide, child: child);
   }
+}
+
+class _AndroidWhatsAppPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _AndroidWhatsAppPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+      PageRoute<T> route,
+      BuildContext context,
+      Animation<double> animation,
+      Animation<double> secondaryAnimation,
+      Widget child) {
+    final isInteractiveBack = route.popGestureInProgress ||
+        route.navigator?.userGestureInProgress == true;
+    final routeProgress = isInteractiveBack
+        ? animation
+        : CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic);
+    final underPageProgress = isInteractiveBack
+        ? secondaryAnimation
+        : CurvedAnimation(
+            parent: secondaryAnimation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic);
+    final routeSlide =
+        Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(routeProgress);
+    final underPageSlide =
+        Tween<Offset>(begin: Offset.zero, end: const Offset(-0.035, 0))
+            .animate(underPageProgress);
+
+    return SlideTransition(
+      position: underPageSlide,
+      child: SlideTransition(
+        position: routeSlide,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            child,
+            IgnorePointer(
+              child: FadeTransition(
+                opacity: underPageProgress,
+                child: const ColoredBox(color: Color(0x1F000000)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmoothPageRoute<T> extends MaterialPageRoute<T> {
+  _SmoothPageRoute({required WidgetBuilder builder}) : super(builder: builder);
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 400);
+
+  @override
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 400);
 }
 
 const supabaseUrl = 'https://jhpgickyoauaxersolse.supabase.co';
@@ -571,8 +631,8 @@ class _PirganjAppState extends State<PirganjApp> {
           dialogTheme: const DialogThemeData(
               insetPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 24)),
           pageTransitionsTheme: const PageTransitionsTheme(builders: {
-            TargetPlatform.android: _PremiumPageTransitionsBuilder(),
-            TargetPlatform.iOS: _PremiumPageTransitionsBuilder(),
+            TargetPlatform.android: _AndroidWhatsAppPageTransitionsBuilder(),
+            TargetPlatform.iOS: _SmoothPageTransitionsBuilder(),
           }),
         ),
         builder: (context, child) => MediaQuery(
@@ -1059,7 +1119,10 @@ class _AppOpenMessagePageState extends State<AppOpenMessagePage> {
                 child: FilledButton(
                   onPressed: widget.onSkip,
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black.withValues(alpha: 0.72),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    minimumSize: const Size(48, 32),
+                    backgroundColor: Colors.black.withValues(alpha: 0.48),
                     foregroundColor: Colors.white,
                   ),
                   child: const Text('Skip'),
@@ -1153,7 +1216,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'service':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => ServiceCategoryPage(
                     api: api,
                     category: 'সব',
@@ -1163,31 +1226,31 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'donor':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: api, topic: 0)));
         break;
       case 'blood-request':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: api, topic: 1)));
         break;
       case 'notice':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: api, topic: 2)));
         break;
       case 'job':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: api, topic: 3)));
         break;
       case 'lost-found':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: api, topic: 4)));
         break;
     }
@@ -1288,9 +1351,7 @@ class _HomeScreenState extends State<HomeScreen> {
       tab = value;
     });
     if (_pageController.hasClients) {
-      _pageController.animateToPage(value,
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic);
+      _pageController.jumpToPage(value);
     }
   }
 
@@ -1301,9 +1362,7 @@ class _HomeScreenState extends State<HomeScreen> {
       tab = previous;
     });
     if (_pageController.hasClients) {
-      _pageController.animateToPage(previous,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic);
+      _pageController.jumpToPage(previous);
     }
     return true;
   }
@@ -1321,7 +1380,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     Navigator.push(
         context,
-        MaterialPageRoute(
+        _SmoothPageRoute(
             builder: (_) => SearchResultsPage(api: api, query: query)));
   }
 
@@ -1341,7 +1400,7 @@ class _HomeScreenState extends State<HomeScreen> {
     unawaited(api.logPageVisit('প্রোফাইল'));
     Navigator.push(
         context,
-        MaterialPageRoute(
+        _SmoothPageRoute(
             builder: (_) => userId == api.userId
                 ? ProfilePanel(api: api, onLogout: widget.onLogout)
                 : PublicProfilePage(
@@ -1356,7 +1415,7 @@ class _HomeScreenState extends State<HomeScreen> {
     unawaited(api.logPageVisit(title));
     Navigator.push(
         context,
-        MaterialPageRoute(
+        _SmoothPageRoute(
             builder: (_) => ServiceCategoryPage(
                 api: api, category: categoryName, title: title, icon: icon)));
   }
@@ -1374,7 +1433,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     Navigator.push(
         context,
-        MaterialPageRoute(
+        _SmoothPageRoute(
             builder: (_) => TopicDataPage(api: api, topic: topic)));
   }
 
@@ -1433,7 +1492,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onNotice: () async {
                     await Navigator.push(
                         context,
-                        MaterialPageRoute(
+                        _SmoothPageRoute(
                             builder: (_) => NotificationPage(
                                 api: api,
                                 onOpenOwnProfile: () {
@@ -1454,35 +1513,42 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        bottomNavigationBar: NavigationBar(
-          height: 70,
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFD8F2E9),
-          labelTextStyle: const WidgetStatePropertyAll(
-              TextStyle(color: ink, fontWeight: FontWeight.w700)),
-          selectedIndex: tab,
-          onDestinationSelected: (value) {
-            if (value == 1) _startCommunity();
-            _switchTab(value);
-          },
-          destinations: const [
-            NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'হোম'),
-            NavigationDestination(
-                icon: Icon(Icons.forum_outlined),
-                selectedIcon: Icon(Icons.forum_rounded),
-                label: 'কমিউনিটি'),
-            NavigationDestination(
-                icon: Icon(Icons.add_circle_outline),
-                selectedIcon: Icon(Icons.add_circle),
-                label: 'যোগ করুন'),
-            NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'প্রোফাইল'),
-          ],
+        bottomNavigationBar: Theme(
+          data: Theme.of(context).copyWith(
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
+          ),
+          child: NavigationBar(
+            animationDuration: Duration.zero,
+            height: 70,
+            backgroundColor: Colors.white,
+            indicatorColor: const Color(0xFFD8F2E9),
+            labelTextStyle: const WidgetStatePropertyAll(
+                TextStyle(color: ink, fontWeight: FontWeight.w700)),
+            selectedIndex: tab,
+            onDestinationSelected: (value) {
+              if (value == 1) _startCommunity();
+              _switchTab(value);
+            },
+            destinations: const [
+              NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded),
+                  label: 'হোম'),
+              NavigationDestination(
+                  icon: Icon(Icons.forum_outlined),
+                  selectedIcon: Icon(Icons.forum_rounded),
+                  label: 'কমিউনিটি'),
+              NavigationDestination(
+                  icon: Icon(Icons.add_circle_outline),
+                  selectedIcon: Icon(Icons.add_circle),
+                  label: 'যোগ করুন'),
+              NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'প্রোফাইল'),
+            ],
+          ),
         ),
       ));
 
@@ -1496,12 +1562,12 @@ class _HomeScreenState extends State<HomeScreen> {
         color: brand,
         onRefresh: () async => _reload(),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(8, 17, 8, 17),
+          padding: const EdgeInsets.fromLTRB(8, 17, 8, 0),
           children: [
-            _HeroCard(onTap: () => _switchTab(2)),
+            _ImageCarousel(baseUrl: api.baseUrl),
             const SizedBox(height: 16),
             _SearchBox(controller: searchController, onSearch: _runSearch),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
             const Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
@@ -1511,8 +1577,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 23,
                             fontWeight: FontWeight.w800,
                             color: ink)))),
-            const SizedBox(height: 2),
+            const SizedBox(height: 10),
             GridView.count(
+              padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
@@ -1614,6 +1681,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Icons.directions_car_rounded)),
               ],
             ),
+            const SizedBox(height: 12),
           ],
         ),
       );
@@ -1844,41 +1912,165 @@ class _TopBar extends StatelessWidget {
       );
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.onTap});
-  final VoidCallback onTap;
+class _ImageCarousel extends StatefulWidget {
+  const _ImageCarousel({required this.baseUrl});
+  final String baseUrl;
+
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(22, 23, 17, 21),
-        decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-                colors: [Color(0xFF176F5E), Color(0xFF329B82)])),
-        child: Row(children: [
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                const Text('পীরগঞ্জের তথ্য\nএখন হাতের মুঠোয়',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        height: 1.24,
-                        fontWeight: FontWeight.w800)),
-                const SizedBox(height: 10),
-                const Text('স্থানীয় সেবা খুঁজুন সহজেই',
-                    style: TextStyle(color: Color(0xFFC8E8DD), fontSize: 16)),
-                const SizedBox(height: 16),
-                FilledButton(
-                    onPressed: onTap,
-                    style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF68B9A3),
-                        foregroundColor: Colors.white),
-                    child: const Text('তথ্য যোগ করুন'))
-              ])),
-          const Icon(Icons.location_city_rounded,
-              color: Color(0xFF9ACFC0), size: 76),
+  State<_ImageCarousel> createState() => _ImageCarouselState();
+}
+
+class _ImageCarouselState extends State<_ImageCarousel> {
+  static const double _height = 190;
+  static const int _slideCount = 4;
+  static const int _initialPage = 1000000;
+  final PageController _pageController =
+      PageController(initialPage: _initialPage);
+  int _currentIndex = 0;
+  Timer? _autoSlideTimer;
+  Timer? _preloadTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleNextSlide();
+  }
+
+  void _scheduleNextSlide() {
+    _autoSlideTimer?.cancel();
+    _preloadTimer?.cancel();
+    _preloadTimer = Timer(const Duration(seconds: 4), _preloadNextImage);
+    _autoSlideTimer = Timer(const Duration(seconds: 5), _advanceToNextSlide);
+  }
+
+  void _preloadNextImage() {
+    if (!mounted) return;
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final decodeWidth = (MediaQuery.sizeOf(context).width * pixelRatio).round();
+    final decodeHeight = (_height * pixelRatio).round();
+    final provider = ResizeImage(
+      NetworkImage(_imageUrl(_currentIndex + 1)),
+      width: decodeWidth,
+      height: decodeHeight,
+    );
+    unawaited(
+        precacheImage(provider, context, onError: (error, stackTrace) {}));
+  }
+
+  void _advanceToNextSlide() {
+    if (!mounted || !_pageController.hasClients) return;
+    unawaited(_pageController.nextPage(
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOutCubic,
+    ));
+  }
+
+  void _onPageChanged(int page) {
+    if (!mounted) return;
+    setState(() => _currentIndex = page % _slideCount);
+    _scheduleNextSlide();
+  }
+
+  String _imageUrl(int index) {
+    final baseUrl = widget.baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    return '$baseUrl/images/carousel/slide-${index % _slideCount + 1}.webp';
+  }
+
+  @override
+  void dispose() {
+    _autoSlideTimer?.cancel();
+    _preloadTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final decodeWidth = (MediaQuery.sizeOf(context).width * pixelRatio).round();
+    final decodeHeight = (_height * pixelRatio).round();
+
+    return SizedBox(
+      width: double.infinity,
+      height: _height,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Stack(fit: StackFit.expand, children: [
+          const ColoredBox(color: Color(0xFFEAF0EE)),
+          PageView.builder(
+            controller: _pageController,
+            physics: const BouncingScrollPhysics(),
+            onPageChanged: _onPageChanged,
+            itemBuilder: (context, page) => Image.network(
+              _imageUrl(page),
+              fit: BoxFit.cover,
+              cacheWidth: decodeWidth,
+              cacheHeight: decodeHeight,
+              filterQuality: FilterQuality.low,
+              loadingBuilder: (context, child, progress) =>
+                  progress == null ? child : const _CarouselSkeleton(),
+              errorBuilder: (context, error, stackTrace) =>
+                  const _CarouselSkeleton(),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                4,
+                (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: index == _currentIndex ? 14 : 5,
+                  height: 5,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white
+                        .withValues(alpha: index == _currentIndex ? 1 : 0.65),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ]),
+      ),
+    );
+  }
+}
+
+class _CarouselSkeleton extends StatefulWidget {
+  const _CarouselSkeleton();
+
+  @override
+  State<_CarouselSkeleton> createState() => _CarouselSkeletonState();
+}
+
+class _CarouselSkeletonState extends State<_CarouselSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 850),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, child) => ColoredBox(
+          color: Color.lerp(
+            const Color(0xFFE3E9E6),
+            const Color(0xFFF2F5F3),
+            _pulse.value,
+          )!,
+        ),
       );
 }
 
@@ -1955,8 +2147,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                   backgroundImage: item.imageUrl == null ||
                                           item.imageUrl!.isEmpty
                                       ? null
-                                      : NetworkImage(_avatarUrl(item.imageUrl!) ??
-                                          item.imageUrl!),
+                                      : ResizeImage(NetworkImage(_avatarUrl(item.imageUrl!) ?? item.imageUrl!),
+                                          width: 128),
                                   child: item.imageUrl == null || item.imageUrl!.isEmpty
                                       ? Icon(_serviceIcon(item.icon, item.category),
                                           color: brand)
@@ -1968,7 +2160,10 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                                   Text('${item.category}  •  ${item.location}'),
                               trailing: item.phone.trim().isEmpty
                                   ? null
-                                  : IconButton(tooltip: 'Call', icon: const Icon(Icons.phone_rounded), onPressed: () => dialPhone(context, item.phone))));
+                                  : IconButton(
+                                      tooltip: 'Call',
+                                      icon: const Icon(Icons.phone_rounded),
+                                      onPressed: () => dialPhone(context, item.phone))));
                     });
               })));
 }
@@ -2091,7 +2286,8 @@ class _PostCard extends StatelessWidget {
                                 backgroundColor: const Color(0xFFDDF2E9),
                                 backgroundImage: authorImageUrl == null
                                     ? null
-                                    : NetworkImage(authorImageUrl),
+                                    : ResizeImage(NetworkImage(authorImageUrl),
+                                        width: 128),
                                 child: authorImageUrl == null
                                     ? const Icon(Icons.person, color: brand)
                                     : null)),
@@ -2249,7 +2445,7 @@ Future<void> openPostDetails({
 }) {
   return Navigator.push(
       context,
-      MaterialPageRoute(
+      _SmoothPageRoute(
           builder: (_) => PostDetailsPage(
               api: api,
               post: Map<String, dynamic>.from(post),
@@ -2313,7 +2509,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     }
     Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
+        _SmoothPageRoute(
             builder: (_) => userId == widget.api.userId
                 ? ProfilePanel(api: widget.api, onLogout: widget.onLogout)
                 : PublicProfilePage(
@@ -3084,7 +3280,7 @@ class _NotificationPageState extends State<NotificationPage> {
       case 'service':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => ServiceCategoryPage(
                     api: widget.api,
                     category: 'সব',
@@ -3094,31 +3290,31 @@ class _NotificationPageState extends State<NotificationPage> {
       case 'donor':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: widget.api, topic: 0)));
         break;
       case 'blood-request':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: widget.api, topic: 1)));
         break;
       case 'notice':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: widget.api, topic: 2)));
         break;
       case 'job':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: widget.api, topic: 3)));
         break;
       case 'lost-found':
         await Navigator.push(
             context,
-            MaterialPageRoute(
+            _SmoothPageRoute(
                 builder: (_) => TopicDataPage(api: widget.api, topic: 4)));
         break;
       case 'comment':
@@ -5218,7 +5414,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   child: FilledButton.icon(
                       onPressed: () => Navigator.push(
                           context,
-                          MaterialPageRoute(
+                          _SmoothPageRoute(
                               builder: (_) => AboutPage(api: widget.api))),
                       style: FilledButton.styleFrom(
                           backgroundColor: brand,
@@ -5770,7 +5966,10 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
           ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.file(File(postImage!.path),
-                  width: double.infinity, height: 150, fit: BoxFit.cover)),
+                  width: double.infinity,
+                  height: 150,
+                  cacheWidth: 900,
+                  fit: BoxFit.cover)),
           const SizedBox(height: 10),
         ] else if (!removePostImage &&
             (widget.item['imageUrl']?.toString() ?? '').isNotEmpty) ...[
@@ -5779,6 +5978,7 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
               child: Image.network(widget.item['imageUrl'].toString(),
                   width: double.infinity,
                   height: 150,
+                  cacheWidth: 900,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => const SizedBox.shrink())),
           const SizedBox(height: 10),
