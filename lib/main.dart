@@ -14,6 +14,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
+import 'services/disk_image_cache.dart';
 import 'services/push_notification_service.dart';
 
 const brand = Color(0xFF167765);
@@ -204,7 +205,9 @@ String _publicItemSubtitle(Map<String, dynamic> item, String resource) {
 
 ImageProvider<Object>? _avatarProvider(dynamic value) {
   final url = _avatarUrl(value);
-  return url == null ? null : NetworkImage(url);
+  return url == null
+      ? null
+      : ResizeImage(NetworkImage(url), width: 160, height: 160);
 }
 
 String? _mapImageUrl(Map<String, dynamic> item,
@@ -316,32 +319,39 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            actions: [
-              IconButton(
-                  onPressed: saving ? null : _download,
-                  tooltip: 'Download',
-                  icon: saving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.download_rounded))
-            ]),
-        body: Center(
-            child: InteractiveViewer(
-                child: Image.network(widget.url,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                        Icons.broken_image_outlined,
-                        color: Colors.white,
-                        size: 64)))),
-      );
+  Widget build(BuildContext context) {
+    final decodeWidth = (MediaQuery.sizeOf(context).width *
+            MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(1, 1920);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+                onPressed: saving ? null : _download,
+                tooltip: 'Download',
+                icon: saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.download_rounded))
+          ]),
+      body: Center(
+          child: InteractiveViewer(
+              child: Image.network(widget.url,
+                  fit: BoxFit.contain,
+                  cacheWidth: decodeWidth,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 64)))),
+    );
+  }
 }
 
 String relativeTime(dynamic raw) {
@@ -482,6 +492,8 @@ const googleWebClientId =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 64 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 300;
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: brand,
     statusBarIconBrightness: Brightness.light,
@@ -1948,13 +1960,17 @@ class _ImageCarouselState extends State<_ImageCarousel> {
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
     final decodeWidth = (MediaQuery.sizeOf(context).width * pixelRatio).round();
     final decodeHeight = (_height * pixelRatio).round();
-    final provider = ResizeImage(
-      NetworkImage(_imageUrl(_currentIndex + 1)),
-      width: decodeWidth,
-      height: decodeHeight,
-    );
-    unawaited(
-        precacheImage(provider, context, onError: (error, stackTrace) {}));
+    unawaited(() async {
+      final file =
+          await DiskImageCache.instance.getImage(_imageUrl(_currentIndex + 1));
+      if (file == null || !mounted) return;
+      final provider = ResizeImage(
+        FileImage(file),
+        width: decodeWidth,
+        height: decodeHeight,
+      );
+      await precacheImage(provider, context, onError: (error, stackTrace) {});
+    }());
   }
 
   void _advanceToNextSlide() {
@@ -2001,16 +2017,10 @@ class _ImageCarouselState extends State<_ImageCarousel> {
             controller: _pageController,
             physics: const BouncingScrollPhysics(),
             onPageChanged: _onPageChanged,
-            itemBuilder: (context, page) => Image.network(
-              _imageUrl(page),
-              fit: BoxFit.cover,
-              cacheWidth: decodeWidth,
-              cacheHeight: decodeHeight,
-              filterQuality: FilterQuality.low,
-              loadingBuilder: (context, child, progress) =>
-                  progress == null ? child : const _CarouselSkeleton(),
-              errorBuilder: (context, error, stackTrace) =>
-                  const _CarouselSkeleton(),
+            itemBuilder: (context, page) => _CachedCarouselSlide(
+              url: _imageUrl(page),
+              decodeWidth: decodeWidth,
+              decodeHeight: decodeHeight,
             ),
           ),
           Positioned(
@@ -2039,6 +2049,57 @@ class _ImageCarouselState extends State<_ImageCarousel> {
       ),
     );
   }
+}
+
+class _CachedCarouselSlide extends StatefulWidget {
+  const _CachedCarouselSlide({
+    required this.url,
+    required this.decodeWidth,
+    required this.decodeHeight,
+  });
+
+  final String url;
+  final int decodeWidth;
+  final int decodeHeight;
+
+  @override
+  State<_CachedCarouselSlide> createState() => _CachedCarouselSlideState();
+}
+
+class _CachedCarouselSlideState extends State<_CachedCarouselSlide> {
+  late Future<File?> _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageFile = DiskImageCache.instance.getImage(widget.url);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CachedCarouselSlide oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _imageFile = DiskImageCache.instance.getImage(widget.url);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<File?>(
+        future: _imageFile,
+        builder: (context, snapshot) {
+          final file = snapshot.data;
+          if (file == null) return const _CarouselSkeleton();
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+            cacheWidth: widget.decodeWidth,
+            cacheHeight: widget.decodeHeight,
+            filterQuality: FilterQuality.low,
+            errorBuilder: (context, error, stackTrace) =>
+                const _CarouselSkeleton(),
+          );
+        },
+      );
 }
 
 class _CarouselSkeleton extends StatefulWidget {
@@ -3515,8 +3576,8 @@ class _NoticePageState extends State<NoticePage> {
             ]),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () async =>
-              setState(() => future = widget.api.getNotices()),
+          onRefresh: () async => setState(
+              () => future = widget.api.getNotices(forceRefresh: true)),
           child: FutureBuilder<List<dynamic>>(
               future: future,
               builder: (_, snapshot) {
@@ -3872,18 +3933,24 @@ class _TopicDataPageState extends State<TopicDataPage> {
     _load(refresh: true);
   }
 
-  Future<List<dynamic>> _fetchPage() => switch (widget.topic) {
+  Future<List<dynamic>> _fetchPage({bool forceRefresh = false}) =>
+      switch (widget.topic) {
         0 => widget.api.getDonors(
             group: bloodGroup == 'সব' ? null : bloodGroup,
             limit: 20,
-            offset: data.length),
+            offset: data.length,
+            forceRefresh: forceRefresh),
         1 => widget.api.getBloodRequests(
             group: bloodGroup == 'সব' ? null : bloodGroup,
             limit: 20,
-            offset: data.length),
-        2 => widget.api.getNotices(limit: 20, offset: data.length),
-        3 => widget.api.getJobs(limit: 20, offset: data.length),
-        _ => widget.api.getLostFound(limit: 20, offset: data.length),
+            offset: data.length,
+            forceRefresh: forceRefresh),
+        2 => widget.api.getNotices(
+            limit: 20, offset: data.length, forceRefresh: forceRefresh),
+        3 => widget.api.getJobs(
+            limit: 20, offset: data.length, forceRefresh: forceRefresh),
+        _ => widget.api.getLostFound(
+            limit: 20, offset: data.length, forceRefresh: forceRefresh),
       };
 
   Future<void> _load({bool refresh = false}) async {
@@ -3898,7 +3965,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
     }
     if (mounted) setState(() {});
     try {
-      final batch = await _fetchPage();
+      final batch = await _fetchPage(forceRefresh: refresh);
       if (mounted) {
         data.addAll(batch);
         hasMore = batch.length == 20;
