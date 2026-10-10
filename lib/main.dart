@@ -476,70 +476,8 @@ class _AndroidWhatsAppPageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-class _CacheRefreshBoundary extends StatefulWidget {
-  const _CacheRefreshBoundary({required this.builder});
-
-  final WidgetBuilder builder;
-
-  @override
-  State<_CacheRefreshBoundary> createState() => _CacheRefreshBoundaryState();
-}
-
-class _CacheRefreshBoundaryState extends State<_CacheRefreshBoundary>
-    with RouteAware {
-  PageRoute<dynamic>? _route;
-  int _generation = 0;
-  bool _refreshPending = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _appResumeSignal.addListener(_onAppResumed);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final route = ModalRoute.of(context);
-    if (route is PageRoute<dynamic> && !identical(route, _route)) {
-      _routeObserver.unsubscribe(this);
-      _route = route;
-      _routeObserver.subscribe(this, route);
-    }
-  }
-
-  void _onAppResumed() {
-    if (!mounted) return;
-    if (_route == null || _route!.isCurrent) {
-      setState(() => _generation++);
-    } else {
-      _refreshPending = true;
-    }
-  }
-
-  @override
-  void didPopNext() {
-    if (_refreshPending && mounted) {
-      _refreshPending = false;
-      setState(() => _generation++);
-    }
-  }
-
-  @override
-  void dispose() {
-    _appResumeSignal.removeListener(_onAppResumed);
-    _routeObserver.unsubscribe(this);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      KeyedSubtree(key: ValueKey(_generation), child: widget.builder(context));
-}
-
 class _SmoothPageRoute<T> extends MaterialPageRoute<T> {
-  _SmoothPageRoute({required WidgetBuilder builder})
-      : super(builder: (context) => _CacheRefreshBoundary(builder: builder));
+  _SmoothPageRoute({required super.builder});
 
   @override
   Duration get transitionDuration => const Duration(milliseconds: 400);
@@ -606,15 +544,11 @@ class _PirganjAppState extends State<PirganjApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      if (!_wasBackgrounded) {
-        _wasBackgrounded = true;
-        _clearTransientCaches();
-      }
+      _wasBackgrounded = true;
       return;
     }
     if (state == AppLifecycleState.resumed && _wasBackgrounded) {
       _wasBackgrounded = false;
-      _clearTransientCaches();
       _appResumeSignal.value++;
     }
   }
@@ -1282,6 +1216,26 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+class _KeepAliveTab extends StatefulWidget {
+  const _KeepAliveTab({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<_KeepAliveTab> createState() => _KeepAliveTabState();
+}
+
+class _KeepAliveTabState extends State<_KeepAliveTab>
+    with AutomaticKeepAliveClientMixin<_KeepAliveTab> {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 class _HomeScreenState extends State<HomeScreen> with RouteAware {
   late final PirganjApiClient api;
   final searchController = TextEditingController();
@@ -1297,12 +1251,17 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final List<int> tabHistory = <int>[];
   int profileRefreshToken = 0;
   int unreadNotifications = 0;
-  late final PageController _pageController;
+  late final PageController _tabController;
   StreamSubscription<void>? pushEventSubscription;
   StreamSubscription<Map<String, String>>? pushTapSubscription;
   String category = 'সব';
   late Widget _homePage;
   late final Widget _addPage;
+  late final Widget _communityPage;
+  late final Widget _profilePage;
+  final List<bool> _visitedTabs = [true, false, false, false];
+  final ValueNotifier<int> _communityRevision = ValueNotifier<int>(0);
+  final ValueNotifier<int> _profileRevision = ValueNotifier<int>(0);
   PageRoute<dynamic>? _homeRoute;
   bool _resumeRefreshPending = false;
   int _carouselGeneration = 0;
@@ -1310,14 +1269,18 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: tab);
+    _tabController = PageController(initialPage: tab);
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
     _appResumeSignal.addListener(_onAppResumed);
-    // These pages are static tab content; retain their widget subtrees so
-    // unread counts, reactions, and tab changes do not rebuild their grids.
     _homePage = _home();
     _addPage = _add();
+    _communityPage = ValueListenableBuilder<int>(
+        valueListenable: _communityRevision,
+        builder: (context, _, __) => _community());
+    _profilePage = ValueListenableBuilder<int>(
+        valueListenable: _profileRevision,
+        builder: (context, _, __) => _more());
     unawaited(api.logPageVisit('হোম'));
     _loadUnreadNotifications();
     final push = PushNotificationService.instance;
@@ -1357,14 +1320,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   void _refreshVisibleTab() {
     unawaited(_loadUnreadNotifications());
     if (tab == 0) {
-      setState(() {
-        _carouselGeneration++;
-        _homePage = _home();
-      });
+      _carouselGeneration++;
+      _homePage = _home();
+      setState(() {});
     } else if (tab == 1) {
       unawaited(_loadPostsPage(refresh: true));
     } else if (tab == 3) {
-      setState(() => profileRefreshToken++);
+      profileRefreshToken++;
+      _profileRevision.value++;
     }
   }
 
@@ -1382,7 +1345,9 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     _appResumeSignal.removeListener(_onAppResumed);
     _routeObserver.unsubscribe(this);
     searchController.dispose();
-    _pageController.dispose();
+    _tabController.dispose();
+    _communityRevision.dispose();
+    _profileRevision.dispose();
     pushEventSubscription?.cancel();
     pushTapSubscription?.cancel();
     super.dispose();
@@ -1471,13 +1436,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return item.toString();
   }
 
-  Future<void> _loadPostsPage({bool refresh = false}) async {
+  Future<void> _loadPostsPage(
+      {bool refresh = false, bool forceRefresh = false}) async {
     if (postsLoading || postsLoadingMore) return;
     if (!refresh && !postsHasMore) return;
     if (refresh) {
-      posts.clear();
       postsHasMore = true;
-      postsBeforeCursor = null;
       _postsRequestKey = null;
       postsError = null;
       postsLoading = true;
@@ -1487,22 +1451,31 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       _postsRequestKey = requestKey;
       postsLoadingMore = true;
     }
-    if (mounted) setState(() {});
+    if (mounted) _communityRevision.value++;
     try {
       final batch = await api.getPosts(
-          limit: 5, offset: posts.length, before: postsBeforeCursor);
+          limit: 5,
+          offset: refresh ? 0 : posts.length,
+          before: refresh ? null : postsBeforeCursor,
+          forceRefresh: forceRefresh);
       if (mounted) {
-        final existing = posts.map(_postIdentity).toSet();
-        final fresh =
-            batch.where((item) => existing.add(_postIdentity(item))).toList();
-        if (fresh.isEmpty && batch.isNotEmpty) {
-          // The server returned a page already displayed, commonly caused by
-          // a dropped connection or an unavailable cursor. Stop pagination so
-          // the same cards are never appended repeatedly.
-          postsHasMore = false;
-        } else {
-          posts.addAll(fresh);
+        if (refresh) {
+          posts
+            ..clear()
+            ..addAll(batch);
+          postsBeforeCursor = null;
           postsHasMore = batch.length == 5;
+        } else {
+          final existing = posts.map(_postIdentity).toSet();
+          final fresh =
+              batch.where((item) => existing.add(_postIdentity(item))).toList();
+          if (fresh.isEmpty && batch.isNotEmpty) {
+            // Stop pagination if the server returns a page already displayed.
+            postsHasMore = false;
+          } else {
+            posts.addAll(fresh);
+            postsHasMore = batch.length == 5;
+          }
         }
         if (batch.isNotEmpty) {
           final cursor = (batch.last as Map?)?['createdAt']?.toString() ??
@@ -1516,13 +1489,13 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         postsError = error;
         // Do not keep requesting/duplicating pages while offline. A manual
         // refresh starts a clean pagination session when connectivity returns.
-        postsHasMore = false;
+        if (posts.isEmpty) postsHasMore = false;
       }
     } finally {
       if (mounted) {
         postsLoading = false;
         postsLoadingMore = false;
-        setState(() {});
+        _communityRevision.value++;
       }
     }
   }
@@ -1535,6 +1508,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   void _switchTab(int value) {
     if (value == tab) return;
+    if (!_visitedTabs[value]) {
+      _visitedTabs[value] = true;
+      if (value == 1) _startCommunity();
+    }
     const pageNames = <int, String>{
       0: 'হোম',
       1: 'কমিউনিটি',
@@ -1547,9 +1524,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     setState(() {
       tab = value;
     });
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(value);
-    }
+    if (_tabController.hasClients) _tabController.jumpToPage(value);
   }
 
   bool _goBackToPreviousTab() {
@@ -1558,15 +1533,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     setState(() {
       tab = previous;
     });
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(previous);
-    }
+    if (_tabController.hasClients) _tabController.jumpToPage(previous);
     return true;
   }
 
   void _reload({bool refreshPosts = false}) {
-    if (refreshPosts && communityStarted) _loadPostsPage(refresh: true);
-    setState(() {});
+    if (refreshPosts && communityStarted) {
+      unawaited(_loadPostsPage(refresh: true, forceRefresh: true));
+    }
   }
 
   void _runSearch() {
@@ -1643,6 +1617,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     );
     if (result == true && mounted) {
       profileRefreshToken++;
+      _profileRevision.value++;
       _reload(refreshPosts: kind == 'post');
       _message('তথ্য সফলভাবে যোগ হয়েছে');
     }
@@ -1730,10 +1705,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             labelTextStyle: const WidgetStatePropertyAll(
                 TextStyle(color: ink, fontWeight: FontWeight.w700)),
             selectedIndex: tab,
-            onDestinationSelected: (value) {
-              if (value == 1) _startCommunity();
-              _switchTab(value);
-            },
+            onDestinationSelected: _switchTab,
             destinations: const [
               NavigationDestination(
                   icon: Icon(Icons.home_outlined),
@@ -1756,10 +1728,22 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         ),
       ));
 
-  Widget _page() => PageView(
-        controller: _pageController,
+  Widget _tabPage(int index) {
+    if (!_visitedTabs[index]) return const SizedBox.shrink();
+    return switch (index) {
+      0 => _homePage,
+      1 => _communityPage,
+      2 => _addPage,
+      _ => _profilePage,
+    };
+  }
+
+  Widget _page() => PageView.builder(
+        controller: _tabController,
         physics: const NeverScrollableScrollPhysics(),
-        children: [_homePage, _community(), _addPage, _more()],
+        itemCount: 4,
+        itemBuilder: (_, index) => _KeepAliveTab(
+            key: ValueKey('home-tab-$index'), child: _tabPage(index)),
       );
 
   Widget _home() => RefreshIndicator(
@@ -1921,7 +1905,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   (e['userId'] ?? e['user_id'])?.toString() == api.userId)
               ? reaction
               : null;
-          if (mounted) setState(() {});
+          if (mounted) _communityRevision.value++;
         } catch (_) {
           _message('ইন্টারনেট কানেকশন সমস্যা হয়েছে। আবার চেষ্টা করুন।');
         }
@@ -1946,7 +1930,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
     return RefreshIndicator(
         color: brand,
-        onRefresh: () => _loadPostsPage(refresh: true),
+        onRefresh: () => _loadPostsPage(refresh: true, forceRefresh: true),
         child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
               if (notification.metrics.pixels >=
@@ -3418,10 +3402,10 @@ class _NotificationPageState extends State<NotificationPage> {
     _reload();
   }
 
-  void _reload() {
+  void _reload({bool forceRefresh = false}) {
     loadingMore = false;
     hasMore = true;
-    final request = widget.api.getNotifications();
+    final request = widget.api.getNotifications(forceRefresh: forceRefresh);
     notificationsFuture = request;
     request.then((items) {
       _cachedNotifications = List<dynamic>.from(items);
@@ -3433,7 +3417,7 @@ class _NotificationPageState extends State<NotificationPage> {
     if (loadingMore || _notificationRefreshing) return;
     if (mounted) setState(() => _notificationRefreshing = true);
     try {
-      final latest = await widget.api.getNotifications();
+      final latest = await widget.api.getNotifications(forceRefresh: true);
       if (!mounted) return;
       setState(() {
         _cachedNotifications = List<dynamic>.from(latest);
@@ -3848,7 +3832,6 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
   Future<void> _load({bool refresh = false, bool forceRefresh = false}) async {
     if (loading || loadingMore || (!refresh && !hasMore)) return;
     if (refresh) {
-      data.clear();
       hasMore = true;
       error = null;
       loading = true;
@@ -3860,10 +3843,16 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
       final batch = await widget.api.getServices(
           category: widget.category,
           limit: 5,
-          offset: data.length,
+          offset: refresh ? 0 : data.length,
           forceRefresh: forceRefresh);
       if (mounted) {
-        data.addAll(batch);
+        if (refresh) {
+          data
+            ..clear()
+            ..addAll(batch);
+        } else {
+          data.addAll(batch);
+        }
         hasMore = batch.length == 5;
         error = null;
       }
@@ -4143,30 +4132,36 @@ class _TopicDataPageState extends State<TopicDataPage> {
     _load(refresh: true);
   }
 
-  Future<List<dynamic>> _fetchPage({bool forceRefresh = false}) =>
+  Future<List<dynamic>> _fetchPage(
+          {bool forceRefresh = false, int? pageOffset}) =>
       switch (widget.topic) {
         0 => widget.api.getDonors(
             group: bloodGroup == 'সব' ? null : bloodGroup,
             limit: 20,
-            offset: data.length,
+            offset: pageOffset ?? data.length,
             forceRefresh: forceRefresh),
         1 => widget.api.getBloodRequests(
             group: bloodGroup == 'সব' ? null : bloodGroup,
             limit: 20,
-            offset: data.length,
+            offset: pageOffset ?? data.length,
             forceRefresh: forceRefresh),
         2 => widget.api.getNotices(
-            limit: 20, offset: data.length, forceRefresh: forceRefresh),
+            limit: 20,
+            offset: pageOffset ?? data.length,
+            forceRefresh: forceRefresh),
         3 => widget.api.getJobs(
-            limit: 20, offset: data.length, forceRefresh: forceRefresh),
+            limit: 20,
+            offset: pageOffset ?? data.length,
+            forceRefresh: forceRefresh),
         _ => widget.api.getLostFound(
-            limit: 20, offset: data.length, forceRefresh: forceRefresh),
+            limit: 20,
+            offset: pageOffset ?? data.length,
+            forceRefresh: forceRefresh),
       };
 
   Future<void> _load({bool refresh = false, bool forceRefresh = false}) async {
     if (loading || loadingMore || (!refresh && !hasMore)) return;
     if (refresh) {
-      data.clear();
       hasMore = true;
       error = null;
       loading = true;
@@ -4175,9 +4170,16 @@ class _TopicDataPageState extends State<TopicDataPage> {
     }
     if (mounted) setState(() {});
     try {
-      final batch = await _fetchPage(forceRefresh: forceRefresh);
+      final batch = await _fetchPage(
+          forceRefresh: forceRefresh, pageOffset: refresh ? 0 : data.length);
       if (mounted) {
-        data.addAll(batch);
+        if (refresh) {
+          data
+            ..clear()
+            ..addAll(batch);
+        } else {
+          data.addAll(batch);
+        }
         hasMore = batch.length == 20;
         error = null;
       }

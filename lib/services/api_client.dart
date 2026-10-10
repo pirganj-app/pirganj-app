@@ -33,10 +33,14 @@ class PirganjApiClient {
   static const _maxServiceCacheEntries = 64;
   static const _maxPublicProfileCacheEntries = 64;
   static const _maxReadCacheEntries = 64;
-  static const _serviceCacheTtl = Duration(minutes: 1);
+  static const _serviceCacheTtl = Duration(seconds: 45);
   static const _publicProfileCacheTtl = Duration(seconds: 45);
   static const _myItemsCacheTtl = Duration(minutes: 1);
   static const _catalogCacheTtl = Duration(seconds: 25);
+  static const _feedCacheTtl = Duration(seconds: 20);
+  static const _discussionCacheTtl = Duration(seconds: 15);
+  static const _reactionCacheTtl = Duration(seconds: 8);
+  static const _notificationCacheTtl = Duration(seconds: 5);
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
   static const _imageBucket = 'pirganj-images';
@@ -258,26 +262,37 @@ class PirganjApiClient {
   }
 
   Future<List<dynamic>> getPosts(
-      {String? tag, int limit = 20, int offset = 0, String? before}) async {
-    final json =
-        await _get(Uri.parse('$baseUrl/api/posts').replace(queryParameters: {
-      if (tag != null) 'tag': tag,
-      'limit': '$limit',
-      'offset': '$offset',
-      if (before != null && before.isNotEmpty) 'before': before,
-    }));
+      {String? tag,
+      int limit = 20,
+      int offset = 0,
+      String? before,
+      bool forceRefresh = false}) async {
+    final json = await _get(
+        Uri.parse('$baseUrl/api/posts').replace(queryParameters: {
+          if (tag != null) 'tag': tag,
+          'limit': '$limit',
+          'offset': '$offset',
+          if (before != null && before.isNotEmpty) 'before': before,
+        }),
+        cacheFor: _feedCacheTtl,
+        forceRefresh: forceRefresh);
     return List<dynamic>.from(json['data'] as List);
   }
 
-  Future<Map<String, dynamic>> getPost(String postId) async {
-    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId'));
+  Future<Map<String, dynamic>> getPost(String postId,
+      {bool forceRefresh = false}) async {
+    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId'),
+        cacheFor: _feedCacheTtl, forceRefresh: forceRefresh);
     return Map<String, dynamic>.from(json['data'] as Map);
   }
 
   Future<List<dynamic>> getComments(String postId,
-      {int limit = 50, int offset = 0}) async {
-    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/comments')
-        .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'}));
+      {int limit = 50, int offset = 0, bool forceRefresh = false}) async {
+    final json = await _get(
+        Uri.parse('$baseUrl/api/posts/$postId/comments')
+            .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'}),
+        cacheFor: _discussionCacheTtl,
+        forceRefresh: forceRefresh);
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -298,8 +313,10 @@ class PirganjApiClient {
     return List<dynamic>.from(json['data'] as List);
   }
 
-  Future<List<dynamic>> getPostReactions(String postId) async {
-    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/reactions'));
+  Future<List<dynamic>> getPostReactions(String postId,
+      {bool forceRefresh = false}) async {
+    final json = await _get(Uri.parse('$baseUrl/api/posts/$postId/reactions'),
+        cacheFor: _reactionCacheTtl, forceRefresh: forceRefresh);
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -310,9 +327,12 @@ class PirganjApiClient {
     return List<dynamic>.from(json['data'] as List);
   }
 
-  Future<List<dynamic>> getCommentReactions(String commentId) async {
-    final json =
-        await _get(Uri.parse('$baseUrl/api/comments/$commentId/reactions'));
+  Future<List<dynamic>> getCommentReactions(String commentId,
+      {bool forceRefresh = false}) async {
+    final json = await _get(
+        Uri.parse('$baseUrl/api/comments/$commentId/reactions'),
+        cacheFor: _reactionCacheTtl,
+        forceRefresh: forceRefresh);
     return List<dynamic>.from(json['data'] as List);
   }
 
@@ -368,15 +388,20 @@ class PirganjApiClient {
       _get(Uri.parse('$baseUrl/api/overview'), cacheFor: _catalogCacheTtl);
 
   Future<List<dynamic>> getNotifications(
-      {int limit = 50, int offset = 0}) async {
-    final json = await _get(Uri.parse('$baseUrl/api/notifications')
-        .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'}));
+      {int limit = 50, int offset = 0, bool forceRefresh = false}) async {
+    final json = await _get(
+        Uri.parse('$baseUrl/api/notifications')
+            .replace(queryParameters: {'limit': '$limit', 'offset': '$offset'}),
+        cacheFor: _notificationCacheTtl,
+        forceRefresh: forceRefresh);
     return List<dynamic>.from(json['data'] as List);
   }
 
-  Future<int> getUnreadNotificationCount() async {
-    final json =
-        await _get(Uri.parse('$baseUrl/api/notifications/unread-count'));
+  Future<int> getUnreadNotificationCount({bool forceRefresh = false}) async {
+    final json = await _get(
+        Uri.parse('$baseUrl/api/notifications/unread-count'),
+        cacheFor: _notificationCacheTtl,
+        forceRefresh: forceRefresh);
     return ((json['data'] as Map?)?['count'] as num?)?.toInt() ?? 0;
   }
 
@@ -783,9 +808,7 @@ class PirganjApiClient {
   }
 
   void _invalidateAfterMutation(String path) {
-    if (path.startsWith('/activity/') ||
-        path.startsWith('/notifications') ||
-        path.startsWith('/devices/')) {
+    if (path.startsWith('/activity/') || path.startsWith('/devices/')) {
       return;
     }
 
