@@ -6,7 +6,6 @@ import 'package:http_parser/http_parser.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/service_card.dart';
 
 class _GetCacheEntry {
@@ -25,15 +24,15 @@ class PirganjApiClient {
   Future<void> Function()? onUnauthorized;
   final Map<String, Future<List<ServiceCard>>> _serviceCache = {};
   final Map<String, DateTime> _serviceCacheAt = {};
+  final Map<String, Future<List<ServiceCard>>> _serviceInFlight = {};
   final Map<String, Future<Map<String, dynamic>>> _publicProfileCache = {};
   final Map<String, DateTime> _publicProfileCacheAt = {};
-  final Map<String, List<dynamic>> _myItemsCache = {};
-  final Map<String, DateTime> _myItemsCacheAt = {};
+  final Map<String, Future<Map<String, dynamic>>> _publicProfileInFlight = {};
   final Map<String, _GetCacheEntry> _readCache = {};
+  final Map<String, Future<Map<String, dynamic>>> _getInFlight = {};
   static const _maxServiceCacheEntries = 64;
   static const _maxPublicProfileCacheEntries = 64;
   static const _maxReadCacheEntries = 64;
-  static const _maxMyItemsCacheEntries = 8;
   static const _serviceCacheTtl = Duration(minutes: 1);
   static const _publicProfileCacheTtl = Duration(seconds: 45);
   static const _myItemsCacheTtl = Duration(minutes: 1);
@@ -41,7 +40,7 @@ class PirganjApiClient {
   static const _requestTimeout = Duration(seconds: 10);
   static const _maxGetAttempts = 2;
   static const _imageBucket = 'pirganj-images';
-  static bool _profilePersistenceAvailable = true;
+  int _cacheGeneration = 0;
 
   void _trimCache<K, V>(Map<K, V> cache, int maximum,
       {void Function(K key)? onRemove}) {
@@ -104,21 +103,19 @@ class PirganjApiClient {
   }
 
   Future<void> clearSessionCaches() async {
+    clearRamCaches();
+  }
+
+  void clearRamCaches() {
+    _cacheGeneration++;
     _serviceCache.clear();
     _serviceCacheAt.clear();
+    _serviceInFlight.clear();
     _publicProfileCache.clear();
     _publicProfileCacheAt.clear();
-    _myItemsCache.clear();
-    _myItemsCacheAt.clear();
+    _publicProfileInFlight.clear();
     _readCache.clear();
-    final prefs = await _profilePrefs();
-    if (prefs == null) return;
-    for (final key in prefs
-        .getKeys()
-        .where((key) => key.startsWith('pirganj_profile_items_'))
-        .toList()) {
-      await prefs.remove(key);
-    }
+    _getInFlight.clear();
   }
 
   Future<void> logPageVisit(String pageName) async {
@@ -146,6 +143,8 @@ class PirganjApiClient {
 
   Future<Map<String, dynamic>> getPublicProfile(String userId,
       {bool forceRefresh = false}) {
+    final pending = _publicProfileInFlight[userId];
+    if (pending != null) return pending;
     final cached = _publicProfileCache[userId];
     final cachedAt = _publicProfileCacheAt[userId];
     if (!forceRefresh &&
@@ -159,16 +158,25 @@ class PirganjApiClient {
     }
     _publicProfileCache.remove(userId);
     _publicProfileCacheAt.remove(userId);
-    final request = () async {
+    late final Future<Map<String, dynamic>> request;
+    request = (() async {
       try {
         final json = await _get(Uri.parse('$baseUrl/api/users/$userId/public'));
         return Map<String, dynamic>.from(json['data'] as Map);
       } catch (_) {
-        _publicProfileCache.remove(userId);
-        _publicProfileCacheAt.remove(userId);
+        if (identical(_publicProfileCache[userId], request)) {
+          _publicProfileCache.remove(userId);
+          _publicProfileCacheAt.remove(userId);
+        }
         rethrow;
       }
-    }();
+    })()
+        .whenComplete(() {
+      if (identical(_publicProfileInFlight[userId], request)) {
+        _publicProfileInFlight.remove(userId);
+      }
+    });
+    _publicProfileInFlight[userId] = request;
     _publicProfileCache[userId] = request;
     _publicProfileCacheAt[userId] = DateTime.now();
     _trimCache(_publicProfileCache, _maxPublicProfileCacheEntries,
@@ -192,6 +200,8 @@ class PirganjApiClient {
       int offset = 0,
       bool forceRefresh = false}) {
     final key = '${category ?? ''}|${search ?? ''}|$limit|$offset';
+    final pending = _serviceInFlight[key];
+    if (pending != null) return pending;
     final cached = _serviceCache[key];
     final cachedAt = _serviceCacheAt[key];
     if (!forceRefresh &&
@@ -205,7 +215,8 @@ class PirganjApiClient {
     }
     _serviceCache.remove(key);
     _serviceCacheAt.remove(key);
-    final request = () async {
+    late final Future<List<ServiceCard>> request;
+    request = (() async {
       try {
         final query = <String, String>{
           if (category != null && category.isNotEmpty) 'category': category,
@@ -220,13 +231,21 @@ class PirganjApiClient {
                 (item) => ServiceCard.fromJson(Map<String, dynamic>.from(item)))
             .toList();
       } catch (error) {
-        _serviceCache.remove(key);
-        _serviceCacheAt.remove(key);
+        if (identical(_serviceCache[key], request)) {
+          _serviceCache.remove(key);
+          _serviceCacheAt.remove(key);
+        }
         rethrow;
       }
-    }();
+    })()
+        .whenComplete(() {
+      if (identical(_serviceInFlight[key], request)) {
+        _serviceInFlight.remove(key);
+      }
+    });
     _serviceCache[key] = request;
     _serviceCacheAt[key] = DateTime.now();
+    _serviceInFlight[key] = request;
     _trimCache(_serviceCache, _maxServiceCacheEntries,
         onRemove: _serviceCacheAt.remove);
     return request;
@@ -235,6 +254,7 @@ class PirganjApiClient {
   void clearServiceCache() {
     _serviceCache.clear();
     _serviceCacheAt.clear();
+    _serviceInFlight.clear();
   }
 
   Future<List<dynamic>> getPosts(
@@ -471,74 +491,15 @@ class PirganjApiClient {
       int offset = 0,
       String? resource,
       bool forceRefresh = false}) async {
-    final cacheKey =
-        'pirganj_profile_items_${userId ?? 'anonymous'}_${resource ?? 'all'}';
-    final canCacheWholeProfile = offset == 0 && resource == null;
-    if (!forceRefresh && canCacheWholeProfile) {
-      final memory = _myItemsCache[cacheKey];
-      final cachedAt = _myItemsCacheAt[cacheKey];
-      if (memory != null &&
-          cachedAt != null &&
-          DateTime.now().difference(cachedAt) < _myItemsCacheTtl) {
-        _myItemsCache
-          ..remove(cacheKey)
-          ..[cacheKey] = memory;
-        return List<dynamic>.from(memory);
-      }
-      _myItemsCache.remove(cacheKey);
-      _myItemsCacheAt.remove(cacheKey);
-    }
-    try {
-      final json = await _get(
-          Uri.parse('$baseUrl/api/profile/items').replace(queryParameters: {
-            'limit': '$limit',
-            'offset': '$offset',
-            if (resource != null) 'resource': resource,
-          }),
-          cacheFor: _myItemsCacheTtl,
-          forceRefresh: forceRefresh);
-      final items = List<dynamic>.from(json['data'] as List);
-      if (canCacheWholeProfile) {
-        _myItemsCache[cacheKey] = List<dynamic>.from(items);
-        _myItemsCacheAt[cacheKey] = DateTime.now();
-        _trimCache(_myItemsCache, _maxMyItemsCacheEntries,
-            onRemove: _myItemsCacheAt.remove);
-        unawaited(_persistProfileItems(cacheKey, items));
-      }
-      return items;
-    } catch (_) {
-      if (!canCacheWholeProfile) rethrow;
-      final prefs = await _profilePrefs();
-      final cached = prefs?.getString(cacheKey);
-      if (cached != null) {
-        try {
-          final items = List<dynamic>.from(jsonDecode(cached) as List);
-          _myItemsCache[cacheKey] = List<dynamic>.from(items);
-          _myItemsCacheAt[cacheKey] = DateTime.now();
-          return items;
-        } catch (_) {}
-      }
-      rethrow;
-    }
-  }
-
-  Future<void> _persistProfileItems(
-      String cacheKey, List<dynamic> items) async {
-    try {
-      final prefs = await _profilePrefs();
-      if (prefs != null) await prefs.setString(cacheKey, jsonEncode(items));
-    } catch (_) {}
-  }
-
-  Future<SharedPreferences?> _profilePrefs() async {
-    if (!_profilePersistenceAvailable) return null;
-    try {
-      return await SharedPreferences.getInstance()
-          .timeout(const Duration(milliseconds: 500));
-    } catch (_) {
-      _profilePersistenceAvailable = false;
-      return null;
-    }
+    final json = await _get(
+        Uri.parse('$baseUrl/api/profile/items').replace(queryParameters: {
+          'limit': '$limit',
+          'offset': '$offset',
+          if (resource != null) 'resource': resource,
+        }),
+        cacheFor: _myItemsCacheTtl,
+        forceRefresh: forceRefresh);
+    return List<dynamic>.from(json['data'] as List);
   }
 
   Future<Map<String, dynamic>> updateItem(
@@ -639,30 +600,42 @@ class PirganjApiClient {
       });
   Future<Map<String, dynamic>> _get(Uri uri,
       {Duration? cacheFor, bool forceRefresh = false}) async {
-    if (cacheFor == null || cacheFor <= Duration.zero) {
-      return _fetchGet(uri);
-    }
-
     final cacheKey = '${userId ?? 'anonymous'}|${uri.toString()}';
+    final pending = _getInFlight[cacheKey];
+    if (pending != null) return pending;
+
     final now = DateTime.now();
-    final cached = _readCache[cacheKey];
+    final shouldCache = cacheFor != null && cacheFor > Duration.zero;
+    final cached = shouldCache ? _readCache[cacheKey] : null;
     if (!forceRefresh && cached != null && now.isBefore(cached.expiresAt)) {
       _readCache
         ..remove(cacheKey)
         ..[cacheKey] = cached;
       return cached.future;
     }
-    if (cached != null) _readCache.remove(cacheKey);
+    if (forceRefresh || cached != null) _readCache.remove(cacheKey);
 
-    final request = _fetchGet(uri);
-    final entry = _GetCacheEntry(request, now.add(cacheFor));
-    _readCache[cacheKey] = entry;
-    _trimCache(_readCache, _maxReadCacheEntries);
+    final generation = _cacheGeneration;
+    late final Future<Map<String, dynamic>> request;
+    request = _fetchGet(uri).whenComplete(() {
+      if (identical(_getInFlight[cacheKey], request)) {
+        _getInFlight.remove(cacheKey);
+      }
+    });
+    _getInFlight[cacheKey] = request;
     try {
-      return await request;
-    } catch (_) {
-      if (identical(_readCache[cacheKey], entry)) _readCache.remove(cacheKey);
-      rethrow;
+      final result = await request;
+      if (shouldCache && generation == _cacheGeneration) {
+        _readCache[cacheKey] = _GetCacheEntry(
+            Future<Map<String, dynamic>>.value(result),
+            DateTime.now().add(cacheFor));
+        _trimCache(_readCache, _maxReadCacheEntries);
+      }
+      return result;
+    } finally {
+      if (identical(_getInFlight[cacheKey], request)) {
+        _getInFlight.remove(cacheKey);
+      }
     }
   }
 
@@ -816,7 +789,9 @@ class PirganjApiClient {
       return;
     }
 
+    _cacheGeneration++;
     _readCache.clear();
+    _getInFlight.clear();
     final affectsServices = path.startsWith('/services') ||
         path.startsWith('/profile/items/services');
     if (affectsServices) {
@@ -833,28 +808,13 @@ class PirganjApiClient {
             path.startsWith('/profile/items/')) &&
         !path.contains('/comments') &&
         !path.contains('/reactions');
-    if (isContentMutation || path.startsWith('/auth/me')) {
-      _myItemsCache.clear();
-      _myItemsCacheAt.clear();
-      unawaited(_clearPersistedProfileItems());
-    }
-    if (path.startsWith('/auth/me') || path.startsWith('/profile/items/')) {
+    if (isContentMutation ||
+        path.startsWith('/auth/me') ||
+        path.startsWith('/profile/items/')) {
       _publicProfileCache.clear();
       _publicProfileCacheAt.clear();
+      _publicProfileInFlight.clear();
     }
-  }
-
-  Future<void> _clearPersistedProfileItems() async {
-    try {
-      final prefs = await _profilePrefs();
-      if (prefs == null) return;
-      for (final key in prefs
-          .getKeys()
-          .where((key) => key.startsWith('pirganj_profile_items_'))
-          .toList()) {
-        await prefs.remove(key);
-      }
-    } catch (_) {}
   }
 
   Map<String, dynamic> _decode(http.Response response) {

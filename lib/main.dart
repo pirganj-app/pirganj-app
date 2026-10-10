@@ -14,7 +14,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'models/service_card.dart';
 import 'services/api_client.dart';
-import 'services/disk_image_cache.dart';
+import 'services/memory_image_cache.dart';
 import 'services/push_notification_service.dart';
 
 const brand = Color(0xFF167765);
@@ -23,6 +23,9 @@ const page = Color(0xFFF4F7F6);
 const maxImageBytes = 2 * 1024 * 1024;
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
 const apkDownloadUrl = 'https://pirganj-app.netlify.app/apk';
+final ValueNotifier<int> _appResumeSignal = ValueNotifier<int>(0);
+final RouteObserver<PageRoute<dynamic>> _routeObserver =
+    RouteObserver<PageRoute<dynamic>>();
 
 String friendlyMessage(Object error) {
   final text = error.toString().replaceFirst('Exception: ', '');
@@ -473,8 +476,70 @@ class _AndroidWhatsAppPageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
+class _CacheRefreshBoundary extends StatefulWidget {
+  const _CacheRefreshBoundary({required this.builder});
+
+  final WidgetBuilder builder;
+
+  @override
+  State<_CacheRefreshBoundary> createState() => _CacheRefreshBoundaryState();
+}
+
+class _CacheRefreshBoundaryState extends State<_CacheRefreshBoundary>
+    with RouteAware {
+  PageRoute<dynamic>? _route;
+  int _generation = 0;
+  bool _refreshPending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _appResumeSignal.addListener(_onAppResumed);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && !identical(route, _route)) {
+      _routeObserver.unsubscribe(this);
+      _route = route;
+      _routeObserver.subscribe(this, route);
+    }
+  }
+
+  void _onAppResumed() {
+    if (!mounted) return;
+    if (_route == null || _route!.isCurrent) {
+      setState(() => _generation++);
+    } else {
+      _refreshPending = true;
+    }
+  }
+
+  @override
+  void didPopNext() {
+    if (_refreshPending && mounted) {
+      _refreshPending = false;
+      setState(() => _generation++);
+    }
+  }
+
+  @override
+  void dispose() {
+    _appResumeSignal.removeListener(_onAppResumed);
+    _routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: ValueKey(_generation), child: widget.builder(context));
+}
+
 class _SmoothPageRoute<T> extends MaterialPageRoute<T> {
-  _SmoothPageRoute({required WidgetBuilder builder}) : super(builder: builder);
+  _SmoothPageRoute({required WidgetBuilder builder})
+      : super(builder: (context) => _CacheRefreshBoundary(builder: builder));
 
   @override
   Duration get transitionDuration => const Duration(milliseconds: 400);
@@ -492,6 +557,7 @@ const googleWebClientId =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(MemoryImageCache.instance.purgeLegacyDiskCache());
   PaintingBinding.instance.imageCache.maximumSizeBytes = 64 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 300;
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -511,8 +577,9 @@ class PirganjApp extends StatefulWidget {
   State<PirganjApp> createState() => _PirganjAppState();
 }
 
-class _PirganjAppState extends State<PirganjApp> {
+class _PirganjAppState extends State<PirganjApp> with WidgetsBindingObserver {
   final api = PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+  bool _wasBackgrounded = false;
   bool loading = true;
   bool _handlingUnauthorized = false;
   bool updateRequired = false;
@@ -521,8 +588,35 @@ class _PirganjAppState extends State<PirganjApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     api.onUnauthorized = _handleUnauthorized;
     _restore();
+  }
+
+  void _clearTransientCaches() {
+    api.clearRamCaches();
+    MemoryImageCache.instance.clear();
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (!_wasBackgrounded) {
+        _wasBackgrounded = true;
+        _clearTransientCaches();
+      }
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _wasBackgrounded) {
+      _wasBackgrounded = false;
+      _clearTransientCaches();
+      _appResumeSignal.value++;
+    }
   }
 
   Future<void> _handleUnauthorized() async {
@@ -532,7 +626,7 @@ class _PirganjAppState extends State<PirganjApp> {
     try {
       await PushNotificationService.instance.stop(api);
     } catch (_) {}
-    await api.clearSessionCaches();
+    _clearTransientCaches();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('pirganj_token');
     if (mounted) setState(() {});
@@ -540,6 +634,12 @@ class _PirganjAppState extends State<PirganjApp> {
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
+    for (final key in prefs
+        .getKeys()
+        .where((key) => key.startsWith('pirganj_profile_items_'))
+        .toList()) {
+      await prefs.remove(key);
+    }
     var deviceId = prefs.getString('pirganj_device_id');
     if (deviceId == null || deviceId.isEmpty) {
       final random = Random();
@@ -597,6 +697,7 @@ class _PirganjAppState extends State<PirganjApp> {
 
   Future<void> _loggedIn(Map<String, dynamic> result) async {
     final prefs = await SharedPreferences.getInstance();
+    _clearTransientCaches();
     api.token = result['token']?.toString();
     _handlingUnauthorized = false;
     await prefs.setString('pirganj_token', api.token!);
@@ -610,15 +711,23 @@ class _PirganjAppState extends State<PirganjApp> {
     final prefs = await SharedPreferences.getInstance();
     await PushNotificationService.instance.stop(api);
     await api.logout();
+    _clearTransientCaches();
     await prefs.remove('pirganj_token');
     api.token = null;
     if (mounted) setState(() {});
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Pirganj',
+        navigatorObservers: [_routeObserver],
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: page,
@@ -928,66 +1037,85 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       (raw as Map)['resource']?.toString().toLowerCase();
                   return resource != 'post' && resource != 'posts';
                 }).toList();
-                Widget section(String title, List<dynamic> values) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title,
-                            style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                                color: ink)),
-                        const SizedBox(height: 8),
-                        if (values.isEmpty)
-                          const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ করা হয়নি'),
-                        ...values.map((raw) {
-                          final item = Map<String, dynamic>.from(raw);
-                          final resource =
-                              item['resource']?.toString().toLowerCase() ?? '';
-                          final isPost =
-                              resource == 'posts' || resource == 'post';
-                          final label =
-                              _publicResourceLabel(isPost ? 'posts' : resource);
-                          return _PublicItemCard(
-                              item: item,
-                              label: label,
-                              icon: _publicResourceIcon(
-                                  resource,
-                                  item['category']?.toString() ?? '',
-                                  item['icon']?.toString() ?? ''),
-                              onOpen: isPost
-                                  ? () => _openExistingPost(item)
-                                  : null);
-                        })
-                      ],
-                    );
-                return ListView(
+                Widget publicItemCard(dynamic raw) {
+                  final item = Map<String, dynamic>.from(raw);
+                  final resource =
+                      item['resource']?.toString().toLowerCase() ?? '';
+                  final isPost = resource == 'posts' || resource == 'post';
+                  final label =
+                      _publicResourceLabel(isPost ? 'posts' : resource);
+                  return _PublicItemCard(
+                      item: item,
+                      label: label,
+                      icon: _publicResourceIcon(
+                          resource,
+                          item['category']?.toString() ?? '',
+                          item['icon']?.toString() ?? ''),
+                      onOpen: isPost ? () => _openExistingPost(item) : null);
+                }
+
+                final postCount = max(1, postItems.length).toInt();
+                final infoCount = max(1, infoItems.length).toInt();
+                return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      _ProfileHeader(
-                          name: user['name']?.toString() ?? widget.fallbackName,
-                          email: user['email']?.toString() ?? '',
-                          phone: '',
-                          avatarUrl: user['avatarUrl']?.toString() ??
-                              widget.fallbackAvatar,
-                          address:
-                              '${user['sex']?.toString() ?? ''}  •  ${user['address']?.toString() ?? ''}',
-                          isVerified: user['isVerified'] == true ||
-                              user['is_verified'] == true,
-                          onEdit: null),
-                      if (locked)
-                        const Padding(
+                    itemCount: locked ? 2 : 7 + postCount + infoCount,
+                    itemBuilder: (_, index) {
+                      if (index == 0) {
+                        return _ProfileHeader(
+                            name:
+                                user['name']?.toString() ?? widget.fallbackName,
+                            email: user['email']?.toString() ?? '',
+                            phone: '',
+                            avatarUrl: user['avatarUrl']?.toString() ??
+                                widget.fallbackAvatar,
+                            address:
+                                '${user['sex']?.toString() ?? ''}  •  ${user['address']?.toString() ?? ''}',
+                            isVerified: user['isVerified'] == true ||
+                                user['is_verified'] == true,
+                            onEdit: null);
+                      }
+                      if (locked) {
+                        return const Padding(
                             padding: EdgeInsets.only(top: 18),
                             child: _EmptyCard(
                                 text:
-                                    'এই profile locked। পোস্ট ও যোগ করা তথ্য দেখা যাবে না।'))
-                      else ...[
-                        const SizedBox(height: 18),
-                        section('পোস্ট', postItems),
-                        const SizedBox(height: 18),
-                        section('তথ্য', infoItems)
-                      ]
-                    ]);
+                                    'এই profile locked। পোস্ট ও যোগ করা তথ্য দেখা যাবে না।'));
+                      }
+                      if (index == 1) return const SizedBox(height: 18);
+                      if (index == 2) {
+                        return const Text('পোস্ট',
+                            style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: ink));
+                      }
+                      if (index == 3) return const SizedBox(height: 8);
+                      if (index < 4 + postCount) {
+                        return postItems.isEmpty
+                            ? const _EmptyCard(
+                                text: 'এখনো কোনো তথ্য যোগ করা হয়নি')
+                            : publicItemCard(postItems[index - 4]);
+                      }
+                      if (index == 4 + postCount) {
+                        return const SizedBox(height: 18);
+                      }
+                      if (index == 5 + postCount) {
+                        return const Text('তথ্য',
+                            style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: ink));
+                      }
+                      if (index == 6 + postCount) {
+                        return const SizedBox(height: 8);
+                      }
+                      final infoIndex = index - (7 + postCount);
+                      return infoItems.isEmpty
+                          ? const _EmptyCard(
+                              text: 'এখনো কোনো তথ্য যোগ করা হয়নি')
+                          : publicItemCard(infoItems[infoIndex]);
+                    });
               })));
 }
 
@@ -1154,7 +1282,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   late final PirganjApiClient api;
   final searchController = TextEditingController();
   final posts = <dynamic>[];
@@ -1173,8 +1301,11 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<void>? pushEventSubscription;
   StreamSubscription<Map<String, String>>? pushTapSubscription;
   String category = 'সব';
-  late final Widget _homePage;
+  late Widget _homePage;
   late final Widget _addPage;
+  PageRoute<dynamic>? _homeRoute;
+  bool _resumeRefreshPending = false;
+  int _carouselGeneration = 0;
 
   @override
   void initState() {
@@ -1182,6 +1313,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pageController = PageController(initialPage: tab);
     api = widget.api ??
         PirganjApiClient(baseUrl: 'https://pirganj-app.onrender.com');
+    _appResumeSignal.addListener(_onAppResumed);
     // These pages are static tab content; retain their widget subtrees so
     // unread counts, reactions, and tab changes do not rebuild their grids.
     _homePage = _home();
@@ -1195,7 +1327,60 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && !identical(route, _homeRoute)) {
+      _routeObserver.unsubscribe(this);
+      _homeRoute = route;
+      _routeObserver.subscribe(this, route);
+    }
+  }
+
+  void _onAppResumed() {
+    if (!mounted) return;
+    if (_homeRoute == null || _homeRoute!.isCurrent) {
+      _refreshVisibleTab();
+    } else {
+      _resumeRefreshPending = true;
+    }
+  }
+
+  @override
+  void didPopNext() {
+    if (_resumeRefreshPending && mounted) {
+      _resumeRefreshPending = false;
+      _refreshVisibleTab();
+    }
+  }
+
+  void _refreshVisibleTab() {
+    unawaited(_loadUnreadNotifications());
+    if (tab == 0) {
+      setState(() {
+        _carouselGeneration++;
+        _homePage = _home();
+      });
+    } else if (tab == 1) {
+      unawaited(_loadPostsPage(refresh: true));
+    } else if (tab == 3) {
+      setState(() => profileRefreshToken++);
+    }
+  }
+
+  Future<void> _refreshHome() async {
+    MemoryImageCache.instance.clear();
+    if (!mounted) return;
+    setState(() {
+      _carouselGeneration++;
+      _homePage = _home();
+    });
+  }
+
+  @override
   void dispose() {
+    _appResumeSignal.removeListener(_onAppResumed);
+    _routeObserver.unsubscribe(this);
     searchController.dispose();
     _pageController.dispose();
     pushEventSubscription?.cancel();
@@ -1379,8 +1564,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  void _reload() {
-    if (communityStarted) _loadPostsPage(refresh: true);
+  void _reload({bool refreshPosts = false}) {
+    if (refreshPosts && communityStarted) _loadPostsPage(refresh: true);
     setState(() {});
   }
 
@@ -1458,7 +1643,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (result == true && mounted) {
       profileRefreshToken++;
-      _reload();
+      _reload(refreshPosts: kind == 'post');
       _message('তথ্য সফলভাবে যোগ হয়েছে');
     }
   }
@@ -1482,7 +1667,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: const Text('হ্যাঁ, বের হই'))
               ],
             ));
-    if (shouldExit == true) await SystemNavigator.pop();
+    if (shouldExit == true) {
+      api.clearRamCaches();
+      MemoryImageCache.instance.clear();
+      PaintingBinding.instance.imageCache
+        ..clear()
+        ..clearLiveImages();
+      await SystemNavigator.pop();
+    }
   }
 
   @override
@@ -1572,11 +1764,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _home() => RefreshIndicator(
         color: brand,
-        onRefresh: () async => _reload(),
+        onRefresh: _refreshHome,
         child: ListView(
+          key: const PageStorageKey<String>('pirganj-home-scroll'),
           padding: const EdgeInsets.fromLTRB(8, 17, 8, 0),
           children: [
-            _ImageCarousel(baseUrl: api.baseUrl),
+            _ImageCarousel(
+                key: ValueKey(_carouselGeneration), baseUrl: api.baseUrl),
             const SizedBox(height: 16),
             _SearchBox(controller: searchController, onSearch: _runSearch),
             const SizedBox(height: 22),
@@ -1925,7 +2119,7 @@ class _TopBar extends StatelessWidget {
 }
 
 class _ImageCarousel extends StatefulWidget {
-  const _ImageCarousel({required this.baseUrl});
+  const _ImageCarousel({super.key, required this.baseUrl});
   final String baseUrl;
 
   @override
@@ -1961,11 +2155,11 @@ class _ImageCarouselState extends State<_ImageCarousel> {
     final decodeWidth = (MediaQuery.sizeOf(context).width * pixelRatio).round();
     final decodeHeight = (_height * pixelRatio).round();
     unawaited(() async {
-      final file =
-          await DiskImageCache.instance.getImage(_imageUrl(_currentIndex + 1));
-      if (file == null || !mounted) return;
+      final bytes = await MemoryImageCache.instance
+          .getImage(_imageUrl(_currentIndex + 1));
+      if (bytes == null || !mounted) return;
       final provider = ResizeImage(
-        FileImage(file),
+        MemoryImage(bytes),
         width: decodeWidth,
         height: decodeHeight,
       );
@@ -2067,30 +2261,30 @@ class _CachedCarouselSlide extends StatefulWidget {
 }
 
 class _CachedCarouselSlideState extends State<_CachedCarouselSlide> {
-  late Future<File?> _imageFile;
+  late Future<Uint8List?> _imageBytes;
 
   @override
   void initState() {
     super.initState();
-    _imageFile = DiskImageCache.instance.getImage(widget.url);
+    _imageBytes = MemoryImageCache.instance.getImage(widget.url);
   }
 
   @override
   void didUpdateWidget(covariant _CachedCarouselSlide oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
-      _imageFile = DiskImageCache.instance.getImage(widget.url);
+      _imageBytes = MemoryImageCache.instance.getImage(widget.url);
     }
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<File?>(
-        future: _imageFile,
+  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+        future: _imageBytes,
         builder: (context, snapshot) {
-          final file = snapshot.data;
-          if (file == null) return const _CarouselSkeleton();
-          return Image.file(
-            file,
+          final bytes = snapshot.data;
+          if (bytes == null) return const _CarouselSkeleton();
+          return Image.memory(
+            bytes,
             fit: BoxFit.cover,
             cacheWidth: widget.decodeWidth,
             cacheHeight: widget.decodeHeight,
@@ -2147,8 +2341,8 @@ class SearchResultsPage extends StatefulWidget {
 class _SearchResultsPageState extends State<SearchResultsPage> {
   late Future<List<ServiceCard>> future = _load();
 
-  Future<List<ServiceCard>> _load() => widget.api
-      .getServices(search: widget.query, limit: 50, forceRefresh: true);
+  Future<List<ServiceCard>> _load({bool forceRefresh = false}) => widget.api
+      .getServices(search: widget.query, limit: 50, forceRefresh: forceRefresh);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -2158,7 +2352,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
           foregroundColor: Colors.white),
       body: RefreshIndicator(
           color: brand,
-          onRefresh: () async => setState(() => future = _load()),
+          onRefresh: () async =>
+              setState(() => future = _load(forceRefresh: true)),
           child: FutureBuilder<List<ServiceCard>>(
               future: future,
               builder: (_, snapshot) {
@@ -2180,8 +2375,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                         const SizedBox(height: 12),
                         Center(
                             child: TextButton(
-                                onPressed: () =>
-                                    setState(() => future = _load()),
+                                onPressed: () => setState(
+                                    () => future = _load(forceRefresh: true)),
                                 child: const Text('আবার চেষ্টা করুন')))
                       ]);
                 }
@@ -3035,10 +3230,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                           child:
                                               Text('এখনো কোনো comment নেই'))));
                             }
-                            return Column(
-                                children: orderedComments(list)
-                                    .map(commentTile)
-                                    .toList());
+                            final ordered = orderedComments(list);
+                            return ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: ordered.length,
+                                itemBuilder: (_, index) =>
+                                    commentTile(ordered[index]));
                           }),
                       const SizedBox(height: 12),
                     ]))),
@@ -3321,16 +3519,12 @@ class _NotificationPageState extends State<NotificationPage> {
     if (!mounted) return;
     if (type == 'post' && id != null) {
       try {
-        final posts = await widget.api.getPosts();
-        final match = posts
-            .cast<Map>()
-            .where((post) => (post['id'] ?? '').toString() == id)
-            .toList();
-        if (match.isNotEmpty && mounted) {
+        final post = await widget.api.getPost(id);
+        if (mounted) {
           await openPostDetails(
               context: context,
               api: widget.api,
-              post: Map<String, dynamic>.from(match.first),
+              post: post,
               onOpenOwnProfile: widget.onOpenOwnProfile);
         }
       } catch (_) {}
@@ -3651,21 +3845,23 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
     _load(refresh: true);
   }
 
-  Future<void> _load({bool refresh = false}) async {
+  Future<void> _load({bool refresh = false, bool forceRefresh = false}) async {
     if (loading || loadingMore || (!refresh && !hasMore)) return;
     if (refresh) {
       data.clear();
       hasMore = true;
       error = null;
       loading = true;
-      widget.api.clearServiceCache();
     } else {
       loadingMore = true;
     }
     if (mounted) setState(() {});
     try {
       final batch = await widget.api.getServices(
-          category: widget.category, limit: 5, offset: data.length);
+          category: widget.category,
+          limit: 5,
+          offset: data.length,
+          forceRefresh: forceRefresh);
       if (mounted) {
         data.addAll(batch);
         hasMore = batch.length == 5;
@@ -3691,7 +3887,9 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
             kind: 'service',
             api: widget.api,
             initialCategory: widget.category));
-    if (result == true && mounted) _load(refresh: true);
+    if (result == true && mounted) {
+      _load(refresh: true, forceRefresh: true);
+    }
   }
 
   @override
@@ -3714,7 +3912,7 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
         ),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () => _load(refresh: true),
+          onRefresh: () => _load(refresh: true, forceRefresh: true),
           child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
               if (notification.metrics.pixels >=
@@ -3723,39 +3921,51 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
               }
               return false;
             },
-            child: ListView(
+            child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(10, 17, 10, 30),
-                children: [
-                  Text('${data.length}টি তথ্য',
-                      style:
-                          const TextStyle(fontSize: 21, color: Colors.black54)),
-                  const SizedBox(height: 14),
-                  if (loading && data.isEmpty)
-                    const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 4, vertical: 18),
-                        child:
-                            Center(child: _SkeletonBox(height: 92, radius: 18)))
-                  else if (error != null && data.isEmpty)
-                    _NetworkErrorCard(onRetry: () => _load(refresh: true))
-                  else if (data.isEmpty)
-                    const _EmptyCard(
+                itemCount: 2 +
+                    (data.isEmpty ? 1 : data.length) +
+                    (data.isNotEmpty && (loadingMore || !hasMore) ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Text('${data.length}টি তথ্য',
+                        style: const TextStyle(
+                            fontSize: 21, color: Colors.black54));
+                  }
+                  if (index == 1) return const SizedBox(height: 14);
+                  if (data.isEmpty) {
+                    if (loading) {
+                      return const Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 4, vertical: 18),
+                          child: Center(
+                              child: _SkeletonBox(height: 92, radius: 18)));
+                    }
+                    if (error != null) {
+                      return _NetworkErrorCard(
+                          onRetry: () =>
+                              _load(refresh: true, forceRefresh: true));
+                    }
+                    return const _EmptyCard(
                         text:
-                            'এই category-তে এখনো কোনো তথ্য নেই। প্রথম তথ্যটি যোগ করুন।')
-                  else
-                    ...data.map((item) => _DetailedServiceCard(item: item)),
-                  if (loadingMore)
-                    const Padding(
+                            'এই category-তে এখনো কোনো তথ্য নেই। প্রথম তথ্যটি যোগ করুন।');
+                  }
+                  final dataIndex = index - 2;
+                  if (dataIndex < data.length) {
+                    return _DetailedServiceCard(item: data[dataIndex]);
+                  }
+                  if (loadingMore) {
+                    return const Padding(
                         padding: EdgeInsets.all(18),
                         child: Center(
-                            child: _SkeletonBox(height: 92, radius: 18))),
-                  if (!hasMore && data.isNotEmpty)
-                    const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Center(
-                            child: Text('সব তথ্য দেখানো হয়েছে',
-                                style: TextStyle(color: Colors.black45))))
-                ]),
+                            child: _SkeletonBox(height: 92, radius: 18)));
+                  }
+                  return const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(
+                          child: Text('সব তথ্য দেখানো হয়েছে',
+                              style: TextStyle(color: Colors.black45))));
+                }),
           ),
         ),
       );
@@ -3953,7 +4163,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
             limit: 20, offset: data.length, forceRefresh: forceRefresh),
       };
 
-  Future<void> _load({bool refresh = false}) async {
+  Future<void> _load({bool refresh = false, bool forceRefresh = false}) async {
     if (loading || loadingMore || (!refresh && !hasMore)) return;
     if (refresh) {
       data.clear();
@@ -3965,7 +4175,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
     }
     if (mounted) setState(() {});
     try {
-      final batch = await _fetchPage(forceRefresh: refresh);
+      final batch = await _fetchPage(forceRefresh: forceRefresh);
       if (mounted) {
         data.addAll(batch);
         hasMore = batch.length == 20;
@@ -3989,7 +4199,9 @@ class _TopicDataPageState extends State<TopicDataPage> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => EntrySheet(kind: kinds[widget.topic], api: widget.api));
-    if (result == true && mounted) _load(refresh: true);
+    if (result == true && mounted) {
+      _load(refresh: true, forceRefresh: true);
+    }
   }
 
   @override
@@ -4006,7 +4218,7 @@ class _TopicDataPageState extends State<TopicDataPage> {
             ]),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () => _load(refresh: true),
+          onRefresh: () => _load(refresh: true, forceRefresh: true),
           child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
               if (notification.metrics.pixels >=
@@ -4015,63 +4227,82 @@ class _TopicDataPageState extends State<TopicDataPage> {
               }
               return false;
             },
-            child: ListView(
+            child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(10, 16, 10, 28),
-              children: [
-                if (widget.topic < 2)
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: DropdownButtonFormField<String>(
-                          initialValue: bloodGroup,
-                          decoration: const InputDecoration(
-                              labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                  borderSide: BorderSide.none)),
-                          items: bloodGroups
-                              .map((group) => DropdownMenuItem(
-                                  value: group, child: Text(group)))
-                              .toList(),
-                          onChanged: (value) {
-                            bloodGroup = value ?? 'সব';
-                            _load(refresh: true);
-                          })),
-                if (widget.topic == 0)
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('${data.length} টি তথ্য',
-                              style: const TextStyle(
-                                  color: ink,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700)))),
-                if (loading && data.isEmpty)
-                  const Padding(
-                      padding: EdgeInsets.all(30),
-                      child:
-                          Center(child: _SkeletonBox(height: 92, radius: 18)))
-                else if (error != null && data.isEmpty)
-                  _NetworkErrorCard(onRetry: () => _load(refresh: true))
-                else if (data.isEmpty)
-                  const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি')
-                else
-                  ...data.map((item) => _TopicCard(
+              itemCount: (widget.topic < 2 ? 1 : 0) +
+                  (widget.topic == 0 ? 1 : 0) +
+                  (data.isEmpty ? 1 : data.length) +
+                  (data.isNotEmpty && (loadingMore || !hasMore) ? 1 : 0),
+              itemBuilder: (context, index) {
+                var itemIndex = index;
+                if (widget.topic < 2) {
+                  if (itemIndex == 0) {
+                    return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: DropdownButtonFormField<String>(
+                            initialValue: bloodGroup,
+                            decoration: const InputDecoration(
+                                labelText: 'রক্তের গ্রুপ দিয়ে ফিল্টার',
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none)),
+                            items: bloodGroups
+                                .map((group) => DropdownMenuItem(
+                                    value: group, child: Text(group)))
+                                .toList(),
+                            onChanged: (value) {
+                              bloodGroup = value ?? 'সব';
+                              _load(refresh: true, forceRefresh: true);
+                            }));
+                  }
+                  itemIndex--;
+                }
+                if (widget.topic == 0) {
+                  if (itemIndex == 0) {
+                    return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text('${data.length} টি তথ্য',
+                                style: const TextStyle(
+                                    color: ink,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700))));
+                  }
+                  itemIndex--;
+                }
+                if (data.isEmpty) {
+                  if (loading) {
+                    return const Padding(
+                        padding: EdgeInsets.all(30),
+                        child: Center(
+                            child: _SkeletonBox(height: 92, radius: 18)));
+                  }
+                  if (error != null) {
+                    return _NetworkErrorCard(
+                        onRetry: () =>
+                            _load(refresh: true, forceRefresh: true));
+                  }
+                  return const _EmptyCard(text: 'এখনো কোনো তথ্য যোগ হয়নি');
+                }
+                if (itemIndex < data.length) {
+                  return _TopicCard(
                       topic: widget.topic,
-                      data: Map<String, dynamic>.from(item as Map))),
-                if (loadingMore)
-                  const Padding(
+                      data: Map<String, dynamic>.from(data[itemIndex] as Map));
+                }
+                if (loadingMore) {
+                  return const Padding(
                       padding: EdgeInsets.all(18),
                       child:
-                          Center(child: _SkeletonBox(height: 92, radius: 18))),
-                if (!hasMore && data.isNotEmpty)
-                  const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(
-                          child: Text('সব তথ্য দেখানো হয়েছে',
-                              style: TextStyle(color: Colors.black45)))),
-              ],
+                          Center(child: _SkeletonBox(height: 92, radius: 18)));
+                }
+                return const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Center(
+                        child: Text('সব তথ্য দেখানো হয়েছে',
+                            style: TextStyle(color: Colors.black45))));
+              },
             ),
           ),
         ),
@@ -4145,13 +4376,13 @@ class _EmergencyPageState extends State<EmergencyPage> {
     _load();
   }
 
-  void _load() {
+  void _load({bool forceRefresh = false}) {
     future = switch (selected) {
-      0 => widget.api.getDonors(),
-      1 => widget.api.getBloodRequests(),
-      2 => widget.api.getNotices(),
-      3 => widget.api.getJobs(),
-      _ => widget.api.getLostFound(),
+      0 => widget.api.getDonors(forceRefresh: forceRefresh),
+      1 => widget.api.getBloodRequests(forceRefresh: forceRefresh),
+      2 => widget.api.getNotices(forceRefresh: forceRefresh),
+      3 => widget.api.getJobs(forceRefresh: forceRefresh),
+      _ => widget.api.getLostFound(forceRefresh: forceRefresh),
     };
   }
 
@@ -4162,7 +4393,9 @@ class _EmergencyPageState extends State<EmergencyPage> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => EntrySheet(kind: kinds[selected], api: widget.api));
-    if (result == true && mounted) setState(_load);
+    if (result == true && mounted) {
+      setState(() => _load(forceRefresh: true));
+    }
   }
 
   @override
@@ -4217,7 +4450,8 @@ class _EmergencyPageState extends State<EmergencyPage> {
           Expanded(
               child: RefreshIndicator(
                   color: brand,
-                  onRefresh: () async => setState(_load),
+                  onRefresh: () async =>
+                      setState(() => _load(forceRefresh: true)),
                   child: FutureBuilder<List<dynamic>>(
                       future: future,
                       builder: (_, snapshot) {
@@ -4373,7 +4607,7 @@ class _EntrySheetState extends State<EntrySheet> {
     if (widget.initialCategory != null) {
       values['category'] = widget.initialCategory!;
     }
-    _loadAccountName();
+    if (widget.kind == 'post') unawaited(_loadAccountName());
   }
 
   Future<void> _loadAccountName() async {
@@ -5049,10 +5283,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
     final itemsRequest = _cachedItems == null || forceRefresh
         ? widget.api.getMyItems(forceRefresh: forceRefresh)
         : Future<List<dynamic>>.value(_cachedItems);
-    userFuture = _cachedUser == null
+    userFuture = _cachedUser == null || forceRefresh
         ? userRequest
         : Future<Map<String, dynamic>>.value(_cachedUser);
-    itemsFuture = _cachedItems == null
+    itemsFuture = _cachedItems == null || forceRefresh
         ? itemsRequest
         : Future<List<dynamic>>.value(_cachedItems);
 
@@ -5292,24 +5526,30 @@ class _ProfilePanelState extends State<ProfilePanel> {
               ? 'আপনি এখনো কোনো পোস্ট করেননি'
               : 'অন্য কোনো তথ্য যোগ করা হয়নি');
     }
-    return Column(
-        children: items.map((item) {
-      final r = item['resource']?.toString() ?? '';
-      final icon = r == 'services'
-          ? _serviceIcon(item['icon']?.toString() ?? '',
-              item['category']?.toString() ?? '')
-          : resourceIcon(r);
-      return _OwnedItemCard(
-          title: itemTitle(item),
-          subtitle: itemSubtitle(item),
-          label: resourceLabel(r),
-          icon: icon,
-          imageUrl: item['imageUrl']?.toString(),
-          phone: item['phone']?.toString() ?? item['contactPhone']?.toString(),
-          onTap: r == 'posts' ? () => _openPostFromProfile(item) : null,
-          onEdit: () => _edit(item),
-          onDelete: () => _delete(item));
-    }).toList());
+    return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final resource = item['resource']?.toString() ?? '';
+          final icon = resource == 'services'
+              ? _serviceIcon(item['icon']?.toString() ?? '',
+                  item['category']?.toString() ?? '')
+              : resourceIcon(resource);
+          return _OwnedItemCard(
+              title: itemTitle(item),
+              subtitle: itemSubtitle(item),
+              label: resourceLabel(resource),
+              icon: icon,
+              imageUrl: item['imageUrl']?.toString(),
+              phone:
+                  item['phone']?.toString() ?? item['contactPhone']?.toString(),
+              onTap:
+                  resource == 'posts' ? () => _openPostFromProfile(item) : null,
+              onEdit: () => _edit(item),
+              onDelete: () => _delete(item));
+        });
   }
 
   Widget _profileHeaderFromResponse(Map<String, dynamic> response) {
