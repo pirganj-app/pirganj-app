@@ -104,6 +104,21 @@ void showTopToast(BuildContext context, String message) {
   });
 }
 
+Future<void> showRefreshFailure(
+  BuildContext context,
+  PirganjApiClient api, {
+  required String message,
+}) async {
+  if (!context.mounted) return;
+  final isOnline = await api.hasInternetConnection();
+  if (!context.mounted) return;
+  showTopToast(
+      context,
+      isOnline
+          ? message
+          : 'ইন্টারনেট সংযোগ নেই (No internet)। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।');
+}
+
 Future<void> dialPhone(BuildContext context, String? value) async {
   final phone = (value ?? '').replaceAll(RegExp(r'[^0-9+]'), '');
   if (phone.isEmpty) return;
@@ -908,10 +923,16 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
   }
 
   Future<void> refresh() async {
-    setState(() {
-      future = widget.api.getPublicProfile(widget.userId, forceRefresh: true);
-    });
-    await future;
+    try {
+      final fresh =
+          widget.api.getPublicProfile(widget.userId, forceRefresh: true);
+      setState(() => future = fresh);
+      await fresh;
+    } catch (_) {
+      if (!mounted) return;
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'প্রোফাইলের নতুন তথ্য আনা যায়নি। আবার চেষ্টা করুন।'));
+    }
   }
 
   @override
@@ -1332,8 +1353,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 
   Future<void> _refreshHome() async {
-    MemoryImageCache.instance.clear();
+    MemoryImageCache.instance.clearNamespace('carousel');
+    final baseUrl = api.baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final firstSlide = await MemoryImageCache.instance
+        .getImage('$baseUrl/images/carousel/slide-1.webp');
     if (!mounted) return;
+    if (firstSlide == null) {
+      unawaited(showRefreshFailure(context, api,
+          message: 'হোমের নতুন ছবি আনা যায়নি। আবার চেষ্টা করুন।'));
+      return;
+    }
     setState(() {
       _carouselGeneration++;
       _homePage = _home();
@@ -1436,8 +1465,11 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return item.toString();
   }
 
-  Future<void> _loadPostsPage(
-      {bool refresh = false, bool forceRefresh = false}) async {
+  Future<void> _loadPostsPage({
+    bool refresh = false,
+    bool forceRefresh = false,
+    bool reportRefreshFailure = false,
+  }) async {
     if (postsLoading || postsLoadingMore) return;
     if (!refresh && !postsHasMore) return;
     if (refresh) {
@@ -1487,6 +1519,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     } catch (error) {
       if (mounted) {
         postsError = error;
+        if (reportRefreshFailure) {
+          unawaited(showRefreshFailure(context, api,
+              message: 'পোস্ট আপডেট করা যায়নি। আবার চেষ্টা করুন।'));
+        }
         // Do not keep requesting/duplicating pages while offline. A manual
         // refresh starts a clean pagination session when connectivity returns.
         if (posts.isEmpty) postsHasMore = false;
@@ -1878,6 +1914,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   Widget _community() {
     final hasPosts = posts.isNotEmpty;
+    final postIndices = <String, int>{
+      for (var index = 0; index < posts.length; index++)
+        _postIdentity(posts[index]): index,
+    };
     final initialState = postsLoading && !hasPosts
         ? const Padding(
             padding: EdgeInsets.fromLTRB(8, 30, 8, 30),
@@ -1912,6 +1952,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       }
 
       return _PostCard(
+          key: ValueKey<String>('community-post:${_postIdentity(item)}'),
           post: item,
           onProfile: () => _openProfile(
               item['ownerId']?.toString(),
@@ -1930,7 +1971,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
     return RefreshIndicator(
         color: brand,
-        onRefresh: () => _loadPostsPage(refresh: true, forceRefresh: true),
+        onRefresh: () => _loadPostsPage(
+            refresh: true, forceRefresh: true, reportRefreshFailure: true),
         child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
               if (notification.metrics.pixels >=
@@ -1942,6 +1984,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
                 itemCount: 2 + (hasPosts ? posts.length : 0) + footerCount,
+                findChildIndexCallback: (key) {
+                  if (key is! ValueKey<String> ||
+                      !key.value.startsWith('community-post:')) {
+                    return null;
+                  }
+                  final identity =
+                      key.value.substring('community-post:'.length);
+                  final index = postIndices[identity];
+                  return index == null ? null : index + 2;
+                },
                 itemBuilder: (_, index) {
                   if (index == 0) {
                     return Row(
@@ -2328,6 +2380,17 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   Future<List<ServiceCard>> _load({bool forceRefresh = false}) => widget.api
       .getServices(search: widget.query, limit: 50, forceRefresh: forceRefresh);
 
+  Future<void> _refreshSearch() async {
+    try {
+      final latest = await _load(forceRefresh: true);
+      if (!mounted) return;
+      setState(() => future = Future<List<ServiceCard>>.value(latest));
+    } catch (_) {
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'সার্চের নতুন তথ্য আনা যায়নি। আবার চেষ্টা করুন।'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(
@@ -2336,8 +2399,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
           foregroundColor: Colors.white),
       body: RefreshIndicator(
           color: brand,
-          onRefresh: () async =>
-              setState(() => future = _load(forceRefresh: true)),
+          onRefresh: _refreshSearch,
           child: FutureBuilder<List<ServiceCard>>(
               future: future,
               builder: (_, snapshot) {
@@ -2359,8 +2421,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                         const SizedBox(height: 12),
                         Center(
                             child: TextButton(
-                                onPressed: () => setState(
-                                    () => future = _load(forceRefresh: true)),
+                                onPressed: _refreshSearch,
                                 child: const Text('আবার চেষ্টা করুন')))
                       ]);
                 }
@@ -2468,9 +2529,82 @@ class _ActionCard extends StatelessWidget {
               ])));
 }
 
+class _MemoryCachedImage extends StatefulWidget {
+  const _MemoryCachedImage({
+    required this.url,
+    this.width,
+    this.height,
+    this.cacheWidth,
+    this.placeholderBuilder,
+    this.errorBuilder,
+  });
+
+  final String url;
+  final double? width;
+  final double? height;
+  final int? cacheWidth;
+  final WidgetBuilder? placeholderBuilder;
+  final ImageErrorWidgetBuilder? errorBuilder;
+
+  @override
+  State<_MemoryCachedImage> createState() => _MemoryCachedImageState();
+}
+
+class _MemoryCachedImageState extends State<_MemoryCachedImage> {
+  late Future<Uint8List?> _imageBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImage();
+  }
+
+  void _loadImage() {
+    _imageBytes = MemoryImageCache.instance.getImage(
+      widget.url,
+      namespace: 'community',
+      refreshIfExpired: false,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _MemoryCachedImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) _loadImage();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
+        future: _imageBytes,
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes != null) {
+            return Image.memory(
+              bytes,
+              width: widget.width,
+              height: widget.height,
+              cacheWidth: widget.cacheWidth,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+              gaplessPlayback: true,
+              errorBuilder: widget.errorBuilder,
+            );
+          }
+          if (snapshot.connectionState != ConnectionState.done) {
+            return widget.placeholderBuilder?.call(context) ??
+                SizedBox(width: widget.width, height: widget.height);
+          }
+          return widget.errorBuilder?.call(context,
+                  StateError('Image unavailable'), StackTrace.current) ??
+              SizedBox(width: widget.width, height: widget.height);
+        },
+      );
+}
+
 class _PostCard extends StatelessWidget {
   const _PostCard(
-      {required this.post,
+      {super.key,
+      required this.post,
       this.onProfile,
       required this.onLike,
       required this.onOpen,
@@ -2524,13 +2658,22 @@ class _PostCard extends StatelessWidget {
                             onTap: onProfile,
                             child: CircleAvatar(
                                 backgroundColor: const Color(0xFFDDF2E9),
-                                backgroundImage: authorImageUrl == null
-                                    ? null
-                                    : ResizeImage(NetworkImage(authorImageUrl),
-                                        width: 128),
                                 child: authorImageUrl == null
                                     ? const Icon(Icons.person, color: brand)
-                                    : null)),
+                                    : ClipOval(
+                                        child: _MemoryCachedImage(
+                                            url: authorImageUrl,
+                                            width: 40,
+                                            height: 40,
+                                            cacheWidth: 160,
+                                            placeholderBuilder: (_) =>
+                                                const ColoredBox(
+                                                    color: Color(0xFFDDF2E9)),
+                                            errorBuilder: (_, __, ___) =>
+                                                const ColoredBox(
+                                                    color: Color(0xFFDDF2E9),
+                                                    child: Icon(Icons.person,
+                                                        color: brand)))))),
                         const SizedBox(width: 10),
                         Expanded(
                             child: Column(
@@ -2579,15 +2722,19 @@ class _PostCard extends StatelessWidget {
                                 context, post['imageUrl']?.toString()),
                             child: ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                    _avatarUrl(post['imageUrl']) ??
+                                child: _MemoryCachedImage(
+                                    url: _avatarUrl(post['imageUrl']) ??
                                         post['imageUrl'].toString(),
                                     height: 180,
                                     width: double.infinity,
                                     cacheWidth: 720,
-                                    fit: BoxFit.cover,
+                                    placeholderBuilder: (_) => const SizedBox(
+                                        width: double.infinity,
+                                        height: 180,
+                                        child: ColoredBox(
+                                            color: Color(0xFFEAF0EE))),
                                     errorBuilder: (_, __, ___) =>
-                                        const SizedBox())))
+                                        const SizedBox(height: 180))))
                       ],
                       const SizedBox(height: 5),
                       Text(post['body']?.toString() ?? '',
@@ -2729,15 +2876,22 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   }
 
   Future<void> _refresh() async {
-    final comments = widget.api.getComments(widget.post['id'].toString());
-    final reactions = widget.api.getPostReactions(widget.post['id'].toString());
-    final results = await Future.wait([comments, reactions]);
-    if (!mounted) return;
-    setState(() {
-      _commentItems = List<dynamic>.from(results[0]);
-      commentsFuture = Future.value(_commentItems);
-      reactionsFuture = Future.value(results[1]);
-    });
+    try {
+      final comments = widget.api
+          .getComments(widget.post['id'].toString(), forceRefresh: true);
+      final reactions = widget.api
+          .getPostReactions(widget.post['id'].toString(), forceRefresh: true);
+      final results = await Future.wait([comments, reactions]);
+      if (!mounted) return;
+      setState(() {
+        _commentItems = List<dynamic>.from(results[0]);
+        commentsFuture = Future.value(_commentItems);
+        reactionsFuture = Future.value(results[1]);
+      });
+    } catch (_) {
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'পোস্টের সর্বশেষ তথ্য আনা যায়নি। আবার চেষ্টা করুন।'));
+    }
   }
 
   void _openProfile(String? userId, String name, String? avatarUrl) {
@@ -3427,6 +3581,8 @@ class _NotificationPageState extends State<NotificationPage> {
       });
     } catch (_) {
       // Keep the cached notifications visible if a manual refresh fails.
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'নোটিফিকেশন আপডেট করা যায়নি। আবার চেষ্টা করুন।'));
     } finally {
       if (mounted) setState(() => _notificationRefreshing = false);
     }
@@ -3726,6 +3882,17 @@ class _NoticePageState extends State<NoticePage> {
     future = widget.api.getNotices();
   }
 
+  Future<void> _refreshNotices() async {
+    try {
+      final latest = await widget.api.getNotices(forceRefresh: true);
+      if (!mounted) return;
+      setState(() => future = Future<List<dynamic>>.value(latest));
+    } catch (_) {
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'নোটিশ আপডেট করা যায়নি। আবার চেষ্টা করুন।'));
+    }
+  }
+
   Future<void> _add() async {
     final result = await showModalBottomSheet<bool>(
         context: context,
@@ -3733,7 +3900,7 @@ class _NoticePageState extends State<NoticePage> {
         backgroundColor: Colors.transparent,
         builder: (_) => EntrySheet(kind: 'notice', api: widget.api));
     if (result == true && mounted) {
-      setState(() => future = widget.api.getNotices());
+      await _refreshNotices();
     }
   }
 
@@ -3754,14 +3921,22 @@ class _NoticePageState extends State<NoticePage> {
             ]),
         body: RefreshIndicator(
           color: brand,
-          onRefresh: () async => setState(
-              () => future = widget.api.getNotices(forceRefresh: true)),
+          onRefresh: _refreshNotices,
           child: FutureBuilder<List<dynamic>>(
               future: future,
               builder: (_, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                       child: _SkeletonBox(height: 92, radius: 18));
+                }
+                if (snapshot.hasError) {
+                  return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: _NetworkErrorCard(onRetry: _refreshNotices))
+                      ]);
                 }
                 final data = snapshot.data ?? [];
                 if (data.isEmpty) {
@@ -3857,7 +4032,13 @@ class _ServiceCategoryPageState extends State<ServiceCategoryPage> {
         error = null;
       }
     } catch (e) {
-      if (mounted) error = e;
+      if (mounted) {
+        error = e;
+        if (forceRefresh) {
+          unawaited(showRefreshFailure(context, widget.api,
+              message: 'সেবার তথ্য আপডেট করা যায়নি। আবার চেষ্টা করুন।'));
+        }
+      }
     } finally {
       if (mounted) {
         loading = false;
@@ -4184,7 +4365,13 @@ class _TopicDataPageState extends State<TopicDataPage> {
         error = null;
       }
     } catch (e) {
-      if (mounted) error = e;
+      if (mounted) {
+        error = e;
+        if (forceRefresh) {
+          unawaited(showRefreshFailure(context, widget.api,
+              message: 'সর্বশেষ তথ্য আনা যায়নি। আবার চেষ্টা করুন।'));
+        }
+      }
     } finally {
       if (mounted) {
         loading = false;
@@ -4375,17 +4562,27 @@ class _EmergencyPageState extends State<EmergencyPage> {
   void initState() {
     super.initState();
     selected = widget.initialSelected.clamp(0, 4);
-    _load();
+    future = _load();
   }
 
-  void _load({bool forceRefresh = false}) {
-    future = switch (selected) {
-      0 => widget.api.getDonors(forceRefresh: forceRefresh),
-      1 => widget.api.getBloodRequests(forceRefresh: forceRefresh),
-      2 => widget.api.getNotices(forceRefresh: forceRefresh),
-      3 => widget.api.getJobs(forceRefresh: forceRefresh),
-      _ => widget.api.getLostFound(forceRefresh: forceRefresh),
-    };
+  Future<List<dynamic>> _load({bool forceRefresh = false}) =>
+      switch (selected) {
+        0 => widget.api.getDonors(forceRefresh: forceRefresh),
+        1 => widget.api.getBloodRequests(forceRefresh: forceRefresh),
+        2 => widget.api.getNotices(forceRefresh: forceRefresh),
+        3 => widget.api.getJobs(forceRefresh: forceRefresh),
+        _ => widget.api.getLostFound(forceRefresh: forceRefresh),
+      };
+
+  Future<void> _refresh() async {
+    try {
+      final latest = await _load(forceRefresh: true);
+      if (!mounted) return;
+      setState(() => future = Future<List<dynamic>>.value(latest));
+    } catch (_) {
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'সর্বশেষ তথ্য আনা যায়নি। আবার চেষ্টা করুন।'));
+    }
   }
 
   Future<void> _add() async {
@@ -4396,7 +4593,7 @@ class _EmergencyPageState extends State<EmergencyPage> {
         backgroundColor: Colors.transparent,
         builder: (_) => EntrySheet(kind: kinds[selected], api: widget.api));
     if (result == true && mounted) {
-      setState(() => _load(forceRefresh: true));
+      setState(() => future = _load(forceRefresh: true));
     }
   }
 
@@ -4447,13 +4644,12 @@ class _EmergencyPageState extends State<EmergencyPage> {
                                       : Icons.search_rounded,
                           onTap: () => setState(() {
                                 selected = index;
-                                _load();
+                                future = _load();
                               }))))),
           Expanded(
               child: RefreshIndicator(
                   color: brand,
-                  onRefresh: () async =>
-                      setState(() => _load(forceRefresh: true)),
+                  onRefresh: _refresh,
                   child: FutureBuilder<List<dynamic>>(
                       future: future,
                       builder: (_, snapshot) {
@@ -5334,6 +5530,8 @@ class _ProfilePanelState extends State<ProfilePanel> {
       });
     } catch (_) {
       // Keep the cached profile visible if a manual refresh fails.
+      unawaited(showRefreshFailure(context, widget.api,
+          message: 'প্রোফাইল আপডেট করা যায়নি। আবার চেষ্টা করুন।'));
     } finally {
       if (mounted) setState(() => _profileRefreshing = false);
     }

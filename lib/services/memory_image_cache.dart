@@ -12,10 +12,12 @@ class _MemoryImageEntry {
   final DateTime savedAt;
 }
 
-/// Session-scoped cache for small public carousel images.
+/// Session-scoped cache for public carousel and community images.
 ///
 /// Nothing is written to disk. Entries are bounded by total bytes and age,
 /// while concurrent requests for the same URL share a single network call.
+/// Carousel entries refresh stale bytes in the background; stable community
+/// image URLs can opt out of periodic network refreshes.
 class MemoryImageCache {
   MemoryImageCache._();
 
@@ -29,6 +31,7 @@ class MemoryImageCache {
   final http.Client _client = http.Client();
   final Map<String, _MemoryImageEntry> _entries = {};
   final Map<String, Future<Uint8List?>> _inFlight = {};
+  final Map<String, int> _namespaceGenerations = {};
   int _cachedBytes = 0;
   int _generation = 0;
 
@@ -45,7 +48,11 @@ class MemoryImageCache {
     }
   }
 
-  Future<Uint8List?> getImage(String rawUrl) async {
+  Future<Uint8List?> getImage(
+    String rawUrl, {
+    String namespace = 'carousel',
+    bool refreshIfExpired = true,
+  }) async {
     final uri = Uri.tryParse(rawUrl);
     if (uri == null ||
         !uri.hasAuthority ||
@@ -53,29 +60,34 @@ class MemoryImageCache {
       return null;
     }
 
-    final key = uri.toString();
+    final key = '$namespace|${uri.toString()}';
     final entry = _entries[key];
     if (entry != null) {
       _touch(key, entry);
-      if (DateTime.now().difference(entry.savedAt) < _ttl) {
+      if (!refreshIfExpired ||
+          DateTime.now().difference(entry.savedAt) < _ttl) {
         return entry.bytes;
       }
-      unawaited(_fetchAndCache(uri, stale: entry.bytes));
+      unawaited(_fetchAndCache(uri,
+          key: key, namespace: namespace, stale: entry.bytes));
       return entry.bytes;
     }
-    return _fetchAndCache(uri);
+    return _fetchAndCache(uri, key: key, namespace: namespace);
   }
 
-  Future<Uint8List?> _fetchAndCache(Uri uri, {Uint8List? stale}) {
-    final key = uri.toString();
+  Future<Uint8List?> _fetchAndCache(Uri uri,
+      {required String key, required String namespace, Uint8List? stale}) {
     final pending = _inFlight[key];
     if (pending != null) return pending;
 
     final generation = _generation;
+    final namespaceGeneration = _namespaceGenerations[namespace] ?? 0;
     late final Future<Uint8List?> request;
     request = _download(uri).then((bytes) {
       final result = bytes ?? stale;
-      if (bytes != null && generation == _generation) {
+      if (bytes != null &&
+          generation == _generation &&
+          namespaceGeneration == (_namespaceGenerations[namespace] ?? 0)) {
         _store(key, bytes);
       }
       return result;
@@ -127,12 +139,24 @@ class MemoryImageCache {
       ..[key] = entry;
   }
 
-  /// Clears cached bytes at app exit/background; in-flight results are not
+  void clearNamespace(String namespace) {
+    _namespaceGenerations[namespace] =
+        (_namespaceGenerations[namespace] ?? 0) + 1;
+    final prefix = '$namespace|';
+    final keys = _entries.keys.where((key) => key.startsWith(prefix)).toList();
+    for (final key in keys) {
+      _cachedBytes -= _entries.remove(key)!.bytes.length;
+    }
+    _inFlight.removeWhere((key, _) => key.startsWith(prefix));
+  }
+
+  /// Clears cached bytes on logout/session exit; in-flight results are not
   /// allowed to repopulate a cache belonging to the previous active session.
   void clear() {
     _generation++;
     _entries.clear();
     _inFlight.clear();
+    _namespaceGenerations.clear();
     _cachedBytes = 0;
   }
 }
