@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:gal/gal.dart';
@@ -3814,25 +3813,19 @@ class _NotificationPageState extends State<NotificationPage> {
                                               backgroundColor: isAdminMessage
                                                   ? brand
                                                   : const Color(0xFFDDF2E9),
-                                              backgroundImage:
-                                                  !isAdminMessage &&
-                                                          avatar.isNotEmpty
+                                              backgroundImage: isAdminMessage
+                                                  ? const AssetImage(
+                                                      'assets/pirganj_admin_app_icon.jpg')
+                                                  : avatar.isNotEmpty
                                                       ? _avatarProvider(avatar)
                                                       : null,
-                                              child: isAdminMessage
-                                                  ? SvgPicture.asset(
-                                                      'assets/pirganj_notification.svg',
-                                                      width: 28,
-                                                      height: 28,
-                                                      fit: BoxFit.contain,
-                                                      semanticsLabel:
-                                                          'Pirganj app notification')
-                                                  : avatar.isNotEmpty
-                                                      ? null
-                                                      : const Icon(
-                                                          Icons
-                                                              .notifications_rounded,
-                                                          color: brand)),
+                                              child: isAdminMessage ||
+                                                      avatar.isNotEmpty
+                                                  ? null
+                                                  : const Icon(
+                                                      Icons
+                                                          .notifications_rounded,
+                                                      color: brand)),
                                           const SizedBox(width: 11),
                                           Expanded(
                                               child: Column(
