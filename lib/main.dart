@@ -1263,6 +1263,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final posts = <dynamic>[];
   bool communityStarted = false;
   bool postsLoading = false;
+  bool postsRefreshing = false;
   bool postsLoadingMore = false;
   bool postsHasMore = true;
   String? postsBeforeCursor;
@@ -1477,6 +1478,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       _postsRequestKey = null;
       postsError = null;
       postsLoading = true;
+      postsRefreshing = reportRefreshFailure;
     } else {
       final requestKey = '${posts.length}|${postsBeforeCursor ?? ''}';
       if (_postsRequestKey == requestKey) return;
@@ -1530,6 +1532,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     } finally {
       if (mounted) {
         postsLoading = false;
+        postsRefreshing = false;
         postsLoadingMore = false;
         _communityRevision.value++;
       }
@@ -1914,11 +1917,12 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   Widget _community() {
     final hasPosts = posts.isNotEmpty;
+    final showPosts = hasPosts && !postsRefreshing;
     final postIndices = <String, int>{
       for (var index = 0; index < posts.length; index++)
         _postIdentity(posts[index]): index,
     };
-    final initialState = postsLoading && !hasPosts
+    final initialState = postsLoading && (!hasPosts || postsRefreshing)
         ? const Padding(
             padding: EdgeInsets.fromLTRB(8, 30, 8, 30),
             child: Column(children: [
@@ -1932,7 +1936,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             ? _NetworkErrorCard(onRetry: () => _loadPostsPage(refresh: true))
             : const _EmptyCard(text: 'এখনো কোনো পোস্ট নেই');
     final footerCount =
-        hasPosts ? (postsLoadingMore ? 1 : 0) + (!postsHasMore ? 1 : 0) : 1;
+        showPosts ? (postsLoadingMore ? 1 : 0) + (!postsHasMore ? 1 : 0) : 1;
 
     Widget postCard(int index) {
       final item = posts[index] as Map<String, dynamic>;
@@ -1983,9 +1987,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
             },
             child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(8, 20, 8, 30),
-                itemCount: 2 + (hasPosts ? posts.length : 0) + footerCount,
+                itemCount: 2 + (showPosts ? posts.length : 0) + footerCount,
                 findChildIndexCallback: (key) {
-                  if (key is! ValueKey<String> ||
+                  if (!showPosts ||
+                      key is! ValueKey<String> ||
                       !key.value.startsWith('community-post:')) {
                     return null;
                   }
@@ -2011,7 +2016,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                         ]);
                   }
                   if (index == 1) return const SizedBox(height: 14);
-                  if (!hasPosts) return initialState;
+                  if (!showPosts) return initialState;
                   final postIndex = index - 2;
                   if (postIndex < posts.length) return postCard(postIndex);
                   final footerIndex = postIndex - posts.length;
@@ -2035,7 +2040,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           const Text('তথ্য যোগ করুন',
               style: TextStyle(
                   fontSize: 24, fontWeight: FontWeight.w800, color: ink)),
-          const SizedBox(height: 6),
           const Text('একটি card বেছে নিয়ে আপনার এলাকার তথ্য যোগ করুন',
               style: TextStyle(color: Colors.black54)),
           const SizedBox(height: 16),
@@ -3146,6 +3150,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         .firstWhere((reaction) => reaction != null, orElse: () => null);
     final isAuthor =
         item['ownerId']?.toString() == widget.post['ownerId']?.toString();
+    final avatarUrl = _avatarUrl(item['authorAvatarUrl']) ?? '';
     return Container(
         margin:
             EdgeInsets.only(left: item['parentId'] != null ? 22 : 0, bottom: 4),
@@ -3172,17 +3177,23 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     child: CircleAvatar(
                         radius: 16,
                         backgroundColor: const Color(0xFFF0F2F1),
-                        backgroundImage: (item['authorAvatarUrl']?.toString() ??
-                                    '')
-                                .isNotEmpty
-                            ? _avatarProvider(
-                                item['authorAvatarUrl'].toString())
-                            : null,
-                        child:
-                            (item['authorAvatarUrl']?.toString() ?? '').isEmpty
-                                ? const Icon(Icons.person,
-                                    size: 16, color: Colors.black54)
-                                : null)),
+                        child: avatarUrl.isEmpty
+                            ? const Icon(Icons.person,
+                                size: 16, color: Colors.black54)
+                            : ClipOval(
+                                child: _MemoryCachedImage(
+                                    url: avatarUrl,
+                                    width: 32,
+                                    height: 32,
+                                    cacheWidth: 96,
+                                    placeholderBuilder: (_) => const ColoredBox(
+                                        color: Color(0xFFF0F2F1)),
+                                    errorBuilder: (_, __, ___) =>
+                                        const ColoredBox(
+                                            color: Color(0xFFF0F2F1),
+                                            child: Icon(Icons.person,
+                                                size: 16,
+                                                color: Colors.black54)))))),
                 const SizedBox(width: 6),
                 Expanded(
                     child: Column(
@@ -3781,6 +3792,8 @@ class _NotificationPageState extends State<NotificationPage> {
                         }
                         final item = Map<String, dynamic>.from(items[index]);
                         final avatar = item['actorAvatarUrl']?.toString() ?? '';
+                        final isAdminMessage =
+                            item['type']?.toString() == 'admin_message';
                         return Material(
                             color: item['isRead'] == true
                                 ? Colors.white
@@ -3799,15 +3812,21 @@ class _NotificationPageState extends State<NotificationPage> {
                                               radius: 24,
                                               backgroundColor:
                                                   const Color(0xFFDDF2E9),
-                                              backgroundImage: avatar.isNotEmpty
-                                                  ? _avatarProvider(avatar)
-                                                  : null,
-                                              child: avatar.isEmpty
-                                                  ? const Icon(
+                                              backgroundImage: isAdminMessage
+                                                  ? const ResizeImage(
+                                                      AssetImage(
+                                                          'assets/pirganj_logo.jpg'),
+                                                      width: 96)
+                                                  : avatar.isNotEmpty
+                                                      ? _avatarProvider(avatar)
+                                                      : null,
+                                              child: isAdminMessage ||
+                                                      avatar.isNotEmpty
+                                                  ? null
+                                                  : const Icon(
                                                       Icons
                                                           .notifications_rounded,
-                                                      color: brand)
-                                                  : null),
+                                                      color: brand)),
                                           const SizedBox(width: 11),
                                           Expanded(
                                               child: Column(
@@ -5470,8 +5489,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
   @override
   void didUpdateWidget(covariant ProfilePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshToken != widget.refreshToken)
-      _reload(forceRefresh: true);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      unawaited(_reloadIfOnline());
+    }
+  }
+
+  Future<void> _reloadIfOnline() async {
+    if (!await widget.api.hasInternetConnection() || !mounted) return;
+    _reload(forceRefresh: true);
   }
 
   void _reload({bool forceRefresh = false}) {
@@ -5513,6 +5538,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
 
   Future<void> _refreshProfile() async {
     if (_profileRefreshing) return;
+    if (!await widget.api.hasInternetConnection()) {
+      if (mounted) {
+        showTopToast(context,
+            'ইন্টারনেট সংযোগ নেই (No internet)। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।');
+      }
+      return;
+    }
+    if (!mounted) return;
     if (mounted) setState(() => _profileRefreshing = true);
     try {
       final results = await Future.wait<dynamic>([
