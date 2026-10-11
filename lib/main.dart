@@ -2929,6 +2929,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     return relativeTime(raw);
   }
 
+  String commentTimestamp(dynamic raw) {
+    final parsed = DateTime.tryParse(raw?.toString() ?? '');
+    if (parsed == null) return time(raw);
+    final local = parsed.toLocal();
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    return '${twoDigits(local.day)}/${twoDigits(local.month)}/${local.year} · '
+        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+  }
+
   Future<void> selectPostReaction(String reaction) async {
     try {
       final list = await widget.api
@@ -3125,15 +3134,21 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
       });
     }
     final ordered = <Map<String, dynamic>>[];
-    void addBranch(Map<String, dynamic> item) {
-      ordered.add(item);
+    final visited = <Map<String, dynamic>>{};
+    void addBranch(Map<String, dynamic> item, int depth) {
+      if (!visited.add(item)) return;
+      ordered.add({...item, '_threadDepth': depth});
       for (final reply in byParent[item['id']?.toString() ?? ''] ?? const []) {
-        addBranch(reply);
+        addBranch(reply, depth + 1);
       }
     }
 
     for (final root in byParent[''] ?? const []) {
-      addBranch(root);
+      addBranch(root, 0);
+    }
+    // Keep replies visible when their parent was omitted from a partial response.
+    for (final item in items) {
+      if (!visited.contains(item)) addBranch(item, 0);
     }
     return ordered;
   }
@@ -3150,175 +3165,265 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         .firstWhere((reaction) => reaction != null, orElse: () => null);
     final isAuthor =
         item['ownerId']?.toString() == widget.post['ownerId']?.toString();
+    final canManage = item['ownerId']?.toString() == widget.api.userId;
+    final authorName = item['author']?.toString() ?? 'User';
     final avatarUrl = _avatarUrl(item['authorAvatarUrl']) ?? '';
-    return Container(
-        margin:
-            EdgeInsets.only(left: item['parentId'] != null ? 22 : 0, bottom: 4),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: item['parentId'] != null
-                ? const Border(
-                    left: BorderSide(color: Colors.black87, width: 2),
-                    top: BorderSide(color: Color(0xFFE5E8E7)),
-                    bottom: BorderSide(color: Color(0xFFE5E8E7)))
-                : Border.all(color: const Color(0xFFE5E8E7))),
-        child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 5, 5, 2),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                GestureDetector(
-                    onTap: () => _openProfile(
-                        item['ownerId']?.toString(),
-                        item['author']?.toString() ?? 'User',
-                        item['authorAvatarUrl']?.toString()),
-                    child: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: const Color(0xFFF0F2F1),
-                        child: avatarUrl.isEmpty
-                            ? const Icon(Icons.person,
-                                size: 16, color: Colors.black54)
-                            : ClipOval(
-                                child: _MemoryCachedImage(
-                                    url: avatarUrl,
-                                    width: 32,
-                                    height: 32,
-                                    cacheWidth: 96,
-                                    placeholderBuilder: (_) => const ColoredBox(
-                                        color: Color(0xFFF0F2F1)),
-                                    errorBuilder: (_, __, ___) =>
-                                        const ColoredBox(
-                                            color: Color(0xFFF0F2F1),
-                                            child: Icon(Icons.person,
-                                                size: 16,
-                                                color: Colors.black54)))))),
-                const SizedBox(width: 6),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Row(children: [
+    final commentId = item['id']?.toString() ?? '';
+    final isReply = item['parentId']?.toString().isNotEmpty ?? false;
+    final depth = (int.tryParse(item['_threadDepth']?.toString() ?? '') ??
+            (isReply ? 1 : 0))
+        .clamp(0, 4)
+        .toInt();
+    final indent = depth * 26.0;
+
+    final card = Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 10, 12),
+      decoration: BoxDecoration(
+        color: depth == 0 ? Colors.white : const Color(0xFFF3FAF8),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCEBE7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => _openProfile(item['ownerId']?.toString(),
+                    authorName, item['authorAvatarUrl']?.toString()),
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: const Color(0xFFE8F0ED),
+                  child: avatarUrl.isEmpty
+                      ? const Icon(Icons.person_rounded,
+                          size: 23, color: Colors.black54)
+                      : ClipOval(
+                          child: _MemoryCachedImage(
+                            url: avatarUrl,
+                            width: 44,
+                            height: 44,
+                            cacheWidth: 132,
+                            placeholderBuilder: (_) =>
+                                const ColoredBox(color: Color(0xFFE8F0ED)),
+                            errorBuilder: (_, __, ___) => const ColoredBox(
+                              color: Color(0xFFE8F0ED),
+                              child: Icon(Icons.person_rounded,
+                                  size: 23, color: Colors.black54),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
                         Expanded(
-                            child: GestureDetector(
-                                onTap: () => _openProfile(
-                                    item['ownerId']?.toString(),
-                                    item['author']?.toString() ?? 'User',
-                                    item['authorAvatarUrl']?.toString()),
-                                child: Row(children: [
-                                  Flexible(
-                                      child: Text(
-                                          item['author']?.toString() ?? 'User',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13))),
-                                  _verifiedBadge(
-                                      item['authorVerified'] == true ||
-                                          item['author_verified'] == true),
-                                  if (isAuthor)
-                                    Container(
-                                        margin: const EdgeInsets.only(left: 6),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                            color: const Color(0xFFE6F4EE),
-                                            borderRadius:
-                                                BorderRadius.circular(8)),
-                                        child: const Text('Author',
-                                            style: TextStyle(
-                                                fontSize: 10,
-                                                color: brand,
-                                                fontWeight: FontWeight.w800)))
-                                ]))),
-                        if (item['parentId'] != null)
-                          Flexible(
-                              child: Padding(
-                                  padding: const EdgeInsets.only(left: 8),
+                          child: GestureDetector(
+                            onTap: () => _openProfile(
+                                item['ownerId']?.toString(),
+                                authorName,
+                                item['authorAvatarUrl']?.toString()),
+                            child: Row(
+                              children: [
+                                Flexible(
                                   child: Text(
-                                      'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.right,
-                                      style: const TextStyle(
-                                          color: brand,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700))))
-                      ]),
-                      Row(children: [
-                        Text(time(item['createdAt']),
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.black45))
-                      ])
-                    ])),
-                if (item['ownerId']?.toString() == widget.api.userId)
-                  PopupMenuButton<String>(
-                      onSelected: (v) {
-                        if (v == 'edit') editComment(item);
-                        if (v == 'delete') deleteComment(item);
-                      },
-                      itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            PopupMenuItem(
-                                value: 'delete', child: Text('Delete'))
-                          ])
-              ]),
-              Padding(
-                  padding: EdgeInsets.fromLTRB(5, isAuthor ? 0 : 8, 4, 5),
-                  child: Text(item['body']?.toString() ?? '',
-                      style: const TextStyle(fontSize: 15, height: 1.4))),
-              Row(children: [
-                GestureDetector(
-                    onLongPress: () => showModalBottomSheet(
-                        context: context,
-                        showDragHandle: true,
-                        builder: (_) => _ReactionPicker(onSelected: (v) {
-                              Navigator.pop(context);
-                              commentReaction(item['id'].toString(), v);
-                            })),
-                    child: TextButton.icon(
-                        style: TextButton.styleFrom(
-                            minimumSize: Size.zero,
-                            backgroundColor: myReaction == null
-                                ? Colors.transparent
-                                : const Color(0xFFE8F6F0),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 0),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                        onPressed: () =>
-                            commentReaction(item['id'].toString(), 'love'),
-                        icon: myReaction == null
-                            ? const Icon(Icons.favorite_border,
-                                color: Colors.black54, size: 16)
-                            : Text(_reactionEmoji(myReaction),
-                                style: const TextStyle(fontSize: 17)),
-                        label: Text('${reactions.length}'))),
-                if (reactions.isNotEmpty)
-                  TextButton(
-                      style: TextButton.styleFrom(
-                          minimumSize: Size.zero,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 2),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      onPressed: () => showReactors(reactions),
-                      child: Text('${reactions.length} reactions')),
-                TextButton(
-                    style: TextButton.styleFrom(
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 2),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                    onPressed: () =>
-                        setState(() => replyingTo = item['id']?.toString()),
-                    child: const Text('Reply'))
-              ])
-            ])));
+                                    authorName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17,
+                                      color: Color(0xFF1D2B28),
+                                    ),
+                                  ),
+                                ),
+                                _verifiedBadge(item['authorVerified'] == true ||
+                                    item['author_verified'] == true),
+                                if (isAuthor)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 7),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE5F4EF),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Text(
+                                      'Author',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: brand,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (isReply) const SizedBox(width: 8),
+                        if (isReply)
+                          Flexible(
+                            child: Text(
+                              'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                color: Color(0xFF67958C),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      commentTimestamp(item['createdAt']),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF929C99),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage)
+                PopupMenuButton<String>(
+                  tooltip: 'Comment options',
+                  icon: const Icon(Icons.more_vert_rounded,
+                      size: 25, color: Color(0xFF34413E)),
+                  padding: EdgeInsets.zero,
+                  onSelected: (value) {
+                    if (value == 'edit') editComment(item);
+                    if (value == 'delete') deleteComment(item);
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                )
+              else
+                const SizedBox(
+                  width: 40,
+                  height: 44,
+                  child: Icon(Icons.more_vert_rounded,
+                      size: 25, color: Color(0xFF34413E)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              item['body']?.toString() ?? '',
+              style: const TextStyle(
+                fontSize: 18,
+                height: 1.35,
+                color: Color(0xFF25312E),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: commentId.isEmpty
+                    ? null
+                    : () => commentReaction(commentId, 'love'),
+                onLongPress: () => showModalBottomSheet(
+                  context: context,
+                  showDragHandle: true,
+                  builder: (sheetContext) => _ReactionPicker(
+                    onSelected: (reaction) {
+                      Navigator.pop(sheetContext);
+                      if (commentId.isNotEmpty) {
+                        commentReaction(commentId, reaction);
+                      }
+                    },
+                  ),
+                ),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+                  child: myReaction == null
+                      ? const Icon(Icons.favorite_border_rounded,
+                          size: 24, color: brand)
+                      : myReaction == 'love'
+                          ? const Icon(Icons.favorite_rounded,
+                              size: 23, color: Color(0xFFE46470))
+                          : Text(_reactionEmoji(myReaction),
+                              style: const TextStyle(fontSize: 20)),
+                ),
+              ),
+              GestureDetector(
+                onTap: reactions.isEmpty ? null : () => showReactors(reactions),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
+                  child: Text(
+                    '${reactions.length}',
+                    style: const TextStyle(
+                      color: brand,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: brand,
+                  minimumSize: const Size(0, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: commentId.isEmpty
+                    ? null
+                    : () => setState(() => replyingTo = commentId),
+                child: const Text(
+                  'Reply',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(left: indent, bottom: 12),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (depth > 0)
+            Positioned.fill(
+              left: -indent,
+              top: -12,
+              bottom: -12,
+              child: IgnorePointer(
+                child:
+                    CustomPaint(painter: _CommentThreadPainter(depth: depth)),
+              ),
+            ),
+          card,
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
+      backgroundColor: const Color(0xFFF0F8F7),
       appBar: AppBar(
           title: const Text('Post details'),
           backgroundColor: brand,
@@ -3380,12 +3485,17 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                               Text('এখনো কোনো comment নেই'))));
                             }
                             final ordered = orderedComments(list);
-                            return ListView.builder(
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              child: ListView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: ordered.length,
                                 itemBuilder: (_, index) =>
-                                    commentTile(ordered[index]));
+                                    commentTile(ordered[index]),
+                              ),
+                            );
                           }),
                       const SizedBox(height: 12),
                     ]))),
@@ -3484,6 +3594,44 @@ String _reactionLabel(String? key) =>
       'angry': 'Angry'
     }[key] ??
     'Like';
+
+class _CommentThreadPainter extends CustomPainter {
+  const _CommentThreadPainter({required this.depth});
+  final int depth;
+
+  static const double _step = 26;
+  static const Color _threadColor = Color(0xFFC9E1DC);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final levels = depth.clamp(0, 4).toInt();
+    if (levels == 0) return;
+    final paint = Paint()
+      ..color = _threadColor
+      ..strokeWidth = 2.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final centerY = size.height / 2;
+
+    for (var level = 0; level < levels; level++) {
+      final x = level * _step + _step / 2;
+      final path = Path()..moveTo(x, 0);
+      if (level < levels - 1) {
+        path.lineTo(x, size.height);
+      } else {
+        path.lineTo(x, centerY - 10);
+        path.quadraticBezierTo(x, centerY, x + 10, centerY);
+        path.lineTo((level + 1) * _step, centerY);
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CommentThreadPainter oldDelegate) =>
+      oldDelegate.depth != depth;
+}
 
 class _EmptyCard extends StatelessWidget {
   const _EmptyCard({required this.text});
