@@ -2860,11 +2860,18 @@ class PostDetailsPage extends StatefulWidget {
 }
 
 class _PostDetailsPageState extends State<PostDetailsPage> {
+  static const int _commentsPageSize = 25;
+  static const int _initialVisibleRootComments = 8;
   late Future<List<dynamic>> commentsFuture;
   late Future<List<dynamic>> reactionsFuture;
   List<dynamic>? _commentItems;
   final comment = TextEditingController();
   final ScrollController _commentsScrollController = ScrollController();
+  final Set<String> _expandedReplyThreads = <String>{};
+  int _commentsOffset = 0;
+  int _visibleRootComments = _initialVisibleRootComments;
+  bool _hasMoreComments = false;
+  bool _loadingPreviousComments = false;
   String? replyingTo;
   bool sending = false;
   @override
@@ -2875,26 +2882,81 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
   void _reload() {
     _commentItems = null;
-    commentsFuture = widget.api.getComments(widget.post['id'].toString());
+    _commentsOffset = 0;
+    _visibleRootComments = _initialVisibleRootComments;
+    _hasMoreComments = false;
+    _loadingPreviousComments = false;
+    _expandedReplyThreads.clear();
+    commentsFuture = _fetchInitialComments();
     reactionsFuture = widget.api.getPostReactions(widget.post['id'].toString());
+  }
+
+  Future<List<dynamic>> _fetchInitialComments(
+      {bool forceRefresh = false}) async {
+    final items = await widget.api.getComments(widget.post['id'].toString(),
+        limit: _commentsPageSize, offset: 0, forceRefresh: forceRefresh);
+    _commentsOffset = items.length;
+    _hasMoreComments = items.length >= _commentsPageSize;
+    return items;
   }
 
   Future<void> _refresh() async {
     try {
-      final comments = widget.api
-          .getComments(widget.post['id'].toString(), forceRefresh: true);
+      final comments = _fetchInitialComments(forceRefresh: true);
       final reactions = widget.api
           .getPostReactions(widget.post['id'].toString(), forceRefresh: true);
       final results = await Future.wait([comments, reactions]);
       if (!mounted) return;
       setState(() {
         _commentItems = List<dynamic>.from(results[0]);
+        _commentsOffset = _commentItems!.length;
+        _hasMoreComments = _commentsOffset >= _commentsPageSize;
+        _visibleRootComments = _initialVisibleRootComments;
+        _expandedReplyThreads.clear();
         commentsFuture = Future.value(_commentItems);
         reactionsFuture = Future.value(results[1]);
       });
     } catch (_) {
       unawaited(showRefreshFailure(context, widget.api,
           message: 'পোস্টের সর্বশেষ তথ্য আনা যায়নি। আবার চেষ্টা করুন।'));
+    }
+  }
+
+  Future<void> _loadPreviousComments() async {
+    if (!_hasMoreComments || _loadingPreviousComments) return;
+    final offset = _commentsOffset;
+    setState(() => _loadingPreviousComments = true);
+    try {
+      final older = await widget.api.getComments(
+        widget.post['id'].toString(),
+        limit: _commentsPageSize,
+        offset: offset,
+        forceRefresh: true,
+      );
+      final current = List<dynamic>.from(_commentItems ?? await commentsFuture);
+      final knownIds = current
+          .map((value) =>
+              _normalizeComment(value as Map)['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final appended = <dynamic>[];
+      for (final value in older) {
+        final item = _normalizeComment(value as Map);
+        final id = item['id']?.toString() ?? '';
+        if (id.isEmpty || knownIds.add(id)) appended.add(value);
+      }
+      if (!mounted) return;
+      setState(() {
+        _commentItems = [...current, ...appended];
+        _commentsOffset = offset + older.length;
+        _hasMoreComments = older.length >= _commentsPageSize;
+        _loadingPreviousComments = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingPreviousComments = false);
+      showTopToast(
+          context, 'আগের কমেন্ট আনা যায়নি। ${friendlyMessage(error)}');
     }
   }
 
@@ -3030,10 +3092,17 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           body: comment.text.trim(), parentId: replyingTo);
       final current = _commentItems ?? await commentsFuture;
       final added = Map<String, dynamic>.from(response['data'] as Map);
+      final parentId = replyingTo;
       comment.clear();
       replyingTo = null;
       if (mounted) {
-        setState(() => _commentItems = orderedComments([added, ...current]));
+        setState(() {
+          _commentItems = [added, ...current];
+          _commentsOffset += 1;
+          if (parentId != null && parentId.isNotEmpty) {
+            _expandedReplyThreads.add(parentId);
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -3116,41 +3185,193 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     }
   }
 
-  List<Map<String, dynamic>> orderedComments(List<dynamic> raw) {
-    final items =
-        raw.map((value) => Map<String, dynamic>.from(value as Map)).toList();
+  Map<String, dynamic> _normalizeComment(Map value) {
+    final item = Map<String, dynamic>.from(value);
+    item['id'] = item['id'] ?? item['commentId'] ?? item['comment_id'];
+    item['parentId'] = item['parentId'] ?? item['parent_id'];
+    item['createdAt'] = item['createdAt'] ?? item['created_at'];
+    item['ownerId'] = item['ownerId'] ?? item['owner_id'];
+    item['author'] = item['author'] ?? item['author_name'];
+    item['authorAvatarUrl'] =
+        item['authorAvatarUrl'] ?? item['author_avatar_url'];
+    item['authorVerified'] =
+        item['authorVerified'] == true || item['author_verified'] == true;
+    item['replyToAuthor'] = item['replyToAuthor'] ?? item['reply_to_author'];
+    item['body'] = item['body']?.toString() ?? '';
+    if (item['reactions'] is! List) item['reactions'] = const <dynamic>[];
+    return item;
+  }
+
+  List<Map<String, dynamic>> _visibleCommentRows(List<dynamic> raw) {
+    final items = raw.map((value) => _normalizeComment(value as Map)).toList();
+    final byId = <String, Map<String, dynamic>>{};
+    for (final item in items) {
+      final id = item['id']?.toString() ?? '';
+      if (id.isNotEmpty) byId[id] = item;
+    }
+    for (final item in items) {
+      final parentId = item['parentId']?.toString() ?? '';
+      final parent = byId[parentId];
+      final replyToAuthor = item['replyToAuthor']?.toString() ?? '';
+      if (parent != null && replyToAuthor.isEmpty) {
+        item['replyToAuthor'] = parent['author'];
+      }
+    }
+
+    final roots = <Map<String, dynamic>>[];
+    final orphanReplies = <Map<String, dynamic>>[];
     final byParent = <String, List<Map<String, dynamic>>>{};
     for (final item in items) {
-      final parent = item['parentId']?.toString() ?? '';
-      byParent.putIfAbsent(parent, () => []).add(item);
+      final parentId = item['parentId']?.toString() ?? '';
+      if (parentId.isEmpty) {
+        roots.add(item);
+      } else {
+        byParent.putIfAbsent(parentId, () => []).add(item);
+        if (!byId.containsKey(parentId)) orphanReplies.add(item);
+      }
     }
+
+    int compareNewest(Map<String, dynamic> a, Map<String, dynamic> b) {
+      final aTime = DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    }
+
+    roots.sort(compareNewest);
     for (final branch in byParent.values) {
-      branch.sort((a, b) {
-        final aTime = DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime = DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
-            DateTime.fromMillisecondsSinceEpoch(0);
-        return bTime.compareTo(aTime);
-      });
+      branch.sort(compareNewest);
     }
-    final ordered = <Map<String, dynamic>>[];
-    final visited = <Map<String, dynamic>>{};
+
+    // Only promote orphaned replies after the final page; before then their
+    // parent may simply be on the next page.
+    if (!_hasMoreComments) {
+      roots.addAll(orphanReplies);
+      roots.sort(compareNewest);
+    }
+
+    final rows = <Map<String, dynamic>>[];
+    final visited = <String>{};
     void addBranch(Map<String, dynamic> item, int depth) {
-      if (!visited.add(item)) return;
-      ordered.add({...item, '_threadDepth': depth});
-      for (final reply in byParent[item['id']?.toString() ?? ''] ?? const []) {
+      final id = item['id']?.toString() ?? '';
+      if (id.isNotEmpty && !visited.add(id)) return;
+      rows.add({...item, '_rowType': 'comment', '_threadDepth': depth});
+      if (id.isEmpty) return;
+
+      final replies = byParent[id] ?? const <Map<String, dynamic>>[];
+      final expanded = _expandedReplyThreads.contains(id);
+      final visibleReplyCount =
+          expanded ? replies.length : min(1, replies.length);
+      final hiddenReplyCount = replies.length - visibleReplyCount;
+      if (hiddenReplyCount > 0) {
+        rows.add({
+          '_rowType': 'previous_replies',
+          '_parentCommentId': id,
+          '_hiddenReplyCount': hiddenReplyCount,
+          '_threadDepth': depth + 1,
+        });
+      }
+      for (final reply in replies.take(visibleReplyCount)) {
         addBranch(reply, depth + 1);
       }
     }
 
-    for (final root in byParent[''] ?? const []) {
+    final visibleRootCount = min(_visibleRootComments, roots.length);
+    for (final root in roots.take(visibleRootCount)) {
       addBranch(root, 0);
     }
-    // Keep replies visible when their parent was omitted from a partial response.
-    for (final item in items) {
-      if (!visited.contains(item)) addBranch(item, 0);
+    final hiddenRootCount = roots.length - visibleRootCount;
+    if (hiddenRootCount > 0 || _hasMoreComments) {
+      rows.add({
+        '_rowType': 'previous_comments',
+        '_hiddenCommentCount': hiddenRootCount,
+        '_hasLocalPreviousComments': hiddenRootCount > 0,
+      });
     }
-    return ordered;
+    return rows;
+  }
+
+  Widget _previousRepliesRow(Map<String, dynamic> row) {
+    final parentId = row['_parentCommentId']?.toString() ?? '';
+    final hiddenCount =
+        int.tryParse(row['_hiddenReplyCount']?.toString() ?? '') ?? 0;
+    final depth = int.tryParse(row['_threadDepth']?.toString() ?? '') ?? 1;
+    final label = hiddenCount == 1
+        ? 'View 1 previous reply'
+        : 'View $hiddenCount previous replies';
+    return Padding(
+      padding: EdgeInsets.only(left: depth * 20.0, bottom: 3),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 20,
+            height: 30,
+            child: Icon(Icons.subdirectory_arrow_right_rounded,
+                size: 17, color: Color(0xFF83AAA1)),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: brand,
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: parentId.isEmpty
+                ? null
+                : () => setState(() => _expandedReplyThreads.add(parentId)),
+            child: Text(label,
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _previousCommentsRow(Map<String, dynamic> row) {
+    final hasLocalComments = row['_hasLocalPreviousComments'] == true;
+    final hiddenCount =
+        int.tryParse(row['_hiddenCommentCount']?.toString() ?? '') ?? 0;
+    final label = _loadingPreviousComments
+        ? 'Loading previous comments…'
+        : hasLocalComments
+            ? 'View $hiddenCount previous comment${hiddenCount == 1 ? '' : 's'}'
+            : 'View previous comments';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(6, 3, 0, 10),
+        child: TextButton.icon(
+          style: TextButton.styleFrom(
+            foregroundColor: brand,
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: _loadingPreviousComments
+              ? null
+              : () {
+                  if (hasLocalComments) {
+                    setState(() =>
+                        _visibleRootComments += _initialVisibleRootComments);
+                  } else {
+                    _loadPreviousComments();
+                  }
+                },
+          icon: _loadingPreviousComments
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2, color: brand))
+              : const Icon(Icons.expand_more_rounded, size: 19),
+          label: Text(label,
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        ),
+      ),
+    );
   }
 
   Widget commentTile(Map<String, dynamic> item) {
@@ -3174,13 +3395,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             (isReply ? 1 : 0))
         .clamp(0, 4)
         .toInt();
-    final indent = depth * 26.0;
+    final indent = depth * 20.0;
 
     final card = Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 12),
+      padding: const EdgeInsets.fromLTRB(13, 10, 8, 8),
       decoration: BoxDecoration(
         color: depth == 0 ? Colors.white : const Color(0xFFF3FAF8),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFDCEBE7)),
       ),
       child: Column(
@@ -3193,29 +3414,29 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 onTap: () => _openProfile(item['ownerId']?.toString(),
                     authorName, item['authorAvatarUrl']?.toString()),
                 child: CircleAvatar(
-                  radius: 22,
+                  radius: 18,
                   backgroundColor: const Color(0xFFE8F0ED),
                   child: avatarUrl.isEmpty
                       ? const Icon(Icons.person_rounded,
-                          size: 23, color: Colors.black54)
+                          size: 19, color: Colors.black54)
                       : ClipOval(
                           child: _MemoryCachedImage(
                             url: avatarUrl,
-                            width: 44,
-                            height: 44,
-                            cacheWidth: 132,
+                            width: 36,
+                            height: 36,
+                            cacheWidth: 108,
                             placeholderBuilder: (_) =>
                                 const ColoredBox(color: Color(0xFFE8F0ED)),
                             errorBuilder: (_, __, ___) => const ColoredBox(
                               color: Color(0xFFE8F0ED),
                               child: Icon(Icons.person_rounded,
-                                  size: 23, color: Colors.black54),
+                                  size: 19, color: Colors.black54),
                             ),
                           ),
                         ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3237,7 +3458,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 17,
+                                      fontSize: 15,
                                       color: Color(0xFF1D2B28),
                                     ),
                                   ),
@@ -3246,17 +3467,17 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     item['author_verified'] == true),
                                 if (isAuthor)
                                   Container(
-                                    margin: const EdgeInsets.only(left: 7),
+                                    margin: const EdgeInsets.only(left: 5),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFE5F4EF),
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: const Text(
                                       'Author',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 10,
                                         color: brand,
                                         fontWeight: FontWeight.w800,
                                       ),
@@ -3276,7 +3497,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                               textAlign: TextAlign.right,
                               style: const TextStyle(
                                 color: Color(0xFF67958C),
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -3287,7 +3508,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     Text(
                       commentTimestamp(item['createdAt']),
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         color: Color(0xFF929C99),
                       ),
                     ),
@@ -3298,7 +3519,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 PopupMenuButton<String>(
                   tooltip: 'Comment options',
                   icon: const Icon(Icons.more_vert_rounded,
-                      size: 25, color: Color(0xFF34413E)),
+                      size: 22, color: Color(0xFF34413E)),
                   padding: EdgeInsets.zero,
                   onSelected: (value) {
                     if (value == 'edit') editComment(item);
@@ -3311,26 +3532,26 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 )
               else
                 const SizedBox(
-                  width: 40,
-                  height: 44,
+                  width: 36,
+                  height: 38,
                   child: Icon(Icons.more_vert_rounded,
-                      size: 25, color: Color(0xFF34413E)),
+                      size: 22, color: Color(0xFF34413E)),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: Text(
               item['body']?.toString() ?? '',
               style: const TextStyle(
-                fontSize: 18,
-                height: 1.35,
+                fontSize: 16,
+                height: 1.3,
                 color: Color(0xFF25312E),
               ),
             ),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 4),
           Row(
             children: [
               InkWell(
@@ -3355,10 +3576,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                       const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
                   child: myReaction == null
                       ? const Icon(Icons.favorite_border_rounded,
-                          size: 24, color: brand)
+                          size: 20, color: brand)
                       : myReaction == 'love'
                           ? const Icon(Icons.favorite_rounded,
-                              size: 23, color: Color(0xFFE46470))
+                              size: 20, color: Color(0xFFE46470))
                           : Text(_reactionEmoji(myReaction),
                               style: const TextStyle(fontSize: 20)),
                 ),
@@ -3372,18 +3593,18 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     '${reactions.length}',
                     style: const TextStyle(
                       color: brand,
-                      fontSize: 17,
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor: brand,
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: commentId.isEmpty
@@ -3391,7 +3612,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     : () => setState(() => replyingTo = commentId),
                 child: const Text(
                   'Reply',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
@@ -3401,15 +3622,16 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     );
 
     return Padding(
-      padding: EdgeInsets.only(left: indent, bottom: 12),
+      padding: EdgeInsets.only(left: indent, bottom: 8),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           if (depth > 0)
-            Positioned.fill(
+            Positioned(
               left: -indent,
               top: -12,
-              bottom: -12,
+              bottom: -8,
+              width: indent,
               child: IgnorePointer(
                 child:
                     CustomPaint(painter: _CommentThreadPainter(depth: depth)),
@@ -3484,16 +3706,24 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                           child:
                                               Text('এখনো কোনো comment নেই'))));
                             }
-                            final ordered = orderedComments(list);
+                            final rows = _visibleCommentRows(list);
                             return Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 4),
                               child: ListView.builder(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
-                                itemCount: ordered.length,
-                                itemBuilder: (_, index) =>
-                                    commentTile(ordered[index]),
+                                itemCount: rows.length,
+                                itemBuilder: (_, index) {
+                                  final row = rows[index];
+                                  if (row['_rowType'] == 'previous_replies') {
+                                    return _previousRepliesRow(row);
+                                  }
+                                  if (row['_rowType'] == 'previous_comments') {
+                                    return _previousCommentsRow(row);
+                                  }
+                                  return commentTile(row);
+                                },
                               ),
                             );
                           }),
@@ -3599,8 +3829,8 @@ class _CommentThreadPainter extends CustomPainter {
   const _CommentThreadPainter({required this.depth});
   final int depth;
 
-  static const double _step = 26;
-  static const Color _threadColor = Color(0xFFC9E1DC);
+  static const double _step = 20;
+  static const Color _threadColor = Color(0xFF83AAA1);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -3608,7 +3838,7 @@ class _CommentThreadPainter extends CustomPainter {
     if (levels == 0) return;
     final paint = Paint()
       ..color = _threadColor
-      ..strokeWidth = 2.6
+      ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
