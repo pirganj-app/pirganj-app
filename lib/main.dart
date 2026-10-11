@@ -3301,20 +3301,20 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         ? 'View 1 previous reply'
         : 'View $hiddenCount previous replies';
     return Padding(
-      padding: EdgeInsets.only(left: depth * 20.0, bottom: 3),
+      padding: EdgeInsets.only(left: depth * 16.0, bottom: 2),
       child: Row(
         children: [
           const SizedBox(
-            width: 20,
-            height: 30,
+            width: 16,
+            height: 26,
             child: Icon(Icons.subdirectory_arrow_right_rounded,
-                size: 17, color: Color(0xFF83AAA1)),
+                size: 15, color: Color(0xFF83AAA1)),
           ),
           TextButton(
             style: TextButton.styleFrom(
               foregroundColor: brand,
-              minimumSize: const Size(0, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: const Size(0, 28),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             onPressed: parentId.isEmpty
@@ -3322,7 +3322,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 : () => setState(() => _expandedReplyThreads.add(parentId)),
             child: Text(label,
                 style:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -3345,8 +3345,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         child: TextButton.icon(
           style: TextButton.styleFrom(
             foregroundColor: brand,
-            minimumSize: const Size(0, 36),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           onPressed: _loadingPreviousComments
@@ -3368,7 +3368,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               : const Icon(Icons.expand_more_rounded, size: 19),
           label: Text(label,
               style:
-                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
         ),
       ),
     );
@@ -3384,9 +3384,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             widget.api.userId)
         .map((reaction) => reaction['reaction']?.toString())
         .firstWhere((reaction) => reaction != null, orElse: () => null);
-    final isAuthor =
-        item['ownerId']?.toString() == widget.post['ownerId']?.toString();
-    final canManage = item['ownerId']?.toString() == widget.api.userId;
+    final commentOwnerId = item['ownerId']?.toString() ?? '';
+    final postOwnerId = widget.post['ownerId']?.toString() ?? '';
+    final currentUserId = widget.api.userId?.toString() ?? '';
+    final isAuthor = postOwnerId.isNotEmpty && commentOwnerId == postOwnerId;
+    final canManage =
+        currentUserId.isNotEmpty && commentOwnerId == currentUserId;
     final authorName = item['author']?.toString() ?? 'User';
     final avatarUrl = _avatarUrl(item['authorAvatarUrl']) ?? '';
     final commentId = item['id']?.toString() ?? '';
@@ -3395,13 +3398,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             (isReply ? 1 : 0))
         .clamp(0, 4)
         .toInt();
-    final indent = depth * 20.0;
+    final indent = depth * 16.0;
 
     final card = Container(
-      padding: const EdgeInsets.fromLTRB(13, 10, 8, 8),
+      padding: const EdgeInsets.fromLTRB(10, 8, 6, 6),
       decoration: BoxDecoration(
         color: depth == 0 ? Colors.white : const Color(0xFFF3FAF8),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFDCEBE7)),
       ),
       child: Column(
@@ -3414,29 +3417,29 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 onTap: () => _openProfile(item['ownerId']?.toString(),
                     authorName, item['authorAvatarUrl']?.toString()),
                 child: CircleAvatar(
-                  radius: 18,
+                  radius: 14,
                   backgroundColor: const Color(0xFFE8F0ED),
                   child: avatarUrl.isEmpty
                       ? const Icon(Icons.person_rounded,
-                          size: 19, color: Colors.black54)
+                          size: 15, color: Colors.black54)
                       : ClipOval(
                           child: _MemoryCachedImage(
                             url: avatarUrl,
-                            width: 36,
-                            height: 36,
-                            cacheWidth: 108,
+                            width: 28,
+                            height: 28,
+                            cacheWidth: 84,
                             placeholderBuilder: (_) =>
                                 const ColoredBox(color: Color(0xFFE8F0ED)),
                             errorBuilder: (_, __, ___) => const ColoredBox(
                               color: Color(0xFFE8F0ED),
                               child: Icon(Icons.person_rounded,
-                                  size: 19, color: Colors.black54),
+                                  size: 15, color: Colors.black54),
                             ),
                           ),
                         ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3458,7 +3461,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 15,
+                                      fontSize: 13,
                                       color: Color(0xFF1D2B28),
                                     ),
                                   ),
@@ -3467,17 +3470,17 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     item['author_verified'] == true),
                                 if (isAuthor)
                                   Container(
-                                    margin: const EdgeInsets.only(left: 5),
+                                    margin: const EdgeInsets.only(left: 4),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
+                                        horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFE5F4EF),
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: const Text(
                                       'Author',
                                       style: TextStyle(
-                                        fontSize: 10,
+                                        fontSize: 9,
                                         color: brand,
                                         fontWeight: FontWeight.w800,
                                       ),
@@ -3487,28 +3490,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                             ),
                           ),
                         ),
-                        if (isReply) const SizedBox(width: 8),
-                        if (isReply)
-                          Flexible(
-                            child: Text(
-                              'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                color: Color(0xFF67958C),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       commentTimestamp(item['createdAt']),
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 10,
                         color: Color(0xFF929C99),
                       ),
                     ),
@@ -3519,7 +3507,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 PopupMenuButton<String>(
                   tooltip: 'Comment options',
                   icon: const Icon(Icons.more_vert_rounded,
-                      size: 22, color: Color(0xFF34413E)),
+                      size: 20, color: Color(0xFF34413E)),
                   padding: EdgeInsets.zero,
                   onSelected: (value) {
                     if (value == 'edit') editComment(item);
@@ -3529,24 +3517,17 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     PopupMenuItem(value: 'edit', child: Text('Edit')),
                     PopupMenuItem(value: 'delete', child: Text('Delete')),
                   ],
-                )
-              else
-                const SizedBox(
-                  width: 36,
-                  height: 38,
-                  child: Icon(Icons.more_vert_rounded,
-                      size: 22, color: Color(0xFF34413E)),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           SizedBox(
             width: double.infinity,
             child: Text(
               item['body']?.toString() ?? '',
               style: const TextStyle(
-                fontSize: 16,
-                height: 1.3,
+                fontSize: 14,
+                height: 1.25,
                 color: Color(0xFF25312E),
               ),
             ),
@@ -3573,38 +3554,38 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 ),
                 child: Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
                   child: myReaction == null
                       ? const Icon(Icons.favorite_border_rounded,
-                          size: 20, color: brand)
+                          size: 17, color: brand)
                       : myReaction == 'love'
                           ? const Icon(Icons.favorite_rounded,
-                              size: 20, color: Color(0xFFE46470))
+                              size: 17, color: Color(0xFFE46470))
                           : Text(_reactionEmoji(myReaction),
-                              style: const TextStyle(fontSize: 20)),
+                              style: const TextStyle(fontSize: 17)),
                 ),
               ),
               GestureDetector(
                 onTap: reactions.isEmpty ? null : () => showReactors(reactions),
                 child: Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
                   child: Text(
                     '${reactions.length}',
                     style: const TextStyle(
                       color: brand,
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
               TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor: brand,
-                  minimumSize: const Size(0, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  minimumSize: const Size(0, 28),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: commentId.isEmpty
@@ -3612,7 +3593,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     : () => setState(() => replyingTo = commentId),
                 child: const Text(
                   'Reply',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
@@ -3622,15 +3603,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     );
 
     return Padding(
-      padding: EdgeInsets.only(left: indent, bottom: 8),
+      padding: EdgeInsets.only(left: indent, bottom: 6),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           if (depth > 0)
             Positioned(
               left: -indent,
-              top: -12,
-              bottom: -8,
+              top: -6,
+              bottom: 0,
               width: indent,
               child: IgnorePointer(
                 child:
@@ -3829,7 +3810,7 @@ class _CommentThreadPainter extends CustomPainter {
   const _CommentThreadPainter({required this.depth});
   final int depth;
 
-  static const double _step = 20;
+  static const double _step = 16;
   static const Color _threadColor = Color(0xFF83AAA1);
 
   @override
@@ -3850,8 +3831,8 @@ class _CommentThreadPainter extends CustomPainter {
       if (level < levels - 1) {
         path.lineTo(x, size.height);
       } else {
-        path.lineTo(x, centerY - 10);
-        path.quadraticBezierTo(x, centerY, x + 10, centerY);
+        path.lineTo(x, centerY - 8);
+        path.quadraticBezierTo(x, centerY, x + 8, centerY);
         path.lineTo((level + 1) * _step, centerY);
       }
       canvas.drawPath(path, paint);
