@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:gal/gal.dart';
@@ -3810,23 +3811,28 @@ class _NotificationPageState extends State<NotificationPage> {
                                         children: [
                                           CircleAvatar(
                                               radius: 24,
-                                              backgroundColor:
-                                                  const Color(0xFFDDF2E9),
-                                              backgroundImage: isAdminMessage
-                                                  ? const ResizeImage(
-                                                      AssetImage(
-                                                          'assets/pirganj_logo.jpg'),
-                                                      width: 96)
-                                                  : avatar.isNotEmpty
+                                              backgroundColor: isAdminMessage
+                                                  ? brand
+                                                  : const Color(0xFFDDF2E9),
+                                              backgroundImage:
+                                                  !isAdminMessage &&
+                                                          avatar.isNotEmpty
                                                       ? _avatarProvider(avatar)
                                                       : null,
-                                              child: isAdminMessage ||
-                                                      avatar.isNotEmpty
-                                                  ? null
-                                                  : const Icon(
-                                                      Icons
-                                                          .notifications_rounded,
-                                                      color: brand)),
+                                              child: isAdminMessage
+                                                  ? SvgPicture.asset(
+                                                      'assets/pirganj_notification.svg',
+                                                      width: 28,
+                                                      height: 28,
+                                                      fit: BoxFit.contain,
+                                                      semanticsLabel:
+                                                          'Pirganj app notification')
+                                                  : avatar.isNotEmpty
+                                                      ? null
+                                                      : const Icon(
+                                                          Icons
+                                                              .notifications_rounded,
+                                                          color: brand)),
                                           const SizedBox(width: 11),
                                           Expanded(
                                               child: Column(
