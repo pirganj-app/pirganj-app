@@ -3253,10 +3253,21 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
 
     final rows = <Map<String, dynamic>>[];
     final visited = <String>{};
-    void addBranch(Map<String, dynamic> item, int depth) {
+    void addBranch(
+      Map<String, dynamic> item,
+      int depth, {
+      List<bool> continuationFlags = const <bool>[],
+      bool hasNextSibling = false,
+    }) {
       final id = item['id']?.toString() ?? '';
       if (id.isNotEmpty && !visited.add(id)) return;
-      rows.add({...item, '_rowType': 'comment', '_threadDepth': depth});
+      rows.add({
+        ...item,
+        '_rowType': 'comment',
+        '_threadDepth': depth,
+        '_threadContinuationFlags': continuationFlags,
+        '_threadHasNextSibling': hasNextSibling,
+      });
       if (id.isEmpty) return;
 
       final replies = byParent[id] ?? const <Map<String, dynamic>>[];
@@ -3272,8 +3283,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           '_threadDepth': depth + 1,
         });
       }
-      for (final reply in replies.take(visibleReplyCount)) {
-        addBranch(reply, depth + 1);
+      final visibleReplies = replies.take(visibleReplyCount).toList();
+      for (var i = 0; i < visibleReplies.length; i++) {
+        final replyHasNextSibling = i < visibleReplies.length - 1;
+        addBranch(
+          visibleReplies[i],
+          depth + 1,
+          continuationFlags: [...continuationFlags, replyHasNextSibling],
+          hasNextSibling: replyHasNextSibling,
+        );
       }
     }
 
@@ -3398,14 +3416,20 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             (isReply ? 1 : 0))
         .clamp(0, 4)
         .toInt();
+    final continuationFlags = List<bool>.from(
+      item['_threadContinuationFlags'] as List? ?? const <bool>[],
+    ).take(depth).toList();
+    final hasNextSibling = item['_threadHasNextSibling'] == true;
     final indent = depth * 16.0;
 
     final card = Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 6, 6),
+      padding: const EdgeInsets.fromLTRB(8, 6, 5, 4),
       decoration: BoxDecoration(
         color: depth == 0 ? Colors.white : const Color(0xFFF3FAF8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: depth == 0 ? const Color(0xFFDCEBE7) : const Color(0xFFB4CBC5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3417,36 +3441,37 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 onTap: () => _openProfile(item['ownerId']?.toString(),
                     authorName, item['authorAvatarUrl']?.toString()),
                 child: CircleAvatar(
-                  radius: 14,
+                  radius: 12,
                   backgroundColor: const Color(0xFFE8F0ED),
                   child: avatarUrl.isEmpty
                       ? const Icon(Icons.person_rounded,
-                          size: 15, color: Colors.black54)
+                          size: 13, color: Colors.black54)
                       : ClipOval(
                           child: _MemoryCachedImage(
                             url: avatarUrl,
-                            width: 28,
-                            height: 28,
-                            cacheWidth: 84,
+                            width: 24,
+                            height: 24,
+                            cacheWidth: 72,
                             placeholderBuilder: (_) =>
                                 const ColoredBox(color: Color(0xFFE8F0ED)),
                             errorBuilder: (_, __, ___) => const ColoredBox(
                               color: Color(0xFFE8F0ED),
                               child: Icon(Icons.person_rounded,
-                                  size: 15, color: Colors.black54),
+                                  size: 13, color: Colors.black54),
                             ),
                           ),
                         ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Expanded(
+                        Flexible(
+                          flex: 3,
                           child: GestureDetector(
                             onTap: () => _openProfile(
                                 item['ownerId']?.toString(),
@@ -3461,7 +3486,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 13,
+                                      fontSize: 12,
                                       color: Color(0xFF1D2B28),
                                     ),
                                   ),
@@ -3470,9 +3495,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     item['author_verified'] == true),
                                 if (isAuthor)
                                   Container(
-                                    margin: const EdgeInsets.only(left: 4),
+                                    margin: const EdgeInsets.only(left: 3),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
+                                        horizontal: 5, vertical: 1),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFE5F4EF),
                                       borderRadius: BorderRadius.circular(10),
@@ -3480,7 +3505,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     child: const Text(
                                       'Author',
                                       style: TextStyle(
-                                        fontSize: 9,
+                                        fontSize: 8,
                                         color: brand,
                                         fontWeight: FontWeight.w800,
                                       ),
@@ -3490,13 +3515,29 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                             ),
                           ),
                         ),
+                        if (isReply) const SizedBox(width: 4),
+                        if (isReply)
+                          Flexible(
+                            flex: 2,
+                            child: Text(
+                              'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                color: Color(0xFF67958C),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       commentTimestamp(item['createdAt']),
                       style: const TextStyle(
-                        fontSize: 10,
+                        fontSize: 9,
                         color: Color(0xFF929C99),
                       ),
                     ),
@@ -3507,8 +3548,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 PopupMenuButton<String>(
                   tooltip: 'Comment options',
                   icon: const Icon(Icons.more_vert_rounded,
-                      size: 20, color: Color(0xFF34413E)),
+                      size: 18, color: Color(0xFF34413E)),
                   padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 30, minHeight: 30),
                   onSelected: (value) {
                     if (value == 'edit') editComment(item);
                     if (value == 'delete') deleteComment(item);
@@ -3520,19 +3563,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 3),
           SizedBox(
             width: double.infinity,
             child: Text(
               item['body']?.toString() ?? '',
               style: const TextStyle(
-                fontSize: 14,
-                height: 1.25,
+                fontSize: 13,
+                height: 1.2,
                 color: Color(0xFF25312E),
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Row(
             children: [
               InkWell(
@@ -3557,26 +3600,41 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                       const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
                   child: myReaction == null
                       ? const Icon(Icons.favorite_border_rounded,
-                          size: 17, color: brand)
+                          size: 16, color: brand)
                       : myReaction == 'love'
                           ? const Icon(Icons.favorite_rounded,
-                              size: 17, color: Color(0xFFE46470))
+                              size: 16, color: Color(0xFFE46470))
                           : Text(_reactionEmoji(myReaction),
-                              style: const TextStyle(fontSize: 17)),
+                              style: const TextStyle(fontSize: 16)),
                 ),
               ),
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: reactions.isEmpty ? null : () => showReactors(reactions),
                 child: Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-                  child: Text(
-                    '${reactions.length}',
-                    style: const TextStyle(
-                      color: brand,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${reactions.length}',
+                        style: const TextStyle(
+                          color: brand,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        reactions.length == 1 ? 'reaction' : 'reactions',
+                        style: const TextStyle(
+                          color: brand,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -3584,8 +3642,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor: brand,
-                  minimumSize: const Size(0, 28),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: const Size(0, 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: commentId.isEmpty
@@ -3593,7 +3651,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     : () => setState(() => replyingTo = commentId),
                 child: const Text(
                   'Reply',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
@@ -3603,7 +3661,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     );
 
     return Padding(
-      padding: EdgeInsets.only(left: indent, bottom: 6),
+      padding: EdgeInsets.only(left: indent, bottom: 4),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -3611,11 +3669,16 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
             Positioned(
               left: -indent,
               top: -6,
-              bottom: 0,
+              bottom: -6,
               width: indent,
               child: IgnorePointer(
-                child:
-                    CustomPaint(painter: _CommentThreadPainter(depth: depth)),
+                child: CustomPaint(
+                  painter: _CommentThreadPainter(
+                    depth: depth,
+                    continuationFlags: continuationFlags,
+                    hasNextSibling: hasNextSibling,
+                  ),
+                ),
               ),
             ),
           card,
@@ -3807,8 +3870,15 @@ String _reactionLabel(String? key) =>
     'Like';
 
 class _CommentThreadPainter extends CustomPainter {
-  const _CommentThreadPainter({required this.depth});
+  const _CommentThreadPainter({
+    required this.depth,
+    required this.continuationFlags,
+    required this.hasNextSibling,
+  });
+
   final int depth;
+  final List<bool> continuationFlags;
+  final bool hasNextSibling;
 
   static const double _step = 16;
   static const Color _threadColor = Color(0xFF83AAA1);
@@ -3819,29 +3889,46 @@ class _CommentThreadPainter extends CustomPainter {
     if (levels == 0) return;
     final paint = Paint()
       ..color = _threadColor
-      ..strokeWidth = 3
+      ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final centerY = size.height / 2;
 
-    for (var level = 0; level < levels; level++) {
-      final x = level * _step + _step / 2;
-      final path = Path()..moveTo(x, 0);
-      if (level < levels - 1) {
-        path.lineTo(x, size.height);
-      } else {
-        path.lineTo(x, centerY - 8);
-        path.quadraticBezierTo(x, centerY, x + 8, centerY);
-        path.lineTo((level + 1) * _step, centerY);
+    for (var level = 0; level < levels - 1; level++) {
+      if (level >= continuationFlags.length || !continuationFlags[level]) {
+        continue;
       }
-      canvas.drawPath(path, paint);
+      final x = level * _step + _step / 2;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
+
+    final level = levels - 1;
+    final x = level * _step + _step / 2;
+    final branch = Path()
+      ..moveTo(x, 0)
+      ..lineTo(x, centerY)
+      ..lineTo((level + 1) * _step, centerY);
+    if (hasNextSibling) {
+      branch
+        ..moveTo(x, centerY)
+        ..lineTo(x, size.height);
+    }
+    canvas.drawPath(branch, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _CommentThreadPainter oldDelegate) =>
-      oldDelegate.depth != depth;
+  bool shouldRepaint(covariant _CommentThreadPainter oldDelegate) {
+    if (oldDelegate.depth != depth ||
+        oldDelegate.hasNextSibling != hasNextSibling ||
+        oldDelegate.continuationFlags.length != continuationFlags.length) {
+      return true;
+    }
+    for (var i = 0; i < continuationFlags.length; i++) {
+      if (oldDelegate.continuationFlags[i] != continuationFlags[i]) return true;
+    }
+    return false;
+  }
 }
 
 class _EmptyCard extends StatelessWidget {
