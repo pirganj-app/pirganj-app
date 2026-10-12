@@ -2995,6 +2995,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     final parsed = DateTime.tryParse(raw?.toString() ?? '');
     if (parsed == null) return time(raw);
     final local = parsed.toLocal();
+    final age = DateTime.now().difference(local);
+    if (age.isNegative || age < const Duration(minutes: 1)) return 'এইমাত্র';
+    if (age < const Duration(hours: 1)) return '${age.inMinutes} মিনিট আগে';
+    if (age < const Duration(days: 1)) return '${age.inHours} ঘণ্টা আগে';
+    if (age <= const Duration(days: 7)) return '${age.inDays} দিন আগে';
+
     String twoDigits(int value) => value.toString().padLeft(2, '0');
     return '${twoDigits(local.day)}/${twoDigits(local.month)}/${local.year} · '
         '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
@@ -3395,6 +3401,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
   Widget commentTile(Map<String, dynamic> item) {
     final reactions =
         List<dynamic>.from(item['reactions'] as List? ?? const []);
+    final loveCount = reactions
+        .where((reaction) =>
+            reaction is Map && reaction['reaction']?.toString() == 'love')
+        .length;
     final myReaction = reactions
         .cast<Map<String, dynamic>>()
         .where((reaction) =>
@@ -3441,23 +3451,23 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 onTap: () => _openProfile(item['ownerId']?.toString(),
                     authorName, item['authorAvatarUrl']?.toString()),
                 child: CircleAvatar(
-                  radius: 12,
+                  radius: 14,
                   backgroundColor: const Color(0xFFE8F0ED),
                   child: avatarUrl.isEmpty
                       ? const Icon(Icons.person_rounded,
-                          size: 13, color: Colors.black54)
+                          size: 15, color: Colors.black54)
                       : ClipOval(
                           child: _MemoryCachedImage(
                             url: avatarUrl,
-                            width: 24,
-                            height: 24,
-                            cacheWidth: 72,
+                            width: 28,
+                            height: 28,
+                            cacheWidth: 84,
                             placeholderBuilder: (_) =>
                                 const ColoredBox(color: Color(0xFFE8F0ED)),
                             errorBuilder: (_, __, ___) => const ColoredBox(
                               color: Color(0xFFE8F0ED),
                               child: Icon(Icons.person_rounded,
-                                  size: 13, color: Colors.black54),
+                                  size: 15, color: Colors.black54),
                             ),
                           ),
                         ),
@@ -3472,14 +3482,14 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                       children: [
                         Flexible(
                           flex: 3,
-                          child: GestureDetector(
-                            onTap: () => _openProfile(
-                                item['ownerId']?.toString(),
-                                authorName,
-                                item['authorAvatarUrl']?.toString()),
-                            child: Row(
-                              children: [
-                                Flexible(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: GestureDetector(
+                                  onTap: () => _openProfile(
+                                      item['ownerId']?.toString(),
+                                      authorName,
+                                      item['authorAvatarUrl']?.toString()),
                                   child: Text(
                                     authorName,
                                     maxLines: 1,
@@ -3491,28 +3501,56 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     ),
                                   ),
                                 ),
-                                _verifiedBadge(item['authorVerified'] == true ||
-                                    item['author_verified'] == true),
-                                if (isAuthor)
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 3),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 5, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE5F4EF),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Text(
-                                      'Author',
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        color: brand,
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                              ),
+                              if (canManage)
+                                SizedBox(
+                                  width: 30,
+                                  height: 30,
+                                  child: PopupMenuButton<String>(
+                                    tooltip: 'Comment options',
+                                    icon: const Icon(Icons.more_vert_rounded,
+                                        size: 18, color: Color(0xFF34413E)),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                        minWidth: 30, minHeight: 30),
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        editComment(item);
+                                      }
+                                      if (value == 'delete') {
+                                        deleteComment(item);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                          value: 'edit', child: Text('Edit')),
+                                      PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('Delete')),
+                                    ],
+                                  ),
+                                ),
+                              _verifiedBadge(item['authorVerified'] == true ||
+                                  item['author_verified'] == true),
+                              if (isAuthor)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 3),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE5F4EF),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Text(
+                                    'Author',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: brand,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                              ],
-                            ),
+                                ),
+                            ],
                           ),
                         ),
                         if (isReply) const SizedBox(width: 4),
@@ -3544,23 +3582,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                   ],
                 ),
               ),
-              if (canManage)
-                PopupMenuButton<String>(
-                  tooltip: 'Comment options',
-                  icon: const Icon(Icons.more_vert_rounded,
-                      size: 18, color: Color(0xFF34413E)),
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 30, minHeight: 30),
-                  onSelected: (value) {
-                    if (value == 'edit') editComment(item);
-                    if (value == 'delete') deleteComment(item);
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
             ],
           ),
           const SizedBox(height: 3),
@@ -3578,36 +3599,48 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           const SizedBox(height: 2),
           Row(
             children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: commentId.isEmpty
-                    ? null
-                    : () => commentReaction(commentId, 'love'),
-                onLongPress: () => showModalBottomSheet(
-                  context: context,
-                  showDragHandle: true,
-                  builder: (sheetContext) => _ReactionPicker(
-                    onSelected: (reaction) {
-                      Navigator.pop(sheetContext);
-                      if (commentId.isNotEmpty) {
-                        commentReaction(commentId, reaction);
-                      }
-                    },
-                  ),
-                ),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
-                  child: myReaction == null
-                      ? const Icon(Icons.favorite_border_rounded,
-                          size: 16, color: brand)
-                      : myReaction == 'love'
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: commentId.isEmpty
+                        ? null
+                        : () => commentReaction(commentId, 'love'),
+                    onLongPress: () => showModalBottomSheet(
+                      context: context,
+                      showDragHandle: true,
+                      builder: (sheetContext) => _ReactionPicker(
+                        onSelected: (reaction) {
+                          Navigator.pop(sheetContext);
+                          if (commentId.isNotEmpty) {
+                            commentReaction(commentId, reaction);
+                          }
+                        },
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 3, vertical: 3),
+                      child: myReaction == 'love'
                           ? const Icon(Icons.favorite_rounded,
                               size: 16, color: Color(0xFFE46470))
-                          : Text(_reactionEmoji(myReaction),
-                              style: const TextStyle(fontSize: 16)),
-                ),
+                          : const Icon(Icons.favorite_border_rounded,
+                              size: 16, color: brand),
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '$loveCount',
+                    style: const TextStyle(
+                      color: brand,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(width: 10),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: reactions.isEmpty ? null : () => showReactors(reactions),
@@ -3638,7 +3671,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 12),
               TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor: brand,
@@ -3889,7 +3922,7 @@ class _CommentThreadPainter extends CustomPainter {
     if (levels == 0) return;
     final paint = Paint()
       ..color = _threadColor
-      ..strokeWidth = 1.8
+      ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
@@ -3905,15 +3938,16 @@ class _CommentThreadPainter extends CustomPainter {
 
     final level = levels - 1;
     final x = level * _step + _step / 2;
-    final branch = Path()
-      ..moveTo(x, 0)
-      ..lineTo(x, centerY)
-      ..lineTo((level + 1) * _step, centerY);
+    final turnY = centerY - 8;
     if (hasNextSibling) {
-      branch
-        ..moveTo(x, centerY)
-        ..lineTo(x, size.height);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    } else {
+      canvas.drawLine(Offset(x, 0), Offset(x, turnY), paint);
     }
+    final branch = Path()
+      ..moveTo(x, turnY)
+      ..quadraticBezierTo(x, centerY, x + 8, centerY)
+      ..lineTo((level + 1) * _step, centerY);
     canvas.drawPath(branch, paint);
   }
 
