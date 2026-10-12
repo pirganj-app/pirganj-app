@@ -3433,7 +3433,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
     final indent = depth * 16.0;
 
     final card = Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 5, 4),
+      padding: const EdgeInsets.fromLTRB(8, 4, 5, 2),
       decoration: BoxDecoration(
         color: depth == 0 ? Colors.white : const Color(0xFFF3FAF8),
         borderRadius: BorderRadius.circular(14),
@@ -3445,7 +3445,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
                 onTap: () => _openProfile(item['ownerId']?.toString(),
@@ -3480,11 +3480,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                   children: [
                     Row(
                       children: [
-                        Flexible(
-                          flex: 3,
+                        Expanded(
                           child: Row(
                             children: [
                               Flexible(
+                                flex: isReply ? 2 : 1,
                                 child: GestureDetector(
                                   onTap: () => _openProfile(
                                       item['ownerId']?.toString(),
@@ -3502,34 +3502,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                   ),
                                 ),
                               ),
-                              if (canManage)
-                                SizedBox(
-                                  width: 30,
-                                  height: 30,
-                                  child: PopupMenuButton<String>(
-                                    tooltip: 'Comment options',
-                                    icon: const Icon(Icons.more_vert_rounded,
-                                        size: 18, color: Color(0xFF34413E)),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                        minWidth: 30, minHeight: 30),
-                                    onSelected: (value) {
-                                      if (value == 'edit') {
-                                        editComment(item);
-                                      }
-                                      if (value == 'delete') {
-                                        deleteComment(item);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                          value: 'edit', child: Text('Edit')),
-                                      PopupMenuItem(
-                                          value: 'delete',
-                                          child: Text('Delete')),
-                                    ],
-                                  ),
-                                ),
                               _verifiedBadge(item['authorVerified'] == true ||
                                   item['author_verified'] == true),
                               if (isAuthor)
@@ -3550,23 +3522,49 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     ),
                                   ),
                                 ),
+                              if (isReply) const SizedBox(width: 4),
+                              if (isReply)
+                                Flexible(
+                                  flex: 3,
+                                  child: Text(
+                                    'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xFF67958C),
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
-                        if (isReply) const SizedBox(width: 4),
-                        if (isReply)
-                          Flexible(
-                            flex: 2,
-                            child: Text(
-                              'Reply to: ${item['replyToAuthor'] ?? 'comment'}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                color: Color(0xFF67958C),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                              ),
+                        if (canManage)
+                          SizedBox(
+                            width: 30,
+                            height: 30,
+                            child: PopupMenuButton<String>(
+                              tooltip: 'Comment options',
+                              icon: const Icon(Icons.more_vert_rounded,
+                                  size: 18, color: Color(0xFF34413E)),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 30, minHeight: 30),
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  editComment(item);
+                                }
+                                if (value == 'delete') {
+                                  deleteComment(item);
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                    value: 'edit', child: Text('Edit')),
+                                PopupMenuItem(
+                                    value: 'delete', child: Text('Delete')),
+                              ],
                             ),
                           ),
                       ],
@@ -3584,7 +3582,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           SizedBox(
             width: double.infinity,
             child: Text(
@@ -3596,7 +3594,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               ),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Row(
             children: [
               Row(
@@ -3640,38 +3638,40 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                   ),
                 ],
               ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: reactions.isEmpty ? null : () => showReactors(reactions),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${reactions.length}',
-                        style: const TextStyle(
-                          color: brand,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
+              if (reactions.isNotEmpty) const SizedBox(width: 10),
+              if (reactions.isNotEmpty)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => showReactors(reactions),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${reactions.length}',
+                          style: const TextStyle(
+                            color: brand,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        reactions.length == 1 ? 'reaction' : 'reactions',
-                        style: const TextStyle(
-                          color: brand,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(width: 3),
+                        Text(
+                          reactions.length == 1 ? 'reaction' : 'reactions',
+                          style: const TextStyle(
+                            color: brand,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+              if (reactions.isNotEmpty) const SizedBox(width: 12),
+              if (reactions.isEmpty) const SizedBox(width: 10),
               TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor: brand,
