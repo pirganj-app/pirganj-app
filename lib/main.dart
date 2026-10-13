@@ -3438,7 +3438,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
         color: depth == 0 ? Colors.white : const Color(0xFFF3FAF8),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: depth == 0 ? const Color(0xFFDCEBE7) : const Color(0xFFB4CBC5),
+          color: depth == 0 ? const Color(0xFFAEC7C0) : const Color(0xFFB4CBC5),
         ),
       ),
       child: Column(
@@ -3478,9 +3478,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        Expanded(
+                        Padding(
+                          padding: EdgeInsets.only(right: canManage ? 26 : 0),
                           child: Row(
                             children: [
                               Flexible(
@@ -3496,7 +3498,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 12,
+                                      fontSize: 15,
                                       color: Color(0xFF1D2B28),
                                     ),
                                   ),
@@ -3516,7 +3518,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                   child: const Text(
                                     'Author',
                                     style: TextStyle(
-                                      fontSize: 8,
+                                      fontSize: 10,
                                       color: brand,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -3541,40 +3543,47 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                           ),
                         ),
                         if (canManage)
-                          SizedBox(
-                            width: 30,
-                            height: 30,
-                            child: PopupMenuButton<String>(
-                              tooltip: 'Comment options',
-                              icon: const Icon(Icons.more_vert_rounded,
-                                  size: 18, color: Color(0xFF34413E)),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 30, minHeight: 30),
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  editComment(item);
-                                }
-                                if (value == 'delete') {
-                                  deleteComment(item);
-                                }
-                              },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                    value: 'edit', child: Text('Edit')),
-                                PopupMenuItem(
-                                    value: 'delete', child: Text('Delete')),
-                              ],
+                          Positioned(
+                            right: 0,
+                            top: -4,
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: PopupMenuButton<String>(
+                                tooltip: 'Comment options',
+                                icon: const Icon(Icons.more_vert_rounded,
+                                    size: 16, color: Color(0xFF34413E)),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                    minWidth: 24, minHeight: 24),
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    editComment(item);
+                                  }
+                                  if (value == 'delete') {
+                                    deleteComment(item);
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                      value: 'edit', child: Text('Edit')),
+                                  PopupMenuItem(
+                                      value: 'delete', child: Text('Delete')),
+                                ],
+                              ),
                             ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      commentTimestamp(item['createdAt']),
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: Color(0xFF929C99),
+                    Transform.translate(
+                      offset: const Offset(0, -2),
+                      child: Text(
+                        commentTimestamp(item['createdAt']),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Color(0xFF929C99),
+                        ),
                       ),
                     ),
                   ],
