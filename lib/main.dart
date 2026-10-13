@@ -3451,23 +3451,23 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                 onTap: () => _openProfile(item['ownerId']?.toString(),
                     authorName, item['authorAvatarUrl']?.toString()),
                 child: CircleAvatar(
-                  radius: 14,
+                  radius: 15,
                   backgroundColor: const Color(0xFFE8F0ED),
                   child: avatarUrl.isEmpty
                       ? const Icon(Icons.person_rounded,
-                          size: 15, color: Colors.black54)
+                          size: 16, color: Colors.black54)
                       : ClipOval(
                           child: _MemoryCachedImage(
                             url: avatarUrl,
-                            width: 28,
-                            height: 28,
-                            cacheWidth: 84,
+                            width: 30,
+                            height: 30,
+                            cacheWidth: 90,
                             placeholderBuilder: (_) =>
                                 const ColoredBox(color: Color(0xFFE8F0ED)),
                             errorBuilder: (_, __, ___) => const ColoredBox(
                               color: Color(0xFFE8F0ED),
                               child: Icon(Icons.person_rounded,
-                                  size: 15, color: Colors.black54),
+                                  size: 16, color: Colors.black54),
                             ),
                           ),
                         ),
@@ -3476,6 +3476,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
               const SizedBox(width: 6),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Stack(
