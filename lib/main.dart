@@ -2042,7 +2042,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                   fontSize: 24, fontWeight: FontWeight.w800, color: ink)),
           const Text('একটি card বেছে নিয়ে আপনার এলাকার তথ্য যোগ করুন',
               style: TextStyle(color: Colors.black54)),
-          const SizedBox(height: 16),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -6297,13 +6296,11 @@ class _ProfilePanelState extends State<ProfilePanel> {
         const Text('আমার পোস্ট',
             style: TextStyle(
                 fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
-        const SizedBox(height: 8),
         _managedItemsSection(all, posts: true),
         const SizedBox(height: 18),
         const Text('আমার তথ্য',
             style: TextStyle(
                 fontSize: 19, fontWeight: FontWeight.w800, color: ink)),
-        const SizedBox(height: 8),
         _managedItemsSection(all, posts: false),
       ]);
 
@@ -6402,7 +6399,6 @@ class _ProfilePanelState extends State<ProfilePanel> {
                                   fontSize: 19,
                                   fontWeight: FontWeight.w800,
                                   color: ink)),
-                          const SizedBox(height: 8),
                           _managedItemsSection(all, posts: true),
                           const SizedBox(height: 18),
                           const Text('আমার তথ্য',
@@ -6410,7 +6406,6 @@ class _ProfilePanelState extends State<ProfilePanel> {
                                   fontSize: 19,
                                   fontWeight: FontWeight.w800,
                                   color: ink)),
-                          const SizedBox(height: 8),
                           _managedItemsSection(all, posts: false),
                         ]);
                   }),
