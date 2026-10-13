@@ -2043,6 +2043,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           const Text('একটি card বেছে নিয়ে আপনার এলাকার তথ্য যোগ করুন',
               style: TextStyle(color: Colors.black54)),
           GridView.count(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
@@ -6251,6 +6252,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
               : 'অন্য কোনো তথ্য যোগ করা হয়নি');
     }
     return ListView.builder(
+        padding: EdgeInsets.zero,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: items.length,
