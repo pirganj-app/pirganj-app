@@ -3498,7 +3498,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
-                                      fontSize: 15,
+                                      fontSize: 14,
                                       color: Color(0xFF1D2B28),
                                     ),
                                   ),
@@ -3545,7 +3545,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                         if (canManage)
                           Positioned(
                             right: 0,
-                            top: -4,
+                            top: -2,
                             child: SizedBox(
                               width: 24,
                               height: 24,
@@ -3577,7 +3577,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
                     ),
                     const SizedBox(height: 2),
                     Transform.translate(
-                      offset: const Offset(0, -2),
+                      offset: const Offset(0, -3),
                       child: Text(
                         commentTimestamp(item['createdAt']),
                         style: const TextStyle(
@@ -3594,12 +3594,15 @@ class _PostDetailsPageState extends State<PostDetailsPage> {
           const SizedBox(height: 2),
           SizedBox(
             width: double.infinity,
-            child: Text(
-              item['body']?.toString() ?? '',
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.2,
-                color: Color(0xFF25312E),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: Text(
+                item['body']?.toString() ?? '',
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.2,
+                  color: Color(0xFF25312E),
+                ),
               ),
             ),
           ),
